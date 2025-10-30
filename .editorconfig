@@ -1,0 +1,125 @@
+root = true
+
+# -------------------------------------------------------
+# Defaults
+# -------------------------------------------------------
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+max_line_length = 120
+
+# -------------------------------------------------------
+# PowerShell source files
+# -------------------------------------------------------
+[*.{ps1,psm1}]
+indent_style = space
+indent_size = 4
+max_line_length = 120
+
+# -------------------------------------------------------
+# PowerShell Data/Manifest/Session Config
+# -------------------------------------------------------
+[*.{psd1,pssc,psrc}]
+indent_style = space
+indent_size = 2
+max_line_length = 120
+
+# -------------------------------------------------------
+# PowerShell formatting/typings XML
+# -------------------------------------------------------
+[*.ps1xml]
+indent_style = space
+indent_size = 2
+max_line_length = 120
+end_of_line = lf
+
+# -------------------------------------------------------
+# PSScriptAnalyzer settings
+# -------------------------------------------------------
+[PSScriptAnalyzerSettings.psd1]
+indent_style = space
+indent_size = 2
+
+# -------------------------------------------------------
+# NuGet metadata
+# -------------------------------------------------------
+[*.psmdcp]
+indent_style = space
+indent_size = 2
+max_line_length = 120
+
+# -------------------------------------------------------
+# Pester test files
+# -------------------------------------------------------
+[**/*.[Tt]ests.ps1]
+indent_style = space
+indent_size = 4
+max_line_length = 140
+
+# -------------------------------------------------------
+# Shell scripts
+# -------------------------------------------------------
+[*.sh]
+end_of_line = lf
+indent_style = space
+indent_size = 2
+
+# -------------------------------------------------------
+# Markdown
+# -------------------------------------------------------
+[*.md]
+indent_style = space
+indent_size = 2
+trim_trailing_whitespace = false
+max_line_length = off
+
+# -------------------------------------------------------
+# JSON / JSON with comments
+# -------------------------------------------------------
+[*.{json,jsonc}]
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+max_line_length = off
+
+# -------------------------------------------------------
+# YAML (GitHub Actions, Dependabot, etc.)
+# -------------------------------------------------------
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+max_line_length = off
+
+# -------------------------------------------------------
+# XML / nuspec
+# -------------------------------------------------------
+[*.{xml,nuspec}]
+indent_style = space
+indent_size = 2
+max_line_length = 120
+
+# -------------------------------------------------------
+# License / locks / patches / attributes
+# -------------------------------------------------------
+[LICENSE]
+max_line_length = off
+
+[*.lock]
+max_line_length = off
+
+[*.patch]
+trim_trailing_whitespace = false
+
+[.gitattributes]
+max_line_length = off
+
+# -------------------------------------------------------
+# Git files
+# -------------------------------------------------------
+[.gitignore]
+max_line_length = off
