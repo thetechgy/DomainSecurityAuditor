@@ -1,0 +1,133 @@
+# ----------------------------
+# OS Specific
+# ----------------------------
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
+# Linux
+.fuse_hidden*
+.nfs*
+
+# ----------------------------
+# VS Code
+# ----------------------------
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.vscode-server/
+*.code-workspace.user
+
+# ----------------------------
+# PowerShell
+# ----------------------------
+# Script Analyzer user overrides
+PSScriptAnalyzerSettings.psd1.user
+
+# Transcripts
+PowerShell_transcript*.txt
+
+# PowerShell cache files
+*.ps1.cache
+*.psd1.cache
+*.psm1.cache
+
+# ----------------------------
+# Pester Testing
+# ----------------------------
+# Test results
+**/TestResults/
+testResults.xml
+*.TestResults.xml
+*.trx
+*.nunit.xml
+*.junit.xml
+
+# Code coverage
+coverage.xml
+**/coverage*/
+codecoverage*.xml
+*.cobertura.xml
+
+# Pester cache
+.pester/*
+
+# ----------------------------
+# Build Artifacts
+# ----------------------------
+Output/*
+build/
+dist/
+*.nupkg
+
+# ----------------------------
+# Reports
+# ----------------------------
+Reports/*.html
+Reports/*.json
+Reports/*.csv
+Reports/*.xml
+
+# ----------------------------
+# Logs
+# ----------------------------
+*.log
+logs/*
+
+# ----------------------------
+# CI/CD (GitHub Actions)
+# ----------------------------
+artifacts/
+.github/artifacts/
+.act/
+
+# ----------------------------
+# Secrets & Credentials
+# ----------------------------
+.env
+.env.local
+.env.*.local
+*.secrets.json
+*.private.json
+*-credentials.json
+
+# Azure Service Principal
+sp-*.json
+ServicePrincipal.json
+*.azureauth
+
+# SSH keys
+*_rsa
+*_rsa.pub
+
+# ----------------------------
+# Temporary & Editor Junk
+# ----------------------------
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# Git merge leftovers
+*.orig
+*.rej
+
+# Patch files
+*.patch
+*.diff
+
+# ----------------------------
+# Directory Structure Preservation
+# ----------------------------
+# Keep these directories and files tracked
+!.pester/.gitkeep
+!Output/.gitkeep
+!logs/.gitkeep
+!Reports/.gitkeep
+!Reports/README.md
