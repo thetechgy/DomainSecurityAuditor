@@ -1,0 +1,14 @@
+{
+    "recommendations": [
+        "anthropic.claude-code",
+        "davidanson.vscode-markdownlint",
+        "eamodio.gitlens",
+        "EditorConfig.EditorConfig",
+        "ms-vscode.PowerShell",
+        "openai.chatgpt",
+        "pspester.pester-test",
+        "redhat.vscode-yaml",
+        "streetsidesoftware.code-spell-checker",
+        "yzhang.markdown-all-in-one"
+    ]
+}
