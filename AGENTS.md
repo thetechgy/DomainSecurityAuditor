@@ -30,7 +30,7 @@ Stop the transcript in `finally` or `#region Cleanup` with:
 Stop-Transcript
 ```
 
-> Transcripts are stored in `Logs\` and follow the same `<RetentionCount>` policy as standard logs.
+> Only the top-level orchestrator (module entry point or CLI wrapper) should start/stop transcripts so that importing the module into CI/CD does not spawn nested transcripts. Internal helpers must accept a logger/transcript path instead of calling `Start-Transcript`. Transcripts are stored in `Logs\` (same `<RetentionCount>` policy as other logs), and callers should be able to override the log/output roots through parameters.
 
 ---
 
