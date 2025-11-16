@@ -38,10 +38,10 @@ Stop-Transcript
 - Provide usage examples, either in comment-based help or a README-adjacent example block.
 - Use descriptive, self-explanatory variable names — avoid single-letter or ambiguous loop/control variables.
 - Add inline comments explaining non-obvious logic.
-- Do not use `Read-Host`, GUI prompts, or write outside the `Output\` structure.
+- Do not use `Read-Host`, GUI prompts, or write outside the `Output\Reports` / `Output\Raw` structure; normalize paths so downstream automation can ingest artifacts reliably.
 - Ensure long-term maintainability, auditability, and reuse across the codebase.
 - Provide progress feedback (`Write-Progress`) for loops likely to exceed ~5 seconds or 50 items; respect a `-ShowProgress` switch (`$true` by default) to silence output in pipelines.
-- Request unbounded result sets by default (e.g., `-ResultSize Unlimited`, `-All`, or module-specific parameters); only apply smaller caps when explicitly documented and implement paging if the provider enforces a hard limit.
+- Request unbounded DomainDetective result sets by default (e.g., `-All`, `-ResultSize Unlimited`). When DNS providers enforce hard caps, loop/paginate inside the module and document any throttling behavior for CI/CD consumers.
 
 > ⚠️ This best-practice list is **not exhaustive**. Where applicable, follow authoritative sources such as Microsoft Learn, vendor KBs, and community standards (e.g., *PS Style Guide*).
 
