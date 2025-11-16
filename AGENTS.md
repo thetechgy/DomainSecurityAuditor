@@ -8,8 +8,8 @@
 - Implement `try / catch / finally` with centralized logging.
 - Log all major actions to `Logs\` and optionally output reports to `Output\`.
 - Log filenames must be timestamped and follow pruning/retention rules.
-- Reuse logic via private module functions to avoid duplication; do not copy/paste script blocks when a helper would suffice.
-- Detect required dependencies and, if any are missing, attempt to install them by default. If the `-SkipDependencies` switch is specified, do not attempt installation; instead, log a message listing the missing dependencies and noting that `-SkipDependencies` was used, then exit.
+- Reuse logic via functions to avoid duplication.
+- Detect required dependencies (DomainDetective, PSWriteHTML, Pester, PSScriptAnalyzer) via a helper such as `Test-DSADependency`. Attempt installation by default and declare the same modules in the `.psd1` `RequiredModules`. If the `-SkipDependencies` switch is specified, short-circuit from the exported entry point after logging which dependencies were skipped.
 - Comply with **PSScriptAnalyzer** rules.
 - Use **Pester 5+** for unit-testable logic; keep tests in `Tests\`, import the DomainSecurityAuditor module once per file, and rely on `InModuleScope` to exercise private helpers.
 - Avoid long paths — keep script and output paths under **180 characters**.
