@@ -12,7 +12,7 @@
 - Use **Pester 5+** for unit-testable logic; keep tests in `Tests\`.
 - Avoid long paths — keep script and output paths under **180 characters**.
 - Assume non-interactive, non-GUI, privileged shell execution.
-- Use `#region` / `#endregion` blocks for clear logical grouping (e.g., `#region Parameters`, `#region MainProcess`, `#region Cleanup`). Keep nesting shallow and labels descriptive.
+- Use `#region` / `#endregion` blocks for clear logical grouping (e.g., `#region Parameters`, `#region PublicFunctions`, `#region PrivateHelpers`, `#region Cleanup`). Keep nesting shallow and labels descriptive so module files remain readable.
 - Employ **parameter splatting** when a cmdlet call uses three or more parameters or when the same parameter set recurs. Keep each splat hashtable local to the script—declare it immediately above the invocation or group it in a local `#region SplatDefinitions`. Do **not** centralize splats across multiple scripts.
 
 ### Transcription Logging
