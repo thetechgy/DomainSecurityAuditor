@@ -1,12 +1,14 @@
-### Script Structure & Conventions
+### Module & Script Structure
 
-- Use modular, reusable functions with PowerShell-approved verbs in names.
+- Use modular, reusable functions with PowerShell-approved verbs in names; exported entry points (e.g., `Invoke-DomainSecurityBaseline`) belong in the module's `Public\` folder and call private helpers.
+- Keep the DomainSecurityAuditor layout consistent: `Public\`, `Private\`, `Tests\`, `Examples\`, `Output\`, and `Logs\`. Wrapper scripts stored in `Examples\` must only import the module and call exported commands.
+- Maintain a `DomainSecurityAuditor.psd1` manifest with accurate metadata, `RootModule`, and `RequiredModules` so consumers understand the supported entry points.
 - Parameterize scripts with defaults, type validation, and safe fallbacks.
 - Include comment-based help and the standard header template (see below).
 - Implement `try / catch / finally` with centralized logging.
 - Log all major actions to `Logs\` and optionally output reports to `Output\`.
 - Log filenames must be timestamped and follow pruning/retention rules.
-- Reuse logic via functions to avoid duplication.
+- Reuse logic via private module functions to avoid duplication; do not copy/paste script blocks when a helper would suffice.
 - Detect required dependencies and, if any are missing, attempt to install them by default. If the `-SkipDependencies` switch is specified, do not attempt installation; instead, log a message listing the missing dependencies and noting that `-SkipDependencies` was used, then exit.
 - Comply with **PSScriptAnalyzer** rules.
 - Use **Pester 5+** for unit-testable logic; keep tests in `Tests\`.
