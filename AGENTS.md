@@ -42,6 +42,7 @@ Stop-Transcript
 - Ensure long-term maintainability, auditability, and reuse across the codebase.
 - Provide progress feedback (`Write-Progress`) for loops likely to exceed ~5 seconds or 50 items; respect a `-ShowProgress` switch (`$true` by default) to silence output in pipelines.
 - Request unbounded result sets by default (e.g., `-ResultSize Unlimited`, `-All`, or module-specific parameters); only apply smaller caps when explicitly documented and implement paging if the provider enforces a hard limit.
+- Version the module semantically; update the `.psd1` `ModuleVersion` and `ReleaseNotes` for every baseline or report schema change so CI/CD consumers can pin compatible releases.
 
 > ⚠️ This best-practice list is **not exhaustive**. Where applicable, follow authoritative sources such as Microsoft Learn, vendor KBs, and community standards (e.g., *PS Style Guide*).
 
