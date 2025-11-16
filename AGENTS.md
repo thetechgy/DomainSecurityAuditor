@@ -52,23 +52,54 @@ Stop-Transcript
 ```powershell
 <#
 .SYNOPSIS
-    <Short summary of what the script does>
+    <Short summary of what the DomainSecurityAuditor module provides>
 .DESCRIPTION
-    <Detailed description of functionality and use case>
-.PARAMETER <ParameterName>
-    <Description of what this parameter does>
+    <Detailed description of module scope, key entry points, and integration paths>
+.REQUIRES
+    Modules: DomainDetective, PSWriteHTML, Pester, PSScriptAnalyzer
+.NOTES
+    Module: DomainSecurityAuditor
+    Author: <Author Name>
+    Date: <MM/DD/YYYY>
+    Version: <ModuleVersion>
+    Requestor: <Requestor Name>
+    Purpose: <Why the module exists>
+
+Release Notes:
+      <ModuleVersion> - <Date> - <Change summary>
+
+Resources:
+      - <Links to documentation or references>
+#>
+```
+
+```powershell
+<#
+.SYNOPSIS
+    <Short summary of what the exported function does>
+.DESCRIPTION
+    <Detailed description of the function, assumptions, and DSA workflows>
+.PARAMETER Domain
+    <Describe the parameter; repeat for each parameter>
+.PARAMETER SkipDependencies
+    Bypass automatic module installation; logs missing dependencies and exits early.
+.PARAMETER DryRun
+    Simulate the action without making changes.
+.PARAMETER ShowProgress
+    Toggle `Write-Progress` output.
+.EXAMPLE
+    Invoke-DomainSecurityBaseline -Domain "example.com" -DryRun
+    Runs baseline tests without persisting artifacts.
+.OUTPUTS
+    PSCustomObject describing compliance results.
 .NOTES
     Author: <Author Name>
     Date: <MM/DD/YYYY>
-    Version: <Version Number>
-    Requestor: <Requestor Name>
-    Purpose: <Why the script exists>
+    Version: <Function version>
+    Purpose: <Why the function exists>
 
 Revision History:
       x.x - <Date> - <Change summary>
-
-Future Enhancements:
-      - <Optional planned improvements>
 
 Known Issues:
       - <Any current limitations>
