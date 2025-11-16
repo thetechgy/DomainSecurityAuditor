@@ -9,7 +9,7 @@
 - Reuse logic via functions to avoid duplication.
 - Detect required dependencies and, if any are missing, attempt to install them by default. If the `-SkipDependencies` switch is specified, do not attempt installation; instead, log a message listing the missing dependencies and noting that `-SkipDependencies` was used, then exit.
 - Comply with **PSScriptAnalyzer** rules.
-- Use **Pester 5+** for unit-testable logic; keep tests in `Tests\`.
+- Use **Pester 5+** for unit-testable logic; keep tests in `Tests\`, import the DomainSecurityAuditor module once per file, and rely on `InModuleScope` to exercise private helpers.
 - Avoid long paths — keep script and output paths under **180 characters**.
 - Assume non-interactive, non-GUI, privileged shell execution.
 - Use `#region` / `#endregion` blocks for clear logical grouping (e.g., `#region Parameters`, `#region MainProcess`, `#region Cleanup`). Keep nesting shallow and labels descriptive.
@@ -34,7 +34,7 @@ Stop-Transcript
 
 ## Additional Script Requirements (Internal Standards)
 
-- Include a `-DryRun` switch in every script to simulate actions without applying changes.
+- Every exported module command must expose a `-DryRun` (or `SupportsShouldProcess`) switch and a `-ShowProgress` switch so behavior remains consistent when called directly or via wrapper scripts.
 - Provide usage examples, either in comment-based help or a README-adjacent example block.
 - Use descriptive, self-explanatory variable names — avoid single-letter or ambiguous loop/control variables.
 - Add inline comments explaining non-obvious logic.
