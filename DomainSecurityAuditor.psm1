@@ -44,10 +44,10 @@ if (Test-Path -Path $privatePath) {
 $publicPath = Join-Path -Path $script:ModuleRoot -ChildPath 'Public'
 $publicFunctions = @()
 if (Test-Path -Path $publicPath) {
-    $publicFunctions = Get-ChildItem -Path $publicPath -Filter '*.ps1' -File | Sort-Object -Property Name | ForEach-Object {
+    $publicFunctions = @(Get-ChildItem -Path $publicPath -Filter '*.ps1' -File | Sort-Object -Property Name | ForEach-Object {
         . $_.FullName
         $_.BaseName
-    }
+    })
 }
 
 if ($publicFunctions.Count -gt 0) {

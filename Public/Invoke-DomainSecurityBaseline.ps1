@@ -128,7 +128,7 @@ Resources:
                 Write-DSALog -Message "Loaded domains from '$resolvedInput'." -LogFile $logFile
             }
 
-            $targetDomains = $collectedDomains | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique
+            $targetDomains = @($collectedDomains | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
             if (-not $targetDomains) {
                 throw 'No domains were supplied. Provide -Domain or -InputFile.'
             }
@@ -148,6 +148,7 @@ Resources:
             $results = [System.Collections.Generic.List[object]]::new()
             $domainCount = $targetDomains.Count
             $currentIndex = 0
+            $baselineDefinition = Get-DSABaseline
 
             foreach ($domainName in $targetDomains) {
                 $currentIndex++
@@ -160,19 +161,24 @@ Resources:
                     Write-Progress @progressSplat
                 }
 
-                if ($DryRun) {
-                    Write-DSALog -Message "DryRun mode active for domain '$domainName'." -LogFile $logFile -Level 'DEBUG'
-                } else {
-                    Write-DSALog -Message "Queued domain '$domainName' for baseline execution." -LogFile $logFile
+                Write-DSALog -Message "Collecting evidence for '$domainName'." -LogFile $logFile -Level 'DEBUG'
+
+                $evidence = Get-DSADomainEvidence -Domain $domainName -LogFile $logFile -DryRun:$DryRun.IsPresent
+                $profile = Invoke-DSABaselineTest -DomainEvidence $evidence -BaselineDefinition $baselineDefinition
+                $profileWithMetadata = [pscustomobject]@{
+                    Domain                 = $profile.Domain
+                    Classification         = $profile.Classification
+                    OriginalClassification = $profile.OriginalClassification
+                    OverallStatus          = $profile.OverallStatus
+                    Checks                 = $profile.Checks
+                    Evidence               = $evidence.Records
+                    OutputPath             = $resolvedOutputRoot
+                    Timestamp              = (Get-Date)
+                    DryRun                 = [bool]$DryRun
                 }
 
-                $result = [pscustomobject]@{
-                    Domain = $domainName
-                    Status = if ($DryRun) { 'DryRun' } else { 'PendingImplementation' }
-                    Notes  = 'Baseline engine not yet implemented; this is a structural placeholder.'
-                    Output = $resolvedOutputRoot
-                }
-                $null = $results.Add($result)
+                Write-DSALog -Message ("Completed baseline for '{0}' with status '{1}'." -f $domainName, $profile.OverallStatus) -LogFile $logFile
+                $null = $results.Add($profileWithMetadata)
             }
 
             if ($ShowProgress) {
