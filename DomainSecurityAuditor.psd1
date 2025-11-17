@@ -8,7 +8,11 @@
     Description       = 'PowerShell module for auditing domain and email security baselines via DomainDetective, Pester, and native HTML rendering.'
     PowerShellVersion = '7.0'
     CompatiblePSEditions = @('Core')
-    RequiredModules   = @()
+    RequiredModules   = @(
+        'DomainDetective'
+        'Pester'
+        'PSScriptAnalyzer'
+    )
     FunctionsToExport = @('Invoke-DomainSecurityBaseline')
     CmdletsToExport   = @()
     VariablesToExport = @()

@@ -110,7 +110,7 @@ function Add-DSADomainSections {
             'warning' { 'warning' }
             default { 'info' }
         }
-        $checks = @($profile.Checks)
+        $checks = if ($profile.Checks) { @($profile.Checks | Where-Object { $_ }) } else { @() }
         $checkCount = ($checks | Measure-Object).Count
         $metaSegments = [System.Collections.Generic.List[string]]::new()
         if ($profile.Classification) {
@@ -140,7 +140,13 @@ function Add-DSADomainSections {
         }
         $null = $Builder.AppendLine('      </div>')
 
-        $groupedChecks = if ($checks) { $checks | Group-Object -Property Area } else { @() }
+        if ($checkCount -eq 0) {
+            $null = $Builder.AppendLine('      <div class="domain-empty">No checks were evaluated for this domain.</div>')
+            $null = $Builder.AppendLine('    </section>')
+            continue
+        }
+
+        $groupedChecks = $checks | Group-Object -Property Area
         foreach ($group in $groupedChecks) {
             Add-DSAProtocolSection -Builder $Builder -Group $group
         }
@@ -155,9 +161,18 @@ function Add-DSAProtocolSection {
         [Parameter(Mandatory = $true)][System.Management.Automation.PSObject]$Group
     )
 
+    if (-not $Group -or -not $Group.Group) {
+        return
+    }
+
+    $groupChecks = @($Group.Group | Where-Object { $_ })
+    if ($groupChecks.Count -eq 0) {
+        return
+    }
+
     $areaStatus = Get-DSAAreaStatus -Checks $Group.Group
     $statusClass = Get-DSAStatusClassName -Status $areaStatus
-    $checkCount = ($Group.Group | Measure-Object).Count
+    $checkCount = ($groupChecks | Measure-Object).Count
     $sectionClass = 'protocol-section'
     $detailsClass = 'protocol-details'
     $checkLabel = if ($checkCount -eq 1) { '1 check' } else { ('{0} checks' -f $checkCount) }
@@ -173,7 +188,7 @@ function Add-DSAProtocolSection {
     $null = $Builder.AppendLine('        </div>')
     $null = $Builder.AppendLine(("        <div class=""{0}"">" -f $detailsClass))
 
-    foreach ($check in $Group.Group) {
+    foreach ($check in $groupChecks) {
         Add-DSATestResult -Builder $Builder -Check $check
     }
 
@@ -186,6 +201,10 @@ function Add-DSATestResult {
         [Parameter(Mandatory = $true)][System.Text.StringBuilder]$Builder,
         [Parameter(Mandatory = $true)][pscustomobject]$Check
     )
+
+    if (-not $Check) {
+        return
+    }
 
     $statusClass = Get-DSAStatusClassName -Status $Check.Status
     $statusIcon = Get-DSAStatusIcon -Status $Check.Status
@@ -280,7 +299,7 @@ function Get-DSAReportSummary {
     $totalChecks = 0
     $warningChecks = 0
     foreach ($profile in $profileList) {
-        $checks = @($profile.Checks)
+        $checks = if ($profile.Checks) { @($profile.Checks | Where-Object { $_ }) } else { @() }
         $totalChecks += ($checks | Measure-Object).Count
         $warningChecks += ($checks | Where-Object { $_.Status -eq 'Warning' } | Measure-Object).Count
     }
@@ -383,6 +402,12 @@ body {
     box-shadow: 0 2px 12px rgba(0,0,0,0.08);
     margin-bottom: 30px;
     overflow: hidden;
+}
+.domain-empty {
+    padding: 24px;
+    color: #6b7280;
+    font-style: italic;
+    border-top: 1px solid #f3f4f6;
 }
 .domain-header {
     background: #f8fafc;
