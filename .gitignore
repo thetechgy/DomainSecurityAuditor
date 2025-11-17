@@ -61,6 +61,7 @@ codecoverage*.xml
 # Build Artifacts
 # ----------------------------
 Output/*
+!Output/.gitkeep
 build/
 dist/
 *.nupkg
@@ -78,6 +79,8 @@ Reports/*.xml
 # ----------------------------
 *.log
 logs/*
+Logs/*
+!Logs/.gitkeep
 
 # ----------------------------
 # CI/CD (GitHub Actions)
