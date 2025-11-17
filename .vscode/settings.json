@@ -1,0 +1,40 @@
+{
+    // ---------- File associations ----------
+    "files.associations": {
+        "*.ps1": "powershell",
+        "*.psm1": "powershell",
+        "*.psd1": "powershell",
+        "*.pssc": "powershell",
+        "*.psrc": "powershell",
+        "*.ps1xml": "xml",
+        "*.cdxml": "xml"
+    },
+    // ---------- Editor UX ----------
+    "editor.formatOnSave": true,
+    "editor.rulers": [
+        80,
+        120
+    ],
+    "editor.wordWrap": "bounded",
+    "editor.wordWrapColumn": 120,
+    "editor.renderWhitespace": "trailing",
+    "editor.trimAutoWhitespace": true,
+    "editor.bracketPairColorization.enabled": true,
+    "editor.guides.bracketPairs": true,
+    // ---------- File UX ----------
+    "files.autoSave": "onFocusChange",
+    "files.eol": "\n",
+    "files.encoding": "utf8",
+    "files.trimTrailingWhitespace": true,
+    "files.trimFinalNewlines": true,
+    "files.insertFinalNewline": true,
+    // ---------- PowerShell ergonomics ----------
+    "powershell.powerShellDefaultVersion": "PowerShell",
+    "powershell.startAutomatically": true,
+    "powershell.integratedConsole.showOnStartup": false,
+    "powershell.integratedConsole.focusConsoleOnExecute": false,
+    // ---------- PowerShell analysis & testing ----------
+    "powershell.scriptAnalysis.enable": true,
+    "powershell.scriptAnalysis.settingsPath": "./PSScriptAnalyzerSettings.psd1",
+    "powershell.pester.useLegacyCodeLens": false
+}
