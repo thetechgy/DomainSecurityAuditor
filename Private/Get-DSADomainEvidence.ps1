@@ -7,23 +7,15 @@ function Get-DSADomainEvidence {
 
         [string]$LogFile,
 
-        [switch]$DryRun
+        [switch]$DryRun,
+
+        [string[]]$DkimSelector
     )
 
-    $log = {
-        param (
-            [string]$Message,
-            [string]$Level = 'INFO'
-        )
-
-        if ($PSBoundParameters.ContainsKey('LogFile') -and $LogFile) {
-            Write-DSALog -Message $Message -LogFile $LogFile -Level $Level
-        }
-    }
-
     if ($DryRun) {
-        & $log -Message "DryRun evidence generated for domain '$Domain'." -Level 'DEBUG'
-        return New-DSADomainEvidenceObject -Domain $Domain -Classification 'SendingAndReceiving' -Records (Get-DSADryRunRecords)
+        Write-Verbose -Message "Returning dry run evidence for '$Domain'."
+        $records = Get-DSADryRunRecords
+        return New-DSADomainEvidenceObject -Domain $Domain -Classification 'SendingAndReceiving' -Records $records
     }
 
     try {
@@ -31,169 +23,347 @@ function Get-DSADomainEvidence {
             Import-Module -Name DomainDetective -ErrorAction Stop | Out-Null
         }
     } catch {
-        & $log -Message "Failed to import DomainDetective module: $($_.Exception.Message)" -Level 'ERROR'
-        throw "DomainDetective module import failed: $($_.Exception.Message)"
+        $message = "DomainDetective module import failed: $($_.Exception.Message)"
+        if ($LogFile) {
+            Write-DSALog -Message $message -LogFile $LogFile -Level 'ERROR'
+        }
+        throw $message
     }
 
-    $invokeCommand = Get-Command -Name Invoke-DomainDetective -ErrorAction SilentlyContinue
-    if (-not $invokeCommand) {
-        & $log -Message 'Invoke-DomainDetective command not found. Ensure DomainDetective is updated.' -Level 'ERROR'
-        throw 'Invoke-DomainDetective command not found.'
+    $healthCheckTypes = [System.Collections.Generic.List[string]]::new()
+    foreach ($type in @('SPF', 'DMARC', 'MX', 'MTASTS', 'TLSRPT')) {
+        $null = $healthCheckTypes.Add($type)
+    }
+    if ($DkimSelector) {
+        $null = $healthCheckTypes.Add('DKIM')
     }
 
     try {
-        $splat = @{
-            Domain      = $Domain
-            ErrorAction = 'Stop'
+        $healthParams = @{
+            DomainName      = $Domain
+            HealthCheckType = $healthCheckTypes.ToArray()
+            ErrorAction     = 'Stop'
+        }
+        if ($DkimSelector) {
+            $healthParams.DkimSelectors = $DkimSelector
         }
 
-        $rawResult = Invoke-DomainDetective @splat
-        $domainData = if ($rawResult -is [System.Collections.IEnumerable] -and -not ($rawResult -is [string])) {
-            $rawResult | Select-Object -First 1
-        } else {
-            $rawResult
-        }
+        $overall = Test-DDDomainOverallHealth @healthParams
     } catch {
-        & $log -Message "DomainDetective execution failed for '$Domain': $($_.Exception.Message)" -Level 'ERROR'
-        throw "DomainDetective execution failed for '$Domain': $($_.Exception.Message)"
+        $message = "DomainDetective health check failed for '$Domain': $($_.Exception.Message)"
+        if ($LogFile) {
+            Write-DSALog -Message $message -LogFile $LogFile -Level 'ERROR'
+        }
+        throw $message
     }
 
-    if (-not $domainData) {
-        & $log -Message "DomainDetective returned no data for '$Domain'." -Level 'WARN'
-        throw "No data returned for domain '$Domain'."
-    }
-
-    $classification = Get-DSAClassificationKey -Classification (Get-DSAPropertyValue -InputObject $domainData -PropertyNames @('Classification', 'DomainClassification', 'DomainType'))
-    if (-not $classification) {
-        $classification = 'Unknown'
-    }
-
-    $mxDetails = Get-DSAMxDetails -DomainData $domainData
-    $spfDetails = Get-DSASpfDetails -DomainData $domainData
-    $dkimDetails = Get-DSADkimDetails -DomainData $domainData
-    $dmarcDetails = Get-DSADmarcDetails -DomainData $domainData
-    $mtaStsDetails = Get-DSAMtaStsDetails -DomainData $domainData
-    $tlsRptDetails = Get-DSATlsRptDetails -DomainData $domainData
+    $raw = $overall.Raw
+    $summary = $raw.Summary
+    $classification = Get-DSAClassificationFromSummary -Summary $summary
 
     $records = [pscustomobject]@{
-        MX                    = $mxDetails.Hosts
-        MXRecordCount         = $mxDetails.RecordCount
-        MXHasNull             = $mxDetails.HasNull
-        MXMinimumTtl          = $mxDetails.MinimumTtl
+        MX                    = @(Get-DSAMxHosts -Analysis $raw.MXAnalysis)
+        MXRecordCount         = Get-DSAAnalysisProperty -Analysis $raw.MXAnalysis -PropertyName 'MxRecords' -AsCount
+        MXHasNull             = Get-DSAAnalysisProperty -Analysis $raw.MXAnalysis -PropertyName 'HasNullMx'
+        MXMinimumTtl          = $null
 
-        SPFRecord             = $spfDetails.PrimaryRecord
-        SPFRecords            = $spfDetails.Records
-        SPFRecordCount        = $spfDetails.RecordCount
-        SPFLookupCount        = $spfDetails.LookupCount
-        SPFTerminalMechanism  = $spfDetails.TerminalMechanism
-        SPFHasPtrMechanism    = $spfDetails.HasPtr
-        SPFRecordLength       = $spfDetails.RecordLength
-        SPFTtl                = $spfDetails.Ttl
-        SPFIncludes           = $spfDetails.Includes
-        SPFWildcardRecord     = $spfDetails.WildcardRecord
-        SPFWildcardConfigured = $spfDetails.WildcardConfigured
-        SPFUnsafeMechanisms   = $spfDetails.UnsafeMechanisms
+        SPFRecord             = Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'SpfRecord'
+        SPFRecords            = @(Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'SpfRecords')
+        SPFRecordCount        = Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'SpfRecords' -AsCount
+        SPFLookupCount        = Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'DnsLookupsCount'
+        SPFTerminalMechanism  = Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'AllMechanism'
+        SPFHasPtrMechanism    = [bool](Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'HasPtrType')
+        SPFRecordLength       = Get-DSASpfRecordLength -Analysis $raw.SpfAnalysis
+        SPFTtl                = $null
+        SPFIncludes           = @(Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'IncludeRecords')
+        SPFWildcardRecord     = $null
+        SPFWildcardConfigured = $false
+        SPFUnsafeMechanisms   = @(Get-DSASpfUnsafeMechanisms -Analysis $raw.SpfAnalysis)
 
-        DKIMSelectors         = $dkimDetails.SelectorNames
-        DKIMSelectorDetails   = $dkimDetails.Selectors
-        DKIMMinKeyLength      = $dkimDetails.MinKeyLength
-        DKIMWeakSelectors     = $dkimDetails.WeakSelectors
-        DKIMMinimumTtl        = $dkimDetails.MinimumTtl
+        DKIMSelectors         = @(Get-DSADkimSelectorNames -Analysis $raw.DKIMAnalysis)
+        DKIMSelectorDetails   = @(Get-DSADkimSelectorDetails -Analysis $raw.DKIMAnalysis)
+        DKIMMinKeyLength      = Get-DSADkimMinimumKeyLength -Analysis $raw.DKIMAnalysis
+        DKIMWeakSelectors     = Get-DSADkimWeakSelectorCount -Analysis $raw.DKIMAnalysis
+        DKIMMinimumTtl        = $null
 
-        DMARCRecord           = $dmarcDetails.Record
-        DMARCPolicy           = $dmarcDetails.Policy
-        DMARCRuaAddresses     = $dmarcDetails.Rua
-        DMARCRufAddresses     = $dmarcDetails.Ruf
-        DMARCTtl              = $dmarcDetails.Ttl
+        DMARCRecord           = Get-DSADmarcProperty -Analysis $raw.DmarcAnalysis -Property 'DmarcRecord'
+        DMARCPolicy           = Get-DSADmarcProperty -Analysis $raw.DmarcAnalysis -Property 'Policy'
+        DMARCRuaAddresses     = @(Get-DSADmarcAddresses -Analysis $raw.DmarcAnalysis -PropertyNames @('MailtoRua', 'HttpRua'))
+        DMARCRufAddresses     = @(Get-DSADmarcAddresses -Analysis $raw.DmarcAnalysis -PropertyNames @('MailtoRuf', 'HttpRuf'))
+        DMARCTtl              = $null
 
-        MTASTSRecordPresent   = $mtaStsDetails.RecordPresent
-        MTASTSPolicyValid     = $mtaStsDetails.PolicyValid
-        MTASTSMode            = $mtaStsDetails.Mode
-        MTASTSTtl             = $mtaStsDetails.Ttl
+        MTASTSRecordPresent   = [bool](Get-DSAAnalysisProperty -Analysis $raw.MTASTSAnalysis -PropertyName 'DnsRecordPresent')
+        MTASTSPolicyValid     = [bool](Get-DSAAnalysisProperty -Analysis $raw.MTASTSAnalysis -PropertyName 'PolicyValid')
+        MTASTSMode            = Get-DSAAnalysisProperty -Analysis $raw.MTASTSAnalysis -PropertyName 'Mode'
+        MTASTSTtl             = Get-DSAAnalysisProperty -Analysis $raw.MTASTSAnalysis -PropertyName 'MaxAge'
 
-        TLSRPTRecordPresent   = $tlsRptDetails.RecordPresent
-        TLSRPTAddresses       = $tlsRptDetails.Addresses
-        TLSRPTTtl             = $tlsRptDetails.Ttl
+        TLSRPTRecordPresent   = [bool](Get-DSAAnalysisProperty -Analysis $raw.TLSRPTAnalysis -PropertyName 'TlsRptRecordExists')
+        TLSRPTAddresses       = @(Get-DSATlsRptAddresses -Analysis $raw.TLSRPTAnalysis)
+        TLSRPTTtl             = $null
     }
 
-    & $log -Message "Collected evidence for '$Domain' (classification: $classification)." -Level 'DEBUG'
+    Write-Verbose -Message "Collected DomainDetective evidence for '$Domain'."
     return New-DSADomainEvidenceObject -Domain $Domain -Classification $classification -Records $records
 }
 
-function Get-DSAPropertyValue {
-    [CmdletBinding()]
+function Get-DSAAnalysisProperty {
     param (
-        [Parameter(Mandatory = $true)]
-        [object]$InputObject,
+        [Parameter()]
+        $Analysis,
 
         [Parameter(Mandatory = $true)]
-        [string[]]$PropertyNames
+        [string]$PropertyName,
+
+        [switch]$AsCount
     )
 
-    foreach ($name in $PropertyNames) {
-        if ($InputObject -and $InputObject.PSObject.Properties.Name -contains $name) {
-            return $InputObject.$name
+    if (-not $Analysis) {
+        if ($AsCount) { return 0 }
+        return $null
+    }
+
+    $value = $Analysis.$PropertyName
+    if ($AsCount) {
+        if ($value -is [System.Collections.IEnumerable] -and -not ($value -is [string])) {
+            return @($value).Count
+        }
+        return 0
+    }
+
+    return $value
+}
+
+function Get-DSASpfProperty {
+    param (
+        $Analysis,
+        [string]$Property,
+        [switch]$AsCount
+    )
+
+    if (-not $Analysis) {
+        if ($AsCount) { return 0 }
+        return $null
+    }
+
+    $value = $Analysis.$Property
+    if ($AsCount) {
+        if ($value -is [System.Collections.IEnumerable] -and -not ($value -is [string])) {
+            return @($value).Count
+        }
+        return 0
+    }
+
+    return $value
+}
+
+function Get-DSASpfRecordLength {
+    param (
+        $Analysis
+    )
+
+    $record = Get-DSASpfProperty -Analysis $Analysis -Property 'SpfRecord'
+    if ($record) {
+        return $record.Length
+    }
+
+    return 0
+}
+
+function Get-DSASpfUnsafeMechanisms {
+    param (
+        $Analysis
+    )
+
+    $unsafe = [System.Collections.Generic.List[string]]::new()
+    if (-not $Analysis) {
+        return $unsafe
+    }
+
+    if ($Analysis.HasPtrType) {
+        $null = $unsafe.Add('ptr')
+    }
+    if ($Analysis.UnknownMechanisms) {
+        foreach ($entry in $Analysis.UnknownMechanisms) {
+            if (-not [string]::IsNullOrWhiteSpace($entry)) {
+                $null = $unsafe.Add($entry)
+            }
         }
     }
 
-    return $null
+    return $unsafe
 }
 
-function Get-DSAClassificationKey {
-    [CmdletBinding()]
+function Get-DSADmarcProperty {
     param (
-        [string]$Classification
+        $Analysis,
+        [string]$Property
     )
 
-    if ([string]::IsNullOrWhiteSpace($Classification)) {
+    if (-not $Analysis) {
         return $null
     }
 
-    $normalized = ($Classification -replace '[^a-zA-Z]', '').ToLowerInvariant()
-    switch ($normalized) {
-        'sendingonly' { return 'SendingOnly' }
-        'receivingonly' { return 'ReceivingOnly' }
-        'sendingandreceiving' { return 'SendingAndReceiving' }
-        'parked' { return 'Parked' }
-        default { return $Classification }
-    }
+    return $Analysis.$Property
 }
 
-function Get-DSADmarcPolicy {
-    [CmdletBinding()]
+function Get-DSADmarcAddresses {
     param (
-        [string]$Record
+        $Analysis,
+        [string[]]$PropertyNames
     )
 
-    if ([string]::IsNullOrWhiteSpace($Record)) {
+    if (-not $Analysis) {
+        return @()
+    }
+
+    $addresses = [System.Collections.Generic.List[string]]::new()
+    foreach ($name in $PropertyNames) {
+        $value = $Analysis.$name
+        if ($value -is [System.Collections.IEnumerable] -and -not ($value -is [string])) {
+            foreach ($entry in $value) {
+                if (-not [string]::IsNullOrWhiteSpace($entry)) {
+                    $null = $addresses.Add($entry)
+                }
+            }
+        }
+    }
+
+    return $addresses
+}
+
+function Get-DSAMxHosts {
+    param (
+        $Analysis
+    )
+
+    if (-not $Analysis -or -not $Analysis.MxRecords) {
+        return @()
+    }
+
+    return $Analysis.MxRecords
+}
+
+function Get-DSATlsRptAddresses {
+    param (
+        $Analysis
+    )
+
+    if (-not $Analysis) {
+        return @()
+    }
+
+    $addresses = [System.Collections.Generic.List[string]]::new()
+    foreach ($property in @('MailtoRua', 'HttpRua')) {
+        $value = $Analysis.$property
+        if ($value -is [System.Collections.IEnumerable] -and -not ($value -is [string])) {
+            foreach ($entry in $value) {
+                if (-not [string]::IsNullOrWhiteSpace($entry)) {
+                    $null = $addresses.Add($entry)
+                }
+            }
+        }
+    }
+
+    return $addresses
+}
+
+function Get-DSADkimSelectorNames {
+    param (
+        $Analysis
+    )
+
+    if (-not $Analysis -or -not $Analysis.AnalysisResults) {
+        return @()
+    }
+
+    return $Analysis.AnalysisResults.Keys
+}
+
+function Get-DSADkimSelectorDetails {
+    param (
+        $Analysis
+    )
+
+    if (-not $Analysis -or -not $Analysis.AnalysisResults) {
+        return @()
+    }
+
+    $details = [System.Collections.Generic.List[pscustomobject]]::new()
+    foreach ($entry in $Analysis.AnalysisResults.GetEnumerator()) {
+        $selector = $entry.Key
+        $data = $entry.Value
+        $record = [pscustomobject]@{
+            Name      = $selector
+            Status    = $data.Status
+            KeyLength = $data.KeyLength
+            Ttl       = $data.Ttl
+            IsValid   = $data.Valid
+        }
+        $null = $details.Add($record)
+    }
+
+    return $details
+}
+
+function Get-DSADkimMinimumKeyLength {
+    param (
+        $Analysis
+    )
+
+    $details = @(Get-DSADkimSelectorDetails -Analysis $Analysis)
+    if ($details.Count -eq 0) {
         return $null
     }
 
-    if ($Record -match 'p\s*=\s*([a-zA-Z]+)') {
-        return $matches[1].ToLowerInvariant()
+    $lengths = @($details | Where-Object { $_.KeyLength } | ForEach-Object { [int]$_.KeyLength })
+    if ($lengths.Count -eq 0) {
+        return $null
     }
 
-    return $null
+    return ($lengths | Measure-Object -Minimum).Minimum
 }
 
-function New-DSADomainEvidenceObject {
-    [CmdletBinding()]
+function Get-DSADkimWeakSelectorCount {
     param (
-        [Parameter(Mandatory = $true)]
-        [string]$Domain,
-
-        [Parameter(Mandatory = $true)]
-        [string]$Classification,
-
-        [Parameter(Mandatory = $true)]
-        [pscustomobject]$Records
+        $Analysis
     )
 
-    return [pscustomobject]@{
-        Domain         = $Domain
-        Classification = $Classification
-        Records        = $Records
+    $details = @(Get-DSADkimSelectorDetails -Analysis $Analysis)
+    if ($details.Count -eq 0) {
+        return 0
     }
+
+    return ($details | Where-Object {
+            (($_.KeyLength -as [int]) -lt 1024 -and $_.KeyLength) -or ($_.IsValid -eq $false)
+        }).Count
+}
+
+function Get-DSAClassificationFromSummary {
+    param (
+        $Summary
+    )
+
+    if (-not $Summary) {
+        return 'Unknown'
+    }
+
+    $hasMx = [bool]$Summary.HasMxRecord
+    $hasSpf = [bool]$Summary.HasSpfRecord
+    $hasDmarc = [bool]$Summary.HasDmarcRecord
+
+    if ($hasMx -and ($hasSpf -or $hasDmarc)) {
+        return 'SendingAndReceiving'
+    }
+
+    if ($hasMx) {
+        return 'ReceivingOnly'
+    }
+
+    if ($hasSpf -or $hasDmarc) {
+        return 'SendingOnly'
+    }
+
+    return 'Parked'
 }
 
 function Get-DSADryRunRecords {
@@ -254,298 +424,22 @@ function Get-DSADryRunRecords {
     }
 }
 
-function ConvertTo-DSAArray {
-    param (
-        $Value
-    )
-
-    if ($null -eq $Value) {
-        return @()
-    }
-
-    if ($Value -is [System.Collections.IEnumerable] -and -not ($Value -is [string])) {
-        return @($Value)
-    }
-
-    return @($Value)
-}
-
-function Get-DSAMxDetails {
+function New-DSADomainEvidenceObject {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]
-        [psobject]$DomainData
-    )
+        [string]$Domain,
 
-    $rawRecords = ConvertTo-DSAArray (Get-DSAPropertyValue -InputObject $DomainData -PropertyNames @('MXRecords', 'MX', 'MailExchanger', 'MailExchangers'))
-    $records = [System.Collections.Generic.List[object]]::new()
-
-    foreach ($entry in $rawRecords) {
-        if ($null -eq $entry) {
-            continue
-        }
-
-        if ($entry -is [pscustomobject]) {
-            $record = [pscustomobject]@{
-                Host       = $entry.Exchange ?? $entry.Host ?? $entry.Target ?? $entry.Value ?? $entry.Server ?? $entry.ToString()
-                Preference = $entry.Preference ?? $entry.Priority ?? $entry.Preference
-                TTL        = $entry.TTL ?? $entry.Ttl ?? $entry.TimeToLive
-                IsNullMx   = ($entry.PSObject.Properties.Name -contains 'IsNullMx') -and [bool]$entry.IsNullMx
-            }
-        } else {
-            $stringValue = $entry.ToString()
-            $record = [pscustomobject]@{
-                Host       = $stringValue
-                Preference = $null
-                TTL        = $null
-                IsNullMx   = ($stringValue -match '0\s+\.$') -or ($stringValue.Trim() -eq '.')
-            }
-        }
-
-        $records.Add($record)
-    }
-
-    $hosts = $records | ForEach-Object { $_.Host }
-    $ttlValues = $records | Where-Object { $_.TTL -ne $null } | ForEach-Object { [int]$_.TTL }
-    $minTtl = if ($ttlValues) { ($ttlValues | Measure-Object -Minimum).Minimum } else { $null }
-    $hasNull = ($records | Where-Object { $_.IsNullMx -or ($_.Host -and $_.Host.Trim() -eq '.') -or ($_.Host -match '0\s+\.$') }).Count -gt 0
-
-    return [pscustomobject]@{
-        Records     = $records
-        Hosts       = @($hosts | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-        RecordCount = $records.Count
-        HasNull     = $hasNull
-        MinimumTtl  = $minTtl
-    }
-}
-
-function Get-DSASpfDetails {
-    [CmdletBinding()]
-    param (
         [Parameter(Mandatory = $true)]
-        [psobject]$DomainData
-    )
+        [string]$Classification,
 
-    $records = ConvertTo-DSAArray (Get-DSAPropertyValue -InputObject $DomainData -PropertyNames @('SPFRecords', 'SPFRecord', 'SenderPolicyFramework'))
-    $primaryRecord = if ($records.Count -gt 0) { $records[0] } else { $null }
-    $ttlValue = Get-DSAPropertyValue -InputObject $DomainData -PropertyNames @('SPFRecordTTL', 'SPFTtl', 'SPFRecordTtl')
-    $wildcardRecord = Get-DSAPropertyValue -InputObject $DomainData -PropertyNames @('SPFWildcardRecord', 'WildcardSPFRecord')
-
-    $lookupCount = 0
-    $includes = [System.Collections.Generic.List[string]]::new()
-    $unsafe = [System.Collections.Generic.List[string]]::new()
-    $hasPtr = $false
-    $terminal = $null
-    $recordLength = if ($primaryRecord) { $primaryRecord.Length } else { 0 }
-
-    if ($primaryRecord) {
-        $tokens = [regex]::Split($primaryRecord, '\s+') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-        foreach ($token in $tokens) {
-            $trimmed = $token.Trim()
-            if ($trimmed -like 'include:*') {
-                $includes.Add($trimmed.Substring(8))
-                $lookupCount++
-            } elseif ($trimmed -like 'redirect=*') {
-                $lookupCount++
-            } elseif ($trimmed -like 'exists:*') {
-                $lookupCount++
-            } elseif ($trimmed -like 'a*' -and -not ($trimmed -eq 'all')) {
-                $lookupCount++
-            } elseif ($trimmed -like 'mx*') {
-                $lookupCount++
-            } elseif ($trimmed -like 'ptr*') {
-                $lookupCount++
-                $hasPtr = $true
-                $unsafe.Add('ptr')
-            } elseif ($trimmed -like 'exp=*') {
-                $lookupCount++
-            }
-        }
-
-        $lastToken = if ($tokens.Count -gt 0) { $tokens[-1] } else { $null }
-        if ($lastToken -and $lastToken -match '([+\-~?]?)all') {
-            $terminal = $lastToken
-        }
-    }
-
-    return [pscustomobject]@{
-        Records            = @($records)
-        RecordCount        = $records.Count
-        PrimaryRecord      = $primaryRecord
-        LookupCount        = $lookupCount
-        Includes           = @($includes)
-        UnsafeMechanisms   = @($unsafe)
-        HasPtr             = $hasPtr
-        TerminalMechanism  = $terminal
-        RecordLength       = $recordLength
-        Ttl                = if ($ttlValue -ne $null) { [int]$ttlValue } else { $null }
-        WildcardRecord     = $wildcardRecord
-        WildcardConfigured = -not [string]::IsNullOrWhiteSpace($wildcardRecord)
-    }
-}
-
-function Get-DSADkimDetails {
-    [CmdletBinding()]
-    param (
         [Parameter(Mandatory = $true)]
-        [psobject]$DomainData
+        [pscustomobject]$Records
     )
-
-    $rawSelectors = ConvertTo-DSAArray (Get-DSAPropertyValue -InputObject $DomainData -PropertyNames @('DKIMSelectors', 'DKIM', 'DKIMKeys'))
-    $selectors = [System.Collections.Generic.List[object]]::new()
-
-    foreach ($entry in $rawSelectors) {
-        if ($null -eq $entry) {
-            continue
-        }
-
-        if ($entry -is [pscustomobject]) {
-            $selector = [pscustomobject]@{
-                Name      = $entry.Selector ?? $entry.Name ?? $entry.Id ?? $entry.ToString()
-                KeyLength = $entry.KeyLength ?? $entry.KeySize ?? $entry.BitStrength
-                IsValid   = if ($entry.PSObject.Properties.Name -contains 'IsValid') { [bool]$entry.IsValid } elseif ($entry.Status) { ($entry.Status -match 'valid') } else { $true }
-                TTL       = $entry.TTL ?? $entry.Ttl ?? $entry.TimeToLive
-            }
-        } else {
-            $selector = [pscustomobject]@{
-                Name      = $entry.ToString()
-                KeyLength = $null
-                IsValid   = $true
-                TTL       = $null
-            }
-        }
-
-        $selectors.Add($selector)
-    }
-
-    $keyLengths = $selectors | Where-Object { $_.KeyLength -ne $null } | ForEach-Object { [int]$_.KeyLength }
-    $minKey = if ($keyLengths) { ($keyLengths | Measure-Object -Minimum).Minimum } else { $null }
-    $weakSelectors = ($selectors | Where-Object { ($_.KeyLength -and $_.KeyLength -lt 1024) -or ($_.IsValid -eq $false) }).Count
-    $ttlValues = $selectors | Where-Object { $_.TTL -ne $null } | ForEach-Object { [int]$_.TTL }
-    $minTtl = if ($ttlValues) { ($ttlValues | Measure-Object -Minimum).Minimum } else { $null }
 
     return [pscustomobject]@{
-        Selectors     = $selectors.ToArray()
-        SelectorNames = @($selectors | ForEach-Object { $_.Name })
-        MinKeyLength  = $minKey
-        WeakSelectors = $weakSelectors
-        MinimumTtl    = $minTtl
+        Domain         = $Domain
+        Classification = $Classification
+        Records        = $Records
     }
-}
-
-function Get-DSADmarcDetails {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory = $true)]
-        [psobject]$DomainData
-    )
-
-    $record = Get-DSAPropertyValue -InputObject $DomainData -PropertyNames @('DMARCRecord', 'DMARC', 'DMARCPolicy')
-    $ttlValue = Get-DSAPropertyValue -InputObject $DomainData -PropertyNames @('DMARCRecordTTL', 'DMARCTtl')
-    $tags = Get-DSARecordTags -Record $record
-
-    $resolveAddresses = {
-        param ($value)
-        if ([string]::IsNullOrWhiteSpace($value)) {
-            return @()
-        }
-
-        return @(
-            $value -split ',' | ForEach-Object {
-                $_.Trim() -replace '^mailto:', ''
-            } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-        )
-    }
-
-    $policy = if ($tags.ContainsKey('p')) {
-        $tags['p'].ToLowerInvariant()
-    } else {
-        Get-DSADmarcPolicy -Record $record
-    }
-
-    return [pscustomobject]@{
-        Record = $record
-        Policy = $policy
-        Rua    = & $resolveAddresses ($tags['rua'])
-        Ruf    = & $resolveAddresses ($tags['ruf'])
-        Ttl    = if ($ttlValue -ne $null) { [int]$ttlValue } else { $null }
-    }
-}
-
-function Get-DSAMtaStsDetails {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory = $true)]
-        [psobject]$DomainData
-    )
-
-    $record = Get-DSAPropertyValue -InputObject $DomainData -PropertyNames @('MTASTSRecord', 'MTASTSTxtRecord', 'MTASTS')
-    $mode = Get-DSAPropertyValue -InputObject $DomainData -PropertyNames @('MTASTSMode', 'MtaStsMode')
-    $policyValid = Get-DSAPropertyValue -InputObject $DomainData -PropertyNames @('MTASTSPolicyValid', 'MtaStsPolicyValid', 'MTASTSPolicyStatus')
-    $ttlValue = Get-DSAPropertyValue -InputObject $DomainData -PropertyNames @('MTASTSTtl', 'MTASTSRecordTTL')
-
-    $isValid = switch ($policyValid) {
-        { $_ -is [bool] } { $_ }
-        { [string]::IsNullOrWhiteSpace($_) } { $false }
-        default { $_ -match 'valid|success' }
-    }
-
-    return [pscustomobject]@{
-        RecordPresent = -not [string]::IsNullOrWhiteSpace($record)
-        Mode          = $mode
-        PolicyValid   = [bool]$isValid
-        Ttl           = if ($ttlValue -ne $null) { [int]$ttlValue } else { $null }
-    }
-}
-
-function Get-DSATlsRptDetails {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory = $true)]
-        [psobject]$DomainData
-    )
-
-    $record = Get-DSAPropertyValue -InputObject $DomainData -PropertyNames @('TLSRPT', 'TlsRpt', 'TLSReportingRecord')
-    $ttlValue = Get-DSAPropertyValue -InputObject $DomainData -PropertyNames @('TLSRPTTtl', 'TLSReportingTTL')
-    $tags = Get-DSARecordTags -Record $record
-
-    $addresses = @()
-    if ($tags.ContainsKey('rua')) {
-        $addresses = $tags['rua'] -split ',' | ForEach-Object {
-            $_.Trim() -replace '^mailto:', ''
-        } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-    }
-
-    return [pscustomobject]@{
-        RecordPresent = -not [string]::IsNullOrWhiteSpace($record)
-        Addresses     = $addresses
-        Ttl           = if ($ttlValue -ne $null) { [int]$ttlValue } else { $null }
-    }
-}
-
-function Get-DSARecordTags {
-    [CmdletBinding()]
-    param (
-        [string]$Record
-    )
-
-    $tags = @{}
-    if ([string]::IsNullOrWhiteSpace($Record)) {
-        return $tags
-    }
-
-    foreach ($segment in $Record -split ';') {
-        $pair = $segment.Trim()
-        if ([string]::IsNullOrWhiteSpace($pair)) {
-            continue
-        }
-
-        if ($pair -match '^\s*([a-zA-Z]+)\s*=\s*(.+)$') {
-            $key = $matches[1].ToLowerInvariant()
-            $value = $matches[2].Trim()
-            $tags[$key] = $value
-        }
-    }
-
-    return $tags
 }

@@ -14,8 +14,8 @@ function Invoke-DSALogRetention {
         return
     }
 
-    $logFiles = Get-ChildItem -Path $LogDirectory -Filter '*.log' -File | Sort-Object -Property LastWriteTime -Descending
-    if ($logFiles.Count -le $RetentionCount) {
+    $logFiles = @(Get-ChildItem -Path $LogDirectory -Filter '*.log' -File | Sort-Object -Property LastWriteTime -Descending)
+    if ($logFiles.Count -le $RetentionCount -or $logFiles.Count -eq 0) {
         return
     }
 

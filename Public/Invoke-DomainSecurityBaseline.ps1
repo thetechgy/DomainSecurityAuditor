@@ -16,6 +16,8 @@ function Invoke-DomainSecurityBaseline {
     Maximum number of log/transcript files to retain before pruning oldest entries.
 .PARAMETER SkipDependencies
     Bypass automatic dependency checks and exit after logging the decision.
+.PARAMETER DkimSelector
+    Optional DKIM selectors to verify via DomainDetective; if omitted, DKIM evaluation is skipped.
 .PARAMETER DryRun
     Simulate work without calling DomainDetective or writing artifacts.
 .PARAMETER ShowProgress
@@ -66,6 +68,7 @@ Resources:
         [int]$RetentionCount = 30,
 
         [switch]$SkipDependencies,
+        [string[]]$DkimSelector,
         [switch]$DryRun,
         [switch]$ShowProgress = $true
         #endregion Parameters
@@ -96,7 +99,8 @@ Resources:
             Invoke-DSALogRetention -LogDirectory $resolvedLogRoot -RetentionCount $RetentionCount
             #endregion PathResolution
 
-            $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+            $runDate = Get-Date
+            $timestamp = $runDate.ToString('yyyyMMdd_HHmmss')
             $logFile = Join-Path -Path $resolvedLogRoot -ChildPath "${timestamp}_DomainSecurityAuditor.log"
             $transcriptFile = Join-Path -Path $resolvedLogRoot -ChildPath "${timestamp}_Transcript.log"
 
@@ -134,11 +138,11 @@ Resources:
             }
 
             if ($SkipDependencies) {
-                Write-DSALog -Message 'Dependency verification skipped for modules: DomainDetective, PSWriteHTML, Pester, PSScriptAnalyzer.' -LogFile $logFile -Level 'WARN'
+                Write-DSALog -Message 'Dependency verification skipped for modules: DomainDetective, Pester, PSScriptAnalyzer.' -LogFile $logFile -Level 'WARN'
                 return
             }
 
-            $dependencyResult = Test-DSADependency -Name @('DomainDetective', 'PSWriteHTML', 'Pester', 'PSScriptAnalyzer') -AttemptInstallation -LogFile $logFile
+            $dependencyResult = Test-DSADependency -Name @('DomainDetective', 'Pester', 'PSScriptAnalyzer') -AttemptInstallation -LogFile $logFile
             if (-not $dependencyResult.IsCompliant) {
                 $missing = $dependencyResult.MissingModules -join ', '
                 Write-DSALog -Message "Missing dependencies: $missing" -LogFile $logFile -Level 'ERROR'
@@ -163,7 +167,7 @@ Resources:
 
                 Write-DSALog -Message "Collecting evidence for '$domainName'." -LogFile $logFile -Level 'DEBUG'
 
-                $evidence = Get-DSADomainEvidence -Domain $domainName -LogFile $logFile -DryRun:$DryRun.IsPresent
+                $evidence = Get-DSADomainEvidence -Domain $domainName -LogFile $logFile -DryRun:$DryRun.IsPresent -DkimSelector $DkimSelector
                 $profile = Invoke-DSABaselineTest -DomainEvidence $evidence -BaselineDefinition $baselineDefinition
                 $profileWithMetadata = [pscustomobject]@{
                     Domain                 = $profile.Domain
@@ -175,6 +179,7 @@ Resources:
                     OutputPath             = $resolvedOutputRoot
                     Timestamp              = (Get-Date)
                     DryRun                 = [bool]$DryRun
+                    ReportPath             = $null
                 }
 
                 Write-DSALog -Message ("Completed baseline for '{0}' with status '{1}'." -f $domainName, $profile.OverallStatus) -LogFile $logFile
@@ -186,7 +191,16 @@ Resources:
             }
 
             Write-DSALog -Message "Processed $domainCount domain(s)." -LogFile $logFile
-            return $results.ToArray()
+
+            $resultArray = $results.ToArray()
+            if (-not $DryRun) {
+                $reportPath = Publish-DSAHtmlReport -Profiles $resultArray -OutputRoot $resolvedOutputRoot -GeneratedOn $runDate -LogFile $logFile
+                foreach ($item in $resultArray) {
+                    $item | Add-Member -NotePropertyName 'ReportPath' -NotePropertyValue $reportPath -Force
+                }
+            }
+
+            return $resultArray
         } catch {
             if ($logFile) {
                 Write-DSALog -Message "Unhandled error: $($_.Exception.Message)" -LogFile $logFile -Level 'ERROR'

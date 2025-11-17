@@ -76,6 +76,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
         $command.Parameters.Keys | Should -Contain 'DryRun'
         $command.Parameters.Keys | Should -Contain 'ShowProgress'
         $command.Parameters.Keys | Should -Contain 'SkipDependencies'
+        $command.Parameters.Keys | Should -Contain 'DkimSelector'
     }
 
     Context 'baseline evaluation' {
@@ -92,6 +93,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
                 Mock -CommandName Stop-Transcript -MockWith { }
                 Mock -CommandName Invoke-DSALogRetention -MockWith { }
                 Mock -CommandName Write-DSALog -MockWith { }
+                Mock -CommandName Publish-DSAHtmlReport -MockWith { 'C:\Reports\domain_report.html' }
             }
         }
 
@@ -104,6 +106,9 @@ Describe 'Invoke-DomainSecurityBaseline' {
                 $profile.Domain | Should -Be 'example.com'
                 $profile.Checks.Count | Should -BeGreaterThan 0
                 $profile.OverallStatus | Should -Be 'Pass'
+                $profile.ReportPath | Should -BeNullOrEmpty
+
+                Assert-MockCalled -CommandName Publish-DSAHtmlReport -Times 0 -Scope It
             }
         }
 
@@ -122,6 +127,9 @@ Describe 'Invoke-DomainSecurityBaseline' {
 
                 $mxCheck = $profile.Checks | Where-Object { $_.Id -eq 'MXPresence' }
                 $mxCheck.Status | Should -Be 'Fail'
+                $profile.ReportPath | Should -Be 'C:\Reports\domain_report.html'
+
+                Assert-MockCalled -CommandName Publish-DSAHtmlReport -Times 1 -Scope It
             }
         }
 
@@ -138,6 +146,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
 
                 $spfLookup = $profile.Checks | Where-Object { $_.Id -eq 'SPFLookupLimit' }
                 $spfLookup.Status | Should -Be 'Fail'
+                Assert-MockCalled -CommandName Publish-DSAHtmlReport -Times 1 -Scope It
             }
         }
 
@@ -155,6 +164,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
 
                 $nullMxCheck = $profile.Checks | Where-Object { $_.Id -eq 'MXNullForParked' }
                 $nullMxCheck.Status | Should -Be 'Fail'
+                Assert-MockCalled -CommandName Publish-DSAHtmlReport -Times 1 -Scope It
             }
         }
     }

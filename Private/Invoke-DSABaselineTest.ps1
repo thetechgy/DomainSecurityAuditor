@@ -342,6 +342,26 @@ function ConvertTo-DSADouble {
     return $null
 }
 
+function Get-DSAClassificationKey {
+    [CmdletBinding()]
+    param (
+        [string]$Classification
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Classification)) {
+        return $null
+    }
+
+    $normalized = ($Classification -replace '[^a-zA-Z]', '').ToLowerInvariant()
+    switch ($normalized) {
+        'sendingonly' { return 'SendingOnly' }
+        'receivingonly' { return 'ReceivingOnly' }
+        'sendingandreceiving' { return 'SendingAndReceiving' }
+        'parked' { return 'Parked' }
+        default { return $Classification }
+    }
+}
+
 function Get-DSABaselinePropertyValue {
     [CmdletBinding()]
     param (
