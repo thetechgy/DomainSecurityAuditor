@@ -47,6 +47,7 @@ function Invoke-DSABaselineTest {
             Area        = $check.Area
             Status      = $status
             Severity    = $check.Severity
+            Enforcement = $check.Enforcement
             Expectation = $check.Expectation
             Actual      = $actualValue
             Remediation = $check.Remediation

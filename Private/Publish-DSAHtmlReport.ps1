@@ -25,6 +25,10 @@ function Publish-DSAHtmlReport {
     $reportPath = Join-Path -Path $reportsRoot -ChildPath $reportFileName
 
     $summary = Get-DSAReportSummary -Profiles $profilesList
+    $module = Get-Module -Name DomainSecurityAuditor -ErrorAction SilentlyContinue | Select-Object -First 1
+    $moduleVersion = if ($module) { $module.Version.ToString() } else { $null }
+    $frameworkText = if ($moduleVersion) { "Framework Version: DomainSecurityAuditor $moduleVersion" } else { 'Framework Version: DomainSecurityAuditor' }
+    $domainSummaryText = "Domains Evaluated: $($summary.DomainCount) | Checks Evaluated: $($summary.TotalChecks)"
 
     $builder = [System.Text.StringBuilder]::new()
     $null = $builder.AppendLine('<!DOCTYPE html>')
@@ -42,7 +46,8 @@ function Publish-DSAHtmlReport {
     $null = $builder.AppendLine('    <header class="header">')
     $null = $builder.AppendLine('      <h1>Domain Security Compliance Report</h1>')
     $null = $builder.AppendLine(('      <div class="meta">Generated on {0}</div>' -f (ConvertTo-DSAHtml ($GeneratedOn.ToString('dddd, MMMM d, yyyy h:mm tt')))))
-    $null = $builder.AppendLine(('      <div class="meta">Domains evaluated: {0}</div>' -f $summary.DomainCount))
+    $null = $builder.AppendLine(('      <div class="meta">{0}</div>' -f (ConvertTo-DSAHtml $domainSummaryText)))
+    $null = $builder.AppendLine(('      <div class="meta">{0}</div>' -f (ConvertTo-DSAHtml $frameworkText)))
     $null = $builder.AppendLine('    </header>')
 
     Add-DSASummaryCards -Builder $builder -Summary $summary
@@ -105,16 +110,37 @@ function Add-DSADomainSections {
             'warning' { 'warning' }
             default { 'info' }
         }
+        $checks = @($profile.Checks)
+        $checkCount = ($checks | Measure-Object).Count
+        $metaSegments = [System.Collections.Generic.List[string]]::new()
+        if ($profile.Classification) {
+            $null = $metaSegments.Add($profile.Classification)
+        }
+        if ($profile.OriginalClassification) {
+            $null = $metaSegments.Add(("Detected: {0}" -f $profile.OriginalClassification))
+        }
+        if ($checkCount -gt 0) {
+            $null = $metaSegments.Add(("{0} checks executed" -f $checkCount))
+        }
+        if ($profile.PSObject.Properties.Name -contains 'Timestamp' -and $profile.Timestamp) {
+            $formatted = $profile.Timestamp.ToString('MMMM d, yyyy h:mm tt')
+            $null = $metaSegments.Add(("Evaluated on {0}" -f $formatted))
+        }
+        $statusText = if ($profile.OverallStatus) { $profile.OverallStatus.ToUpperInvariant() } else { '' }
+
         $null = $Builder.AppendLine(("    <section class=""domain-results status-{0}"" data-status=""{0}"">" -f $statusAttr))
         $null = $Builder.AppendLine('      <div class="domain-header">')
         $null = $Builder.AppendLine('        <div class="domain-title">')
         $null = $Builder.AppendLine(("          <div class='domain-name'>{0}</div>" -f (ConvertTo-DSAHtml $profile.Domain)))
-        $null = $Builder.AppendLine(("          <span class='domain-status {0}'>{1}</span>" -f $statusClass, (ConvertTo-DSAHtml $profile.OverallStatus)))
+        $null = $Builder.AppendLine(("          <span class='domain-status {0}'>{1}</span>" -f $statusClass, (ConvertTo-DSAHtml $statusText)))
         $null = $Builder.AppendLine('        </div>')
-        $null = $Builder.AppendLine(("        <div class='domain-meta'>Classification: {0} • Detected: {1}</div>" -f (ConvertTo-DSAHtml $profile.Classification), (ConvertTo-DSAHtml $profile.OriginalClassification)))
+        if ($metaSegments.Count -gt 0) {
+            $metaText = [string]::Join(' • ', $metaSegments)
+            $null = $Builder.AppendLine(("        <div class='domain-meta'>{0}</div>" -f (ConvertTo-DSAHtml $metaText)))
+        }
         $null = $Builder.AppendLine('      </div>')
 
-        $groupedChecks = $profile.Checks | Group-Object -Property Area
+        $groupedChecks = if ($checks) { $checks | Group-Object -Property Area } else { @() }
         foreach ($group in $groupedChecks) {
             Add-DSAProtocolSection -Builder $Builder -Group $group
         }
@@ -132,8 +158,8 @@ function Add-DSAProtocolSection {
     $areaStatus = Get-DSAAreaStatus -Checks $Group.Group
     $statusClass = Get-DSAStatusClassName -Status $areaStatus
     $checkCount = ($Group.Group | Measure-Object).Count
-    $sectionClass = if ($areaStatus -eq 'Pass') { 'protocol-section' } else { 'protocol-section expanded' }
-    $detailsClass = if ($areaStatus -eq 'Pass') { 'protocol-details' } else { 'protocol-details expanded' }
+    $sectionClass = 'protocol-section'
+    $detailsClass = 'protocol-details'
     $checkLabel = if ($checkCount -eq 1) { '1 check' } else { ('{0} checks' -f $checkCount) }
 
     $null = $Builder.AppendLine(("      <div class=""{0}"">" -f $sectionClass))
@@ -142,6 +168,7 @@ function Add-DSAProtocolSection {
     $null = $Builder.AppendLine('          <div class="protocol-status">')
     $null = $Builder.AppendLine(("            <span class='status-badge {0}'>{1}</span>" -f $statusClass, (ConvertTo-DSAHtml $areaStatus)))
     $null = $Builder.AppendLine(("            <span class='protocol-count'>{0}</span>" -f $checkLabel))
+    $null = $Builder.AppendLine('            <span class="chevron" aria-hidden="true">▶</span>')
     $null = $Builder.AppendLine('          </div>')
     $null = $Builder.AppendLine('        </div>')
     $null = $Builder.AppendLine(("        <div class=""{0}"">" -f $detailsClass))
@@ -161,33 +188,79 @@ function Add-DSATestResult {
     )
 
     $statusClass = Get-DSAStatusClassName -Status $Check.Status
-    $null = $Builder.AppendLine('          <div class="test-result">')
-    $null = $Builder.AppendLine('            <div class="test-header">')
-    $null = $Builder.AppendLine(("              <div class='status-dot {0}'></div>" -f $statusClass))
-    $null = $Builder.AppendLine('              <div>')
-    $null = $Builder.AppendLine(("                <div class='test-name'>{0}</div>" -f (ConvertTo-DSAHtml $Check.Id)))
-    $null = $Builder.AppendLine(("                <span class='status-pill {0}'>{1}</span>" -f $statusClass, (ConvertTo-DSAHtml $Check.Status)))
-    $null = $Builder.AppendLine('              </div>')
-    $null = $Builder.AppendLine('            </div>')
-
-    $null = $Builder.AppendLine(('            <div class="test-line"><strong>Expectation:</strong> {0}</div>' -f (ConvertTo-DSAHtml $Check.Expectation)))
-    $null = $Builder.AppendLine(('            <div class="test-line"><strong>Actual:</strong> {0}</div>' -f (ConvertTo-DSAValueHtml $Check.Actual)))
-    if ($Check.Remediation) {
-        $null = $Builder.AppendLine(('            <div class="test-line"><strong>Remediation:</strong> {0}</div>' -f (ConvertTo-DSAHtml $Check.Remediation)))
+    $statusIcon = Get-DSAStatusIcon -Status $Check.Status
+    $filterStatus = Get-DSAFilterStatus -Status $Check.Status
+    $detailItems = [System.Collections.Generic.List[object]]::new()
+    if ($Check.PSObject.Properties.Name -contains 'Actual' -and ($Check.Actual -ne $null)) {
+        $valueHtml = ConvertTo-DSAValueHtml -Value $Check.Actual
+        $null = $detailItems.Add([pscustomobject]@{
+                Label = 'Observed Value'
+                Value = $valueHtml
+                IsHtml = $true
+            })
     }
+    if ($Check.Severity) {
+        $null = $detailItems.Add([pscustomobject]@{
+                Label  = 'Severity'
+                Value  = $Check.Severity
+                IsHtml = $false
+            })
+    }
+    if ($Check.PSObject.Properties.Name -contains 'Enforcement' -and $Check.Enforcement) {
+        $null = $detailItems.Add([pscustomobject]@{
+                Label  = 'Enforcement'
+                Value  = $Check.Enforcement
+                IsHtml = $false
+            })
+    }
+
+    $null = $Builder.AppendLine(("          <div class=""test-result"" data-status=""{0}"">" -f (ConvertTo-DSAHtml $filterStatus)))
+    $null = $Builder.AppendLine('            <div class="test-header">')
+    $null = $Builder.AppendLine(("              <div class='test-icon {0}'>{1}</div>" -f $statusClass, (ConvertTo-DSAHtml $statusIcon)))
+    $null = $Builder.AppendLine('              <div class="test-content">')
+    $null = $Builder.AppendLine('                <div class="test-title-row">')
+    $null = $Builder.AppendLine(("                  <div class='test-name'>{0}</div>" -f (ConvertTo-DSAHtml $Check.Id)))
+    $null = $Builder.AppendLine(("                  <span class='status-pill {0}'>{1}</span>" -f $statusClass, (ConvertTo-DSAHtml $Check.Status)))
+    $null = $Builder.AppendLine('                </div>')
+    if ($Check.Expectation) {
+        $null = $Builder.AppendLine(("                <div class='test-message'>{0}</div>" -f (ConvertTo-DSAHtml $Check.Expectation)))
+    }
+
+    if ($detailItems.Count -gt 0) {
+        $null = $Builder.AppendLine('                <div class="details-grid">')
+        foreach ($detail in $detailItems) {
+            $valueText = if ($detail.IsHtml) { $detail.Value } else { ConvertTo-DSAHtml -Value $detail.Value }
+            $null = $Builder.AppendLine('                  <div class="detail-item">')
+            $null = $Builder.AppendLine(("                    <div class='detail-label'>{0}</div>" -f (ConvertTo-DSAHtml $detail.Label)))
+            $null = $Builder.AppendLine(("                    <div class='detail-value'>{0}</div>" -f $valueText))
+            $null = $Builder.AppendLine('                  </div>')
+        }
+        $null = $Builder.AppendLine('                </div>')
+    }
+
+    if ($Check.Remediation) {
+        $null = $Builder.AppendLine('                <div class="test-recommendation">')
+        $null = $Builder.AppendLine('                  <div class="label">Remediation</div>')
+        $null = $Builder.AppendLine(("                  <div class='text'>{0}</div>" -f (ConvertTo-DSAHtml $Check.Remediation)))
+        $null = $Builder.AppendLine('                </div>')
+    }
+
     if ($Check.References -and $Check.References.Count -gt 0) {
         $references = $Check.References | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
         if ($references) {
-            $null = $Builder.AppendLine('            <div class="test-line"><strong>References:</strong>')
-            $null = $Builder.AppendLine('              <ul class="references-list">')
+            $null = $Builder.AppendLine('                <div class="test-references">')
             foreach ($ref in $references) {
-                $null = $Builder.AppendLine(("                <li>{0}</li>" -f (ConvertTo-DSAReferenceHtml $ref)))
+                $referenceHtml = ConvertTo-DSAReferenceHtml -Reference $ref
+                if ($referenceHtml) {
+                    $null = $Builder.AppendLine(("                  {0}" -f $referenceHtml))
+                }
             }
-            $null = $Builder.AppendLine('              </ul>')
-            $null = $Builder.AppendLine('            </div>')
+            $null = $Builder.AppendLine('                </div>')
         }
     }
 
+    $null = $Builder.AppendLine('              </div>')
+    $null = $Builder.AppendLine('            </div>')
     $null = $Builder.AppendLine('          </div>')
 }
 
@@ -214,10 +287,9 @@ function Get-DSAReportSummary {
 
     $cards = @(
         [pscustomobject]@{ Label = 'Domains Passed'; Value = $passed; Description = 'Full compliance achieved.'; Style = 'Pass'; Filter = 'pass' }
-        [pscustomobject]@{ Label = 'Domains Failed'; Value = $failed; Description = 'Critical remediation required.'; Style = 'Fail'; Filter = 'fail' }
-        [pscustomobject]@{ Label = 'Domains Warning'; Value = $warningDomains; Description = 'Action recommended.'; Style = 'Warning'; Filter = 'warning' }
-        [pscustomobject]@{ Label = 'Total Checks'; Value = $totalChecks; Description = 'Checks executed across all domains.'; Style = 'Info'; Filter = 'all' }
-        [pscustomobject]@{ Label = 'Total Warnings'; Value = $warningChecks; Description = 'Checks flagged with warnings.'; Style = 'Warning'; Filter = $null }
+        [pscustomobject]@{ Label = 'Domains Failed'; Value = $failed; Description = 'Critical issues found.'; Style = 'Fail'; Filter = 'fail' }
+        [pscustomobject]@{ Label = 'Warnings'; Value = $warningChecks; Description = 'Recommendations available.'; Style = 'Warning'; Filter = 'warning' }
+        [pscustomobject]@{ Label = 'Total Tests'; Value = $totalChecks; Description = ("Across {0} domains" -f $domainCount); Style = 'Info'; Filter = 'all' }
     )
 
     return [pscustomobject]@{
@@ -263,16 +335,16 @@ body {
 }
 .summary-cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 20px;
     margin-bottom: 30px;
 }
 .card {
     background: white;
-    padding: 24px;
+    padding: 25px;
     border-radius: 12px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-    transition: transform 0.2s ease;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .card:hover { transform: translateY(-2px); }
 .card-header { display: flex; align-items: center; margin-bottom: 12px; }
@@ -321,16 +393,16 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 10px;
 }
 .domain-name { font-size: 1.5rem; font-weight: 600; color: #374151; }
-.domain-meta { color: #6b7280; font-size: 0.95rem; }
+.domain-meta { margin-top: 12px; color: #6b7280; font-size: 0.95rem; }
 .domain-status {
     padding: 8px 18px;
-    border-radius: 20px;
+    border-radius: 999px;
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 .domain-status.passed { background-color: #d1fae5; color: #065f46; }
 .domain-status.failed { background-color: #fee2e2; color: #991b1b; }
@@ -340,6 +412,7 @@ body {
     background: #f9fafb;
     padding: 18px 24px;
     cursor: pointer;
+    user-select: none;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -348,6 +421,23 @@ body {
 .protocol-name { font-weight: 600; font-size: 1.05rem; color: #374151; }
 .protocol-status { display: flex; align-items: center; gap: 12px; font-size: 0.9rem; color: #6b7280; }
 .protocol-count { font-weight: 500; color: #4b5563; }
+.chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #e5e7eb;
+    color: #4b5563;
+    font-size: 0.75rem;
+    transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+.protocol-section.expanded .chevron {
+    transform: rotate(90deg);
+    background: #c7d2fe;
+    color: #312e81;
+}
 .status-badge {
     padding: 4px 12px;
     border-radius: 12px;
@@ -359,24 +449,35 @@ body {
 .status-badge.failed { background-color: #fee2e2; color: #991b1b; }
 .status-badge.warning { background-color: #fef3c7; color: #92400e; }
 .status-badge.info { background-color: #e0e7ff; color: #312e81; }
-.protocol-details { display: none; }
+.protocol-details { display: none; padding: 0; }
 .protocol-details.expanded { display: block; }
 .test-result {
     padding: 18px 24px;
     border-top: 1px solid #f3f4f6;
 }
-.test-header { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 10px; }
-.status-dot {
-    width: 14px;
-    height: 14px;
+.test-result:last-child { border-bottom: none; }
+.test-header { display: flex; align-items: flex-start; gap: 16px; }
+.test-icon {
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
-    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
 }
-.status-dot.passed { background-color: #10b981; }
-.status-dot.failed { background-color: #ef4444; }
-.status-dot.warning { background-color: #f59e0b; }
-.status-dot.info { background-color: #3b82f6; }
+.test-icon.passed { background-color: #10b981; }
+.test-icon.failed { background-color: #ef4444; }
+.test-icon.warning { background-color: #f59e0b; }
+.test-icon.info { background-color: #3b82f6; }
+.test-content { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.test-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .test-name { font-weight: 600; color: #111827; font-size: 1rem; }
+.test-message { color: #6b7280; font-size: 0.95rem; }
 .status-pill {
     padding: 2px 10px;
     border-radius: 12px;
@@ -388,28 +489,75 @@ body {
 .status-pill.failed { background-color: #fee2e2; color: #991b1b; }
 .status-pill.warning { background-color: #fef3c7; color: #92400e; }
 .status-pill.info { background-color: #e0e7ff; color: #312e81; }
-.test-line { margin-bottom: 6px; color: #374151; }
-.test-line ul { margin: 6px 0 0 20px; }
-.references-list a { color: #2563eb; text-decoration: none; }
-.references-list a:hover { text-decoration: underline; }
+.details-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+}
+.detail-item {
+    background: #f9fafb;
+    padding: 10px;
+    border-radius: 8px;
+}
+.detail-label {
+    font-size: 0.75rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+}
+.detail-value {
+    font-weight: 600;
+    color: #374151;
+}
+.test-recommendation {
+    background: #eef2ff;
+    padding: 12px;
+    border-radius: 8px;
+    border-left: 4px solid #4338ca;
+}
+.test-recommendation .label {
+    font-weight: 600;
+    color: #312e81;
+    margin-bottom: 4px;
+}
+.test-recommendation .text { color: #1f2937; }
+.test-references {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.reference-link {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #e5e7eb;
+    color: #374151;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+.reference-link:hover {
+    background: #d1d5db;
+    color: #111827;
+}
+.reference-link.reference-link--static {
+    cursor: default;
+    background: #f3f4f6;
+    color: #6b7280;
+}
 .value-none { color: #9ca3af; font-style: italic; }
 .value-positive { color: #065f46; font-weight: 600; }
 .value-negative { color: #991b1b; font-weight: 600; }
-.protocol-header::after {
-    content: '▾';
-    font-size: 1rem;
-    color: #9ca3af;
-    transition: transform 0.2s ease;
-}
-.protocol-section.expanded .protocol-header::after {
-    transform: rotate(180deg);
-}
 @media (max-width: 640px) {
     .domain-title { flex-direction: column; align-items: flex-start; gap: 10px; }
     .summary-cards { grid-template-columns: 1fr; }
+    .test-title-row { flex-direction: column; align-items: flex-start; gap: 6px; }
 }
 "@
 }
+
 
 function Get-DSAReportScript {
 @"
@@ -417,6 +565,9 @@ const protocolSections = document.querySelectorAll('.protocol-section');
 protocolSections.forEach((section) => {
     const header = section.querySelector('.protocol-header');
     const details = section.querySelector('.protocol-details');
+    if (!header || !details) {
+        return;
+    }
     header.addEventListener('click', () => {
         section.classList.toggle('expanded');
         details.classList.toggle('expanded');
@@ -426,22 +577,79 @@ protocolSections.forEach((section) => {
 const filterCards = document.querySelectorAll('.summary-cards .card[data-filter]');
 const domainSections = document.querySelectorAll('.domain-results');
 
-filterCards.forEach(card => {
-    card.addEventListener('click', () => {
-        const filter = card.getAttribute('data-filter');
-        filterCards.forEach(c => c.classList.remove('active'));
-        card.classList.add('active');
+const applyDomainFilter = (filter) => {
+    const normalizedFilter = (filter || 'all').toLowerCase();
+    const matchAll = normalizedFilter === 'all';
 
-        domainSections.forEach(section => {
-            const status = section.getAttribute('data-status');
-            if (!filter || filter === 'all' || status === filter) {
+    domainSections.forEach(domain => {
+        let domainHasMatch = false;
+        const protocols = domain.querySelectorAll('.protocol-section');
+
+        protocols.forEach(section => {
+            const details = section.querySelector('.protocol-details');
+            const tests = section.querySelectorAll('.test-result');
+            let sectionHasMatch = false;
+
+            tests.forEach(test => {
+                const status = (test.getAttribute('data-status') || '').toLowerCase();
+                const matches = matchAll || status === normalizedFilter;
+                test.style.display = matches ? '' : 'none';
+                if (matches) {
+                    sectionHasMatch = true;
+                }
+            });
+
+            if (matchAll) {
                 section.style.display = '';
+                if (section.dataset.filterExpanded === 'true') {
+                    section.classList.remove('expanded');
+                    if (details) {
+                        details.classList.remove('expanded');
+                    }
+                    delete section.dataset.filterExpanded;
+                }
+            } else if (sectionHasMatch) {
+                section.style.display = '';
+                domainHasMatch = true;
+                if (!section.classList.contains('expanded')) {
+                    section.classList.add('expanded');
+                    if (details) {
+                        details.classList.add('expanded');
+                    }
+                    section.dataset.filterExpanded = 'true';
+                }
             } else {
                 section.style.display = 'none';
+                if (section.dataset.filterExpanded === 'true') {
+                    section.classList.remove('expanded');
+                    if (details) {
+                        details.classList.remove('expanded');
+                    }
+                }
+                delete section.dataset.filterExpanded;
             }
         });
+
+        domain.style.display = (matchAll || domainHasMatch) ? '' : 'none';
+    });
+};
+
+filterCards.forEach(card => {
+    card.addEventListener('click', () => {
+        const filter = card.getAttribute('data-filter') || 'all';
+        filterCards.forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        applyDomainFilter(filter);
     });
 });
+
+const defaultFilter = document.querySelector('.summary-cards .card[data-filter=\"all\"]');
+if (defaultFilter) {
+    defaultFilter.classList.add('active');
+    applyDomainFilter(defaultFilter.getAttribute('data-filter'));
+} else {
+    applyDomainFilter('all');
+}
 "@
 }
 
@@ -494,13 +702,15 @@ function ConvertTo-DSAReferenceHtml {
         return ''
     }
 
-    if ($Reference -match '^(https?://\S+)$') {
+    $normalized = $Reference.Trim()
+    if ($normalized -match '^(https?://\S+)$') {
         $url = $matches[1]
-        $display = ConvertTo-DSAHtml -Value $Reference
-        return ("<a href=""{0}"" target=""_blank"" rel=""noopener"">{1}</a>" -f $url, $display)
+        $display = ConvertTo-DSAHtml -Value $normalized
+        return ("<a class=""reference-link"" href=""{0}"" target=""_blank"" rel=""noopener"">{1}</a>" -f $url, $display)
     }
 
-    return ConvertTo-DSAHtml -Value $Reference
+    $displayText = ConvertTo-DSAHtml -Value $normalized
+    return ("<span class=""reference-link reference-link--static"">{0}</span>" -f $displayText)
 }
 
 function Get-DSAStatusClassName {
@@ -530,6 +740,23 @@ function Get-DSAStatusIcon {
         'fail' { return '✖' }
         'warning' { return '!' }
         default { return 'ℹ' }
+    }
+}
+
+function Get-DSAFilterStatus {
+    param (
+        [string]$Status
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Status)) {
+        return 'info'
+    }
+
+    switch ($Status.ToLowerInvariant()) {
+        'pass' { return 'pass' }
+        'fail' { return 'fail' }
+        'warning' { return 'warning' }
+        default { return 'info' }
     }
 }
 

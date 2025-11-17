@@ -100,7 +100,7 @@ For environments you control (WSL Ubuntu, dev containers, CI images), ensure the
 - **Debian/Ubuntu/WSL:**
 
   ```bash
-  sudo apt update &&   sudo apt install -y ripgrep fd-find jq
+  sudo apt update && sudo apt install -y ripgrep fd-find jq
 
   # Optional: install jaq via cargo if not packaged:
   # cargo install jaq
