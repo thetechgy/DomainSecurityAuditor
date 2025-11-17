@@ -5,7 +5,7 @@
     Author            = 'Travis McDade'
     CompanyName       = 'DomainSecurityAuditor'
     Copyright         = '(c) 2025 DomainSecurityAuditor. All rights reserved.'
-    Description       = 'PowerShell module for auditing domain and email security baselines via DomainDetective, Pester, and PSWriteHTML.'
+    Description       = 'PowerShell module for auditing domain and email security baselines via DomainDetective, Pester, and native HTML rendering.'
     PowerShellVersion = '7.0'
     CompatiblePSEditions = @('Core')
     RequiredModules   = @()

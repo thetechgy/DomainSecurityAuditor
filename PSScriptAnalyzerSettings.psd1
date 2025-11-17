@@ -12,7 +12,7 @@
       TargetProfile = @(
         @{
           PowerShellVersion = '7.0'
-          Modules           = @('DomainDetective', 'PSWriteHTML', 'Pester', 'PSScriptAnalyzer')
+          Modules           = @('DomainDetective', 'Pester', 'PSScriptAnalyzer')
         }
       )
     }

@@ -8,18 +8,17 @@
 [![Pester](https://img.shields.io/badge/Tests-Pester-blue)](#quality--testing)
 [![License](https://img.shields.io/badge/License-Apache--2.0-green)](LICENSE)
 
-**Domain Security Auditor (DSA)** is a PowerShell-based project that uses [DomainDetective] as the data source and adds a testing layer with [Pester] and reporting layer with [PSWriteHTML] to check domain and email security against best practices or custom baselines.
+**Domain Security Auditor (DSA)** is a PowerShell-based project that uses [DomainDetective] as the data source and adds a testing layer with [Pester] plus a native HTML renderer to check domain and email security against best practices or custom baselines.
 
 [DomainDetective]: https://github.com/EvotecIT/DomainDetective
 [Pester]: https://github.com/pester/Pester
-[PSWriteHTML]: https://github.com/EvotecIT/PSWriteHTML
 
 ---
 
 ## At a Glance
 
 - **Purpose:** Repeatable, reference-backed checks for domain/email security
-- **Stack:** PowerShell 7+, Pester, DomainDetective, PSWriteHTML
+- **Stack:** PowerShell 7+, Pester, DomainDetective
 - **Output:** HTML first; JSON/CSV/JUnit later for CI/CD
 
 ---
@@ -168,7 +167,7 @@ Production Domain • 14 tests executed
 
 - **Data:** Domain details from DomainDetective (single source of truth)
 - **Testing:** Pester-based Compliance Engine runs baselines or custom packs
-- **Reporting:** PSWriteHTML for HTML; JSON/CSV/JUnit later for automation
+- **Reporting:** Native PowerShell HTML builder; JSON/CSV/JUnit later for automation
 
 ### Data Shapes
 
@@ -252,7 +251,7 @@ Issues, discussions, and PRs are welcome. When adding or changing baseline rules
 ### Inspiration and Foundations
 
 - [Maester] — Informed the data-driven, Pester-first approach and overall UX philosophy
-- [Przemyslaw Klys / Evotec] — Author of DomainDetective (data source) and PSWriteHTML (reporting), plus many other high-quality PowerShell projects
+- [Przemyslaw Klys / Evotec] — Author of DomainDetective (data source) and numerous high-quality PowerShell projects
 
 [Maester]: https://maester.dev/
 [Przemyslaw Klys / Evotec]: https://evotec.xyz/
@@ -262,7 +261,6 @@ Issues, discussions, and PRs are welcome. When adding or changing baseline rules
 If this project helps you, please consider starring, contributing to, or sponsoring:
 
 - [DomainDetective]
-- [PSWriteHTML]
 - [Maester]
 
 ### Community References

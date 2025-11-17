@@ -144,7 +144,7 @@ When the agent needs to:
 - Log all major actions to `Logs\` and optionally output reports to `Output\`.
 - Log filenames must be timestamped and follow pruning/retention rules.
 - Reuse logic via functions to avoid duplication.
-- Detect required dependencies (DomainDetective, PSWriteHTML, Pester, PSScriptAnalyzer) via a helper such as `Test-DSADependency`. Attempt installation by default and declare the same modules in the `.psd1` `RequiredModules`. If the `-SkipDependencies` switch is specified, short-circuit from the exported entry point after logging which dependencies were skipped.
+- Detect required dependencies (DomainDetective, Pester, PSScriptAnalyzer) via a helper such as `Test-DSADependency`. Attempt installation by default and declare the same modules in the `.psd1` `RequiredModules`. If the `-SkipDependencies` switch is specified, short-circuit from the exported entry point after logging which dependencies were skipped.
 - Comply with **PSScriptAnalyzer** rules.
 - Use **Pester 5+** for unit-testable logic; keep tests in `Tests\`, import the DomainSecurityAuditor module once per file, and rely on `InModuleScope` to exercise private helpers.
 - Avoid long paths — keep script and output paths under **180 characters**.
@@ -237,7 +237,7 @@ These conventions keep DomainSecurityAuditor contributions predictable for audit
 .DESCRIPTION
     <Detailed description of module scope, key entry points, and integration paths>
 .REQUIRES
-    Modules: DomainDetective, PSWriteHTML, Pester, PSScriptAnalyzer
+    Modules: DomainDetective, Pester, PSScriptAnalyzer
 .NOTES
     Module: DomainSecurityAuditor
     Author: <Author Name>

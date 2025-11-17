@@ -2,9 +2,9 @@
 .SYNOPSIS
     Domain Security Auditor module orchestrates domain and email security baseline validation.
 .DESCRIPTION
-    DomainSecurityAuditor builds on DomainDetective, Pester, and PSWriteHTML to collect DNS posture data, execute repeatable compliance tests, and emit HTML or machine-readable artifacts for CI/CD pipelines.
+    DomainSecurityAuditor builds on DomainDetective and Pester with native PowerShell HTML rendering to collect DNS posture data, execute repeatable compliance tests, and emit machine-readable artifacts for CI/CD pipelines.
 .REQUIRES
-    Modules: DomainDetective, PSWriteHTML, Pester, PSScriptAnalyzer
+    Modules: DomainDetective, Pester, PSScriptAnalyzer
 .NOTES
     Module: DomainSecurityAuditor
     Author: Travis McDade
@@ -19,7 +19,6 @@ Release Notes:
 Resources:
       - https://github.com/EvotecIT/DomainDetective
       - https://github.com/pester/Pester
-      - https://github.com/EvotecIT/PSWriteHTML
 #>
 
 Set-StrictMode -Version Latest
