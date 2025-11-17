@@ -1,3 +1,138 @@
+## CLI Tooling & Fast Search (Agent Standards)
+
+These standards apply whenever an agent interacts with the **DomainSecurityAuditor** repo via a shell (local or remote). The goal is: **fast, safe, Rust-first tooling**.
+
+### Content Search (ripgrep)
+
+- **Always** use [`rg` (ripgrep)](https://github.com/BurntSushi/ripgrep) for project-wide search.
+- **Do not** use `grep` or `egrep` for repository searches.
+- Respect ignore files by default (`.gitignore`, `.ignore`, `.rgignore`).
+
+**Usage patterns:**
+
+- Search for a pattern:
+  - `rg "pattern"`
+- Search with context:
+  - `rg -n -A 3 -B 3 "pattern"`
+- Limit by language:
+  - `rg -t powershell "function"`
+- List tracked/non-ignored files:
+  - `rg --files`
+
+**Safety constraints for agents:**
+
+- **Never** use these flags in automated/agent contexts:
+  - `--pre`
+  - `-z` / `--search-zip`
+  - `--hostname-bin`
+- Avoid writing shell commands that feed untrusted input directly into `rg` arguments without quoting.
+- Cap interactive reads from `rg` output to ~250 lines unless a larger range is explicitly required.
+
+### File Discovery (fd)
+
+Prefer [`fd`](https://github.com/sharkdp/fd) (or `fdfind` on Debian/Ubuntu) instead of `find`:
+
+- On Debian/Ubuntu/WSL, install and alias once:
+
+  ```bash
+  sudo apt update && sudo apt install -y fd-find
+  echo 'alias fd=fdfind' >> ~/.bashrc
+  ```
+
+**Usage patterns:**
+
+- Find files/directories by name:
+  - `fd name`
+- Restrict search scope:
+  - `fd name src`
+- Match by extension:
+  - `fd . ps1`  # all *.ps1 files under current dir
+
+**Safety when chaining commands:**
+
+- When piping `fd` output into other commands (especially anything that deletes or modifies files), **always** use null-delimited output and `xargs -0`, and terminate argument lists with `--`:
+
+  ```bash
+  fd -0 pattern | xargs -0 rm --      # safe deletion
+  fd -0 '.ps1' | xargs -0 dos2unix -- # safe batch edits
+  ```
+
+- Agents must **not** emit patterns that could be interpreted as options (e.g., filenames beginning with `-`) without using the `-0` / `xargs -0 --` pattern.
+
+### JSON Processing (jaq / jq)
+
+Prefer a **Rust** JSON processor for performance and memory safety.
+
+- Primary tool: [`jaq`](https://github.com/01mf02/jaq) (Rust reimplementation of the jq language).
+- Fallback: `jq` (only if `jaq` is not available in the environment).
+
+**Usage patterns (valid for both `jaq` and `jq`):**
+
+- Extract a field:
+
+  ```bash
+  jaq '.key' file.json
+  ```
+
+- Map an array to a simpler object list:
+
+  ```bash
+  jaq '.items[] | { id, name }' file.json
+  ```
+
+- Pretty-print JSON from stdin:
+
+  ```bash
+  some-command | jaq '.'
+  ```
+
+**Standards:**
+
+- Use `jaq`/`jq` for **all** JSON parsing and transformation; agents must **not** parse JSON with grep/regex when a structured approach is possible.
+- When emitting JSON from PowerShell into the CLI, prefer `ConvertTo-Json -Depth N | jaq '...'` over ad-hoc string manipulation.
+- If `jaq` is unavailable:
+  - Agents may fall back to `jq` but should treat it as a compatibility mode, not the preferred long-term default.
+
+### Tool Installation Guidance (For Local Dev / CI Images)
+
+For environments you control (WSL Ubuntu, dev containers, CI images), ensure these packages are available:
+
+- **Debian/Ubuntu/WSL:**
+
+  ```bash
+  sudo apt update &&   sudo apt install -y ripgrep fd-find jq
+
+  # Optional: install jaq via cargo if not packaged:
+  # cargo install jaq
+  ```
+
+  Add to shell profile:
+
+  ```bash
+  alias fd=fdfind
+  ```
+
+- **macOS (Homebrew):**
+
+  ```bash
+  brew install ripgrep fd jq jaq
+  ```
+
+### Agent Command Mapping Rules
+
+When the agent needs to:
+
+- **Search text in the repo:**
+  - Use `rg "pattern"` (with optional `-n -A 3 -B 3`).
+- **List or locate files:**
+  - Use `fd name` (or `fd pattern path`).
+  - Use `rg --files` only when a raw file list is required.
+- **Inspect or transform JSON:**
+  - Use `jaq` first; fall back to `jq` only if `jaq` is unavailable.
+- **Avoid completely:**
+  - `grep`, `egrep`, and raw `find` for repo-wide operations.
+  - Dangerous ripgrep flags (`--pre`, `-z`, `--search-zip`, `--hostname-bin`) in automated flows.
+
 ### Module & Script Structure
 
 - Use modular, reusable functions with PowerShell-approved verbs in names; exported entry points (e.g., `Invoke-DomainSecurityBaseline`) belong in the module's `Public\` folder and call private helpers.
