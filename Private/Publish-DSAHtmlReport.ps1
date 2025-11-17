@@ -296,19 +296,32 @@ function Get-DSAReportSummary {
     $failed = ($profileList | Where-Object { $_.OverallStatus -eq 'Fail' } | Measure-Object).Count
     $warningDomains = ($profileList | Where-Object { $_.OverallStatus -eq 'Warning' } | Measure-Object).Count
 
+    $checkStatusCounts = @{
+        Pass    = 0
+        Fail    = 0
+        Warning = 0
+    }
     $totalChecks = 0
-    $warningChecks = 0
     foreach ($profile in $profileList) {
         $checks = if ($profile.Checks) { @($profile.Checks | Where-Object { $_ }) } else { @() }
-        $totalChecks += ($checks | Measure-Object).Count
-        $warningChecks += ($checks | Where-Object { $_.Status -eq 'Warning' } | Measure-Object).Count
+        foreach ($check in $checks) {
+            if (-not $check) {
+                continue
+            }
+            $totalChecks++
+            switch ($check.Status) {
+                'Pass' { $checkStatusCounts['Pass'] += 1 }
+                'Fail' { $checkStatusCounts['Fail'] += 1 }
+                'Warning' { $checkStatusCounts['Warning'] += 1 }
+            }
+        }
     }
 
     $cards = @(
-        [pscustomobject]@{ Label = 'Domains Passed'; Value = $passed; Description = 'Full compliance achieved.'; Style = 'Pass'; Filter = 'pass' }
-        [pscustomobject]@{ Label = 'Domains Failed'; Value = $failed; Description = 'Critical issues found.'; Style = 'Fail'; Filter = 'fail' }
-        [pscustomobject]@{ Label = 'Warnings'; Value = $warningChecks; Description = 'Recommendations available.'; Style = 'Warning'; Filter = 'warning' }
-        [pscustomobject]@{ Label = 'Total Tests'; Value = $totalChecks; Description = ("Across {0} domains" -f $domainCount); Style = 'Info'; Filter = 'all' }
+        [pscustomobject]@{ Label = 'Passing Checks'; Value = $checkStatusCounts['Pass']; Description = 'Checks meeting expectations.'; Style = 'Pass'; Filter = 'pass' }
+        [pscustomobject]@{ Label = 'Failing Checks'; Value = $checkStatusCounts['Fail']; Description = 'Immediate attention required.'; Style = 'Fail'; Filter = 'fail' }
+        [pscustomobject]@{ Label = 'Warning Checks'; Value = $checkStatusCounts['Warning']; Description = 'Recommendations available.'; Style = 'Warning'; Filter = 'warning' }
+        [pscustomobject]@{ Label = 'Total Checks'; Value = $totalChecks; Description = ("Across {0} domains" -f $domainCount); Style = 'Info'; Filter = 'all' }
     )
 
     return [pscustomobject]@{
@@ -317,7 +330,7 @@ function Get-DSAReportSummary {
         Failed        = $failed
         Warning       = $warningDomains
         TotalChecks   = $totalChecks
-        TotalWarnings = $warningChecks
+        TotalWarnings = $checkStatusCounts.Warning
         Cards         = $cards
     }
 }
