@@ -50,6 +50,19 @@ Stop-Transcript
 
 ---
 
+## Baseline, Documentation, and Test Update Checklist
+
+Anytime functionality, report baselines, or remediation guidance changes, complete the following before opening a PR:
+
+1. **README Alignment** — Update `README.md` so the documented goals, workflows, and examples reflect the latest behavior.
+2. **Example Report Refresh** — Regenerate `Examples/domain_compliance_report.html` (or its successor artifact) so screenshots and sample data match the current report schema and recommendations.
+3. **Pester Coverage** — Add or adjust Pester tests to cover new behaviors, updated baselines, or regression fixes. Keep coverage under `Tests\` and ensure new assertions run in CI.
+4. **Reference-Backed Guidance** — When modifying tests or recommendations, cite the same caliber of authoritative sources referenced in the README (e.g., RFCs, M3AAWG, dmarc.org, Microsoft Learn). Surface those references in code comments, test descriptions, or report content so downstream consumers understand the rationale.
+
+Document checklist completion in the PR description whenever practical.
+
+---
+
 ## Standard Comment Block Template
 
 ```powershell
