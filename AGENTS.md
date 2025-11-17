@@ -68,6 +68,31 @@ Document checklist completion in the PR description whenever practical.
 
 ---
 
+## Commit Message & Pull Request Standards
+
+- **Commit Message Format**
+  - Use the Conventional Commits structure: `<type>(<scope>): <imperative summary>`.
+    - `type` should be one of `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, or `build`.
+    - `scope` should reference the affected module folder (`Public`, `Private`, `Tests`, `Examples`, `Docs`, etc.) or `repo` for sweeping changes.
+  - Keep the subject line under 72 characters; wrap additional context in paragraphs separated by blank lines.
+  - Call out user-facing impacts, log/report schema updates, and whether automation/tests were executed.
+  - When a change partially implements a larger effort, reference the tracking issue ID in the body (e.g., `Refs #123`).
+
+- **Commit Hygiene**
+  - Favor small, logically grouped commits to keep the review surface area manageable.
+  - Do not mix formatting-only changes with behavioral updates; land formatting in a separate commit so reviewers can skim functional diffs quickly.
+  - Ensure every commit passes `Invoke-ScriptAnalyzer` with the repo settings and, when applicable, the relevant Pester tests.
+
+- **Pull Request Expectations**
+  - Title PRs using the same imperative voice as commits (e.g., `Add transcript logging to baseline command`).
+  - Summaries must describe **why** the change was necessary and **how** it affects operators or downstream automation.
+  - Include checklist confirmations (README alignment, regenerated examples, updated tests, dependency validation) in the PR body when the change affects behavior described in the baseline checklist above.
+  - Link to any security advisories, RFCs, or customer tickets that motivated the change so release managers can trace the rationale.
+  - Highlight testing evidence: commands executed, environments targeted (Windows PowerShell vs PowerShell 7), and notable failure modes discovered.
+  - PRs must remain focused: avoid bundling unrelated features or refactors that increase regression risk.
+
+These conventions keep DomainSecurityAuditor contributions predictable for auditors and release managers while preserving traceability for compliance reviews.
+
 ## Standard Comment Block Template
 
 ```powershell
