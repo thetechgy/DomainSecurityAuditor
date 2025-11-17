@@ -36,6 +36,11 @@ Stop-Transcript
 
 ## Additional Script Requirements (Internal Standards)
 
+- **Formatting & Analyzer Consistency**
+  - Honor the repo's `.editorconfig` conventions for indentation, casing, and trailing whitespace so that automated formatters and IDEs produce identical diffs.
+  - Before submitting, run **PSScriptAnalyzer** using the workspace settings file (`./PSScriptAnalyzerSettings.psd1`) to ensure local results match CI (`Invoke-ScriptAnalyzer -Settings .\PSScriptAnalyzerSettings.psd1`).
+  - If default IDE/editor behavior changes, update the corresponding configuration files in the repo so analyzer settings remain aligned across tooling.
+
 - Every exported module command must expose a `-DryRun` (or `SupportsShouldProcess`) switch and a `-ShowProgress` switch so behavior remains consistent when called directly or via wrapper scripts.
 - Provide usage examples, either in comment-based help or a README-adjacent example block.
 - Use descriptive, self-explanatory variable names — avoid single-letter or ambiguous loop/control variables.
