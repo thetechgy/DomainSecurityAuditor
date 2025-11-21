@@ -637,6 +637,8 @@ body {
 .detail-value {
     font-weight: 700;
     color: var(--color-text-strong);
+    word-break: break-word;
+    overflow-wrap: anywhere;
 }
 .test-recommendation {
     background: var(--color-recommendation-bg);
