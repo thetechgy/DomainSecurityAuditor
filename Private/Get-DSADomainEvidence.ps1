@@ -50,19 +50,17 @@ function Get-DSADomainEvidence {
     }
 
     try {
-        $healthParams = @{
-            DomainName      = $Domain
-            HealthCheckType = $healthCheckTypes.ToArray()
-            ErrorAction     = 'Stop'
-            WarningAction   = 'SilentlyContinue'
+        $baseParams = @{
+            DomainName        = $Domain
+            HealthCheckType   = $healthCheckTypes.ToArray()
+            ErrorAction       = 'Stop'
+            WarningAction     = 'SilentlyContinue'
             InformationAction = 'SilentlyContinue'
-            WarningVariable = 'ddWarnings'
-        }
-        if ($resolvedDkimSelectors) {
-            $healthParams.DkimSelectors = $resolvedDkimSelectors
+            WarningVariable   = 'ddWarnings'
         }
 
-        $overall = Test-DDDomainOverallHealth @healthParams
+        $ddWarnings = $null
+        $overall = Test-DDDomainOverallHealth @baseParams
         if ($LogFile -and $ddWarnings) {
             foreach ($warning in $ddWarnings) {
                 if (-not [string]::IsNullOrWhiteSpace($warning)) {
@@ -79,8 +77,104 @@ function Get-DSADomainEvidence {
     }
 
     $raw = $overall.Raw
+    $baseDkimMap = ConvertTo-DSADkimAnalysisMap -Analysis $raw.DKIMAnalysis
+    $defaultSelectors = @($baseDkimMap.Keys | Where-Object { Test-DSADkimSelectorName -Value $_ })
+    if ($LogFile) {
+        $selectorSummary = if ($defaultSelectors) { $defaultSelectors -join ', ' } else { '(none)' }
+        Write-DSALog -Message ("DKIM selectors from DomainDetective: {0}" -f $selectorSummary) -LogFile $LogFile -Level 'DEBUG'
+    }
+
+    # If custom selectors were provided, call DomainDetective again for missing ones and merge the results.
+    $customMissing = @()
+    if ($resolvedDkimSelectors -and $resolvedDkimSelectors.Count -gt 0) {
+        $customSelectorSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($sel in $resolvedDkimSelectors) {
+            if (-not [string]::IsNullOrWhiteSpace($sel) -and (Test-DSADkimSelectorName -Value $sel)) {
+                $null = $customSelectorSet.Add($sel.Trim())
+            }
+        }
+
+        $customMissing = @($customSelectorSet | Where-Object { $_ -notin $defaultSelectors })
+        if ($customMissing -and $customMissing.Count -gt 0) {
+            if ($LogFile) {
+                Write-DSALog -Message ("Requesting additional DKIM selectors via DomainDetective: {0}" -f ($customMissing -join ', ')) -LogFile $LogFile -Level 'DEBUG'
+            }
+            try {
+                $dkimOnlyParams = $baseParams.Clone()
+                $dkimOnlyParams['HealthCheckType'] = @('DKIM')
+                $dkimOnlyParams['DkimSelectors'] = $customMissing
+                $ddWarnings = $null
+                $customOverall = Test-DDDomainOverallHealth @dkimOnlyParams
+                if ($LogFile -and $ddWarnings) {
+                    foreach ($warning in $ddWarnings) {
+                        if (-not [string]::IsNullOrWhiteSpace($warning)) {
+                            Write-DSALog -Message ("DomainDetective warning: {0}" -f $warning) -LogFile $LogFile -Level 'WARN'
+                        }
+                    }
+                }
+
+                $customMap = ConvertTo-DSADkimAnalysisMap -Analysis $customOverall.Raw.DKIMAnalysis
+                if (-not $raw.DKIMAnalysis) {
+                    $raw | Add-Member -NotePropertyName 'DKIMAnalysis' -NotePropertyValue ([pscustomobject]@{}) -Force
+                }
+                if (-not $raw.DKIMAnalysis.AnalysisResults) {
+                    $raw.DKIMAnalysis | Add-Member -NotePropertyName 'AnalysisResults' -NotePropertyValue (@{}) -Force
+                }
+
+                foreach ($entry in $customMap.GetEnumerator()) {
+                    $raw.DKIMAnalysis.AnalysisResults[$entry.Key] = $entry.Value
+                }
+            } catch {
+                if ($LogFile) {
+                    Write-DSALog -Message ("DomainDetective DKIM selector-specific check failed: $($_.Exception.Message)") -LogFile $LogFile -Level 'WARN'
+                }
+            }
+        }
+    }
+
     $summary = $raw.Summary
     $classification = Get-DSAClassificationFromSummary -Summary $summary
+
+    $dkimSelectorsFound = @()
+    $usingCustomSelectors = ($resolvedDkimSelectors.Count -gt 0)
+    $missingSelectors = @()
+    $dkimDetails = @()
+    $dkimSelectorsPresent = @()
+
+    try {
+        $dkimSelectorsFound = @(Get-DSADkimSelectorNames -Analysis $raw.DKIMAnalysis)
+        if ($LogFile) {
+            $foundSummary = if ($dkimSelectorsFound) { $dkimSelectorsFound -join ', ' } else { '(none)' }
+            Write-DSALog -Message ("DKIM selectors discovered after merge: {0}" -f $foundSummary) -LogFile $LogFile -Level 'DEBUG'
+        }
+
+        $customSelectorSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($sel in $resolvedDkimSelectors) {
+            if (-not [string]::IsNullOrWhiteSpace($sel) -and (Test-DSADkimSelectorName -Value $sel)) {
+                $null = $customSelectorSet.Add($sel.Trim())
+            }
+        }
+
+        $dkimSelectorsToEvaluate = @($dkimSelectorsFound + $resolvedDkimSelectors) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and (Test-DSADkimSelectorName -Value $_) } | Sort-Object -Unique
+
+        if ($usingCustomSelectors) {
+            $missingSelectors = @($dkimSelectorsToEvaluate | Where-Object { ($_ -notin $dkimSelectorsFound) -and $customSelectorSet.Contains($_) })
+            if ($missingSelectors -and $LogFile) {
+                Write-DSALog -Message ("DKIM selector(s) not found in DNS: {0}" -f ($missingSelectors -join ', ')) -LogFile $LogFile -Level 'WARN'
+            }
+        }
+
+        $dkimDetails = @(Get-DSADkimSelectorDetails -Analysis $raw.DKIMAnalysis -Selectors $dkimSelectorsToEvaluate -IncludeMissing:$usingCustomSelectors -MissingSelectors $missingSelectors)
+        $dkimSelectorsPresent = @($dkimDetails | Where-Object { $_.Found } | ForEach-Object { $_.Name })
+    } catch {
+        if ($LogFile) {
+            Write-DSALog -Message ("Failed to process DKIM selector details: $($_.Exception.Message)") -LogFile $LogFile -Level 'WARN'
+        }
+        $dkimSelectorsFound = @()
+        $dkimDetails = @()
+        $dkimSelectorsPresent = @()
+        $missingSelectors = @()
+    }
 
     $records = [pscustomobject]@{
         MX                    = @(Get-DSAMxHosts -Analysis $raw.MXAnalysis)
@@ -101,10 +195,10 @@ function Get-DSADomainEvidence {
         SPFWildcardConfigured = $false
         SPFUnsafeMechanisms   = @(Get-DSASpfUnsafeMechanisms -Analysis $raw.SpfAnalysis)
 
-        DKIMSelectors         = @(Get-DSADkimSelectorNames -Analysis $raw.DKIMAnalysis)
-        DKIMSelectorDetails   = @(Get-DSADkimSelectorDetails -Analysis $raw.DKIMAnalysis)
-        DKIMMinKeyLength      = Get-DSADkimMinimumKeyLength -Analysis $raw.DKIMAnalysis
-        DKIMWeakSelectors     = Get-DSADkimWeakSelectorCount -Analysis $raw.DKIMAnalysis
+        DKIMSelectors         = $dkimSelectorsPresent
+        DKIMSelectorDetails   = $dkimDetails
+        DKIMMinKeyLength      = Get-DSADkimMinimumKeyLength -Analysis $dkimDetails
+        DKIMWeakSelectors     = Get-DSADkimWeakSelectorCount -Analysis $dkimDetails
         DKIMMinimumTtl        = $null
 
         DMARCRecord           = Get-DSADmarcProperty -Analysis $raw.DmarcAnalysis -Property 'DmarcRecord'
@@ -293,54 +387,80 @@ function Get-DSADkimSelectorNames {
         $Analysis
     )
 
-    if (-not $Analysis -or -not $Analysis.AnalysisResults) {
+    $map = ConvertTo-DSADkimAnalysisMap -Analysis $Analysis
+    if (-not $map) {
         return @()
     }
 
-    return $Analysis.AnalysisResults.Keys
+    return $map.Keys | Where-Object { Test-DSADkimSelectorName -Value $_ }
 }
 
 function Get-DSADkimSelectorDetails {
     param (
-        $Analysis
+        $Analysis,
+        [string[]]$Selectors,
+        [switch]$IncludeMissing,
+        [string[]]$MissingSelectors
     )
 
-    if (-not $Analysis -or -not $Analysis.AnalysisResults) {
+    $analysisMap = ConvertTo-DSADkimAnalysisMap -Analysis $Analysis
+
+    $selectorSet = @()
+    if ($Selectors) {
+        $selectorSet = $Selectors
+    } elseif ($analysisMap) {
+        $selectorSet = $analysisMap.Keys
+    }
+
+    $normalizedSelectors = @($selectorSet | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() } | Where-Object { Test-DSADkimSelectorName -Value $_ } | Sort-Object -Unique)
+    if (-not $normalizedSelectors) {
         return @()
     }
 
     $details = [System.Collections.Generic.List[pscustomobject]]::new()
-    foreach ($entry in $Analysis.AnalysisResults.GetEnumerator()) {
-        $selector = $entry.Key
-        $data = $entry.Value
+    $missingSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($missing in (@($MissingSelectors))) {
+        if (-not [string]::IsNullOrWhiteSpace($missing)) {
+            $null = $missingSet.Add($missing.Trim())
+        }
+    }
 
-        $dataProperties = $data.PSObject.Properties
-        $keyLength = $dataProperties['KeyLength']?.Value
-        if ($keyLength) {
-            $keyLength = [int]$keyLength
+    foreach ($selector in $normalizedSelectors) {
+        $data = $null
+        if ($analysisMap -and $analysisMap.ContainsKey($selector)) {
+            $data = $analysisMap[$selector]
         }
 
-        $ttl = $dataProperties['Ttl']?.Value
-        if (-not $ttl) {
-            $ttl = $dataProperties['TTL']?.Value
+        if (-not $data) {
+            if (-not $IncludeMissing -or -not $missingSet.Contains($selector)) {
+                continue
+            }
         }
 
-        $isValid = $null
-        if ($null -ne $dataProperties['IsValid']) {
-            $isValid = [bool]$dataProperties['IsValid'].Value
-        } else {
-            $isValid = $true
-            if ($null -ne $dataProperties['ValidPublicKey']) {
-                $isValid = $isValid -and [bool]$data.ValidPublicKey
-            }
-            if ($null -ne $dataProperties['ValidRsaKeyLength']) {
-                $isValid = $isValid -and [bool]$data.ValidRsaKeyLength
-            }
-            if ($null -ne $dataProperties['DkimRecordExists']) {
-                $isValid = $isValid -and [bool]$data.DkimRecordExists
-            }
-            if ($null -ne $dataProperties['StartsCorrectly']) {
-                $isValid = $isValid -and [bool]$data.StartsCorrectly
+        $keyLength = $null
+        $ttl = $null
+        $isValid = $false
+
+        if ($data) {
+            $keyLength = ConvertTo-DSAInt -Value ($data.PSObject.Properties['KeyLength']?.Value)
+            $ttl = ConvertTo-DSAInt -Value ($data.PSObject.Properties['Ttl']?.Value ?? $data.PSObject.Properties['TTL']?.Value)
+
+            if ($null -ne $data.PSObject.Properties['IsValid']) {
+                $isValid = [bool]$data.IsValid
+            } else {
+                $isValid = $true
+                if ($null -ne $data.PSObject.Properties['ValidPublicKey']) {
+                    $isValid = $isValid -and [bool]$data.ValidPublicKey
+                }
+                if ($null -ne $data.PSObject.Properties['ValidRsaKeyLength']) {
+                    $isValid = $isValid -and [bool]$data.ValidRsaKeyLength
+                }
+                if ($null -ne $data.PSObject.Properties['DkimRecordExists']) {
+                    $isValid = $isValid -and [bool]$data.DkimRecordExists
+                }
+                if ($null -ne $data.PSObject.Properties['StartsCorrectly']) {
+                    $isValid = $isValid -and [bool]$data.StartsCorrectly
+                }
             }
         }
 
@@ -349,6 +469,7 @@ function Get-DSADkimSelectorDetails {
             KeyLength = $keyLength
             Ttl       = $ttl
             IsValid   = $isValid
+            Found     = ($null -ne $data)
         }
         $null = $details.Add($record)
     }
@@ -361,12 +482,25 @@ function Get-DSADkimMinimumKeyLength {
         $Analysis
     )
 
-    $details = @(Get-DSADkimSelectorDetails -Analysis $Analysis)
+    if ($Analysis -is [System.Collections.IEnumerable] -and -not ($Analysis -is [string]) -and -not ($Analysis.PSObject.Properties.Name -contains 'AnalysisResults')) {
+        $details = @($Analysis | Where-Object { $_ })
+    } else {
+        $details = @(Get-DSADkimSelectorDetails -Analysis $Analysis)
+    }
+
     if (@($details).Count -eq 0) {
         return $null
     }
 
-    $lengths = @($details | Where-Object { $_.KeyLength } | ForEach-Object { [int]$_.KeyLength })
+    $lengths = @()
+    foreach ($detail in $details) {
+        if (-not $detail.Found) { continue }
+        if ($null -eq $detail.KeyLength) { continue }
+        $parsed = ConvertTo-DSAInt -Value $detail.KeyLength
+        if ($null -ne $parsed) {
+            $lengths += $parsed
+        }
+    }
     if (@($lengths).Count -eq 0) {
         return $null
     }
@@ -379,14 +513,129 @@ function Get-DSADkimWeakSelectorCount {
         $Analysis
     )
 
-    $details = @(Get-DSADkimSelectorDetails -Analysis $Analysis)
+    if ($Analysis -is [System.Collections.IEnumerable] -and -not ($Analysis -is [string]) -and -not ($Analysis.PSObject.Properties.Name -contains 'AnalysisResults')) {
+        $details = @($Analysis | Where-Object { $_ })
+    } else {
+        $details = @(Get-DSADkimSelectorDetails -Analysis $Analysis)
+    }
+
     if (@($details).Count -eq 0) {
         return 0
     }
 
-    return @($details | Where-Object {
-            (($_.KeyLength -as [int]) -lt 1024) -or ($_.IsValid -eq $false)
-        }).Count
+    $count = 0
+    foreach ($detail in $details) {
+        $isWeak = $false
+        if (-not $detail.Found) {
+            $isWeak = $true
+        } elseif ($null -ne $detail.KeyLength) {
+            $parsed = ConvertTo-DSAInt -Value $detail.KeyLength
+            if ($null -ne $parsed -and $parsed -lt 1024) {
+                $isWeak = $true
+            }
+        }
+
+        if ($detail.IsValid -eq $false) {
+            $isWeak = $true
+        }
+
+        if ($isWeak) {
+            $count++
+        }
+    }
+
+    return $count
+}
+
+function ConvertTo-DSADkimAnalysisMap {
+    param (
+        $Analysis
+    )
+
+    if (-not $Analysis -or -not $Analysis.AnalysisResults) {
+        return @{}
+    }
+
+    $map = @{}
+    $results = $Analysis.AnalysisResults
+
+    if ($results -is [System.Collections.IDictionary]) {
+        foreach ($entry in $results.GetEnumerator()) {
+            $keyText = "$($entry.Key)".Trim()
+            $targetKey = $null
+            if (Test-DSADkimSelectorName -Value $keyText) {
+                $targetKey = $keyText
+            } elseif ($entry.Value) {
+                $candidate = $null
+                if ($entry.Value.PSObject.Properties.Name -contains 'Name') {
+                    $candidate = $entry.Value.Name
+                } elseif ($entry.Value.PSObject.Properties.Name -contains 'Selector') {
+                    $candidate = $entry.Value.Selector
+                }
+                if (Test-DSADkimSelectorName -Value $candidate) {
+                    $targetKey = $candidate.Trim()
+                }
+            }
+
+            if ($targetKey -and -not $map.ContainsKey($targetKey)) {
+                $map[$targetKey] = $entry.Value
+            }
+        }
+    } elseif ($results -is [System.Collections.IEnumerable] -and -not ($results -is [string])) {
+        foreach ($item in $results) {
+            if (-not $item) { continue }
+            $candidate = $null
+            if ($item.PSObject.Properties.Name -contains 'Name') {
+                $candidate = $item.Name
+            } elseif ($item.PSObject.Properties.Name -contains 'Selector') {
+                $candidate = $item.Selector
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+                $keyText = "$candidate".Trim()
+                if (-not $map.ContainsKey($keyText)) {
+                    $map[$keyText] = $item
+                }
+            }
+        }
+    }
+
+    return $map
+}
+
+function Test-DSADkimSelectorName {
+    param (
+        [string]$Value
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $false
+    }
+
+    $trimmed = $Value.Trim()
+    $blocked = @('KeyLength', 'TTL', 'Ttl', 'IsValid', 'ValidPublicKey', 'ValidRsaKeyLength', 'DkimRecordExists', 'StartsCorrectly')
+    if ($blocked -contains $trimmed) {
+        return $false
+    }
+
+    return ($trimmed -match '^[A-Za-z0-9][A-Za-z0-9_-]*$')
+}
+
+function ConvertTo-DSAInt {
+    param (
+        $Value
+    )
+
+    if ($null -eq $Value) {
+        return $null
+    }
+
+    $parsed = 0
+    if ([int]::TryParse($Value.ToString(), [ref]$parsed)) {
+        return $parsed
+    }
+
+    return $null
 }
 
 function Get-DSAClassificationFromSummary {

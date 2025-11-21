@@ -454,6 +454,118 @@ invalid.example,Unknown
     }
 }
 
+Describe 'Get-DSADomainEvidence' {
+    It 'captures all requested DKIM selectors without stopping at first match' {
+        InModuleScope DomainSecurityAuditor {
+            Mock -CommandName Write-DSALog -MockWith { }
+            Mock -CommandName Get-Module -MockWith { $null }
+            Mock -CommandName Import-Module -MockWith { }
+            Mock -CommandName Test-DDDomainOverallHealth -MockWith {
+                [pscustomobject]@{
+                    Raw = [pscustomobject]@{
+                        Summary       = [pscustomobject]@{
+                            HasMxRecord    = $true
+                            HasSpfRecord   = $true
+                            HasDmarcRecord = $true
+                        }
+                        MXAnalysis     = [pscustomobject]@{ MxRecords = @('mx1.example'); HasNullMx = $false }
+                        SpfAnalysis    = [pscustomobject]@{
+                            SpfRecord        = 'v=spf1 -all'
+                            SpfRecords       = @('v=spf1 -all')
+                            DnsLookupsCount  = 1
+                            AllMechanism     = '-all'
+                            HasPtrType       = $false
+                            IncludeRecords   = @()
+                            UnknownMechanisms = @()
+                        }
+                        DKIMAnalysis   = [pscustomobject]@{
+                            AnalysisResults = @{
+                                'selector1' = [pscustomobject]@{ KeyLength = 2048; Ttl = 3600; IsValid = $true }
+                                'selector2' = [pscustomobject]@{ KeyLength = 768; Ttl = 7200; IsValid = $false }
+                            }
+                        }
+                        DmarcAnalysis  = [pscustomobject]@{
+                            DmarcRecord = 'v=DMARC1; p=reject'
+                            Policy      = 'reject'
+                            MailtoRua   = @('mailto:rua@example.com')
+                            HttpRua     = @()
+                            MailtoRuf   = @()
+                            HttpRuf     = @()
+                        }
+                        MTASTSAnalysis = [pscustomobject]@{ DnsRecordPresent = $true; PolicyValid = $true; Mode = 'enforce'; MaxAge = 86400 }
+                        TLSRPTAnalysis = [pscustomobject]@{
+                            TlsRptRecordExists = $true
+                            MailtoRua          = @('mailto:tls@example.com')
+                            HttpRua            = @()
+                        }
+                    }
+                }
+            }
+
+            $evidence = Get-DSADomainEvidence -Domain 'example.com' -DkimSelector @('selector1', 'missing-selector')
+            $evidence.Records.DKIMSelectors | Should -Contain 'selector1'
+            $evidence.Records.DKIMSelectors | Should -Contain 'selector2'
+            $evidence.Records.DKIMSelectors | Should -Not -Contain 'missing-selector'
+
+            $missing = $evidence.Records.DKIMSelectorDetails | Where-Object { $_.Name -eq 'missing-selector' }
+            $missing | Should -Not -BeNullOrEmpty
+            $missing.Found | Should -BeFalse
+            $missing.IsValid | Should -BeFalse
+
+            $weakCount = $evidence.Records.DKIMWeakSelectors
+            $weakCount | Should -BeGreaterThan 0
+        }
+    }
+
+    It 'does not report missing selectors when relying on DomainDetective defaults' {
+        InModuleScope DomainSecurityAuditor {
+            Mock -CommandName Write-DSALog -MockWith { }
+            Mock -CommandName Get-Module -MockWith { $null }
+            Mock -CommandName Import-Module -MockWith { }
+            Mock -CommandName Test-DDDomainOverallHealth -MockWith {
+                [pscustomobject]@{
+                    Raw = [pscustomobject]@{
+                        Summary       = [pscustomobject]@{ HasMxRecord = $true; HasSpfRecord = $true; HasDmarcRecord = $true }
+                        MXAnalysis     = [pscustomobject]@{ MxRecords = @('mx1.example'); HasNullMx = $false }
+                        SpfAnalysis    = [pscustomobject]@{
+                            SpfRecord        = 'v=spf1 -all'
+                            SpfRecords       = @('v=spf1 -all')
+                            DnsLookupsCount  = 1
+                            AllMechanism     = '-all'
+                            HasPtrType       = $false
+                            IncludeRecords   = @()
+                            UnknownMechanisms = @()
+                        }
+                        DKIMAnalysis   = [pscustomobject]@{
+                            AnalysisResults = @{
+                                'selector1' = [pscustomobject]@{ KeyLength = 2048; Ttl = 3600; IsValid = $true }
+                            }
+                        }
+                        DmarcAnalysis  = [pscustomobject]@{
+                            DmarcRecord = 'v=DMARC1; p=reject'
+                            Policy      = 'reject'
+                            MailtoRua   = @('mailto:rua@example.com')
+                            HttpRua     = @()
+                            MailtoRuf   = @()
+                            HttpRuf     = @()
+                        }
+                        MTASTSAnalysis = [pscustomobject]@{ DnsRecordPresent = $true; PolicyValid = $true; Mode = 'enforce'; MaxAge = 86400 }
+                        TLSRPTAnalysis = [pscustomobject]@{
+                            TlsRptRecordExists = $true
+                            MailtoRua          = @('mailto:tls@example.com')
+                            HttpRua            = @()
+                        }
+                    }
+                }
+            }
+
+            $evidence = Get-DSADomainEvidence -Domain 'example.com'
+            $evidence.Records.DKIMSelectors | Should -Contain 'selector1'
+            $evidence.Records.DKIMSelectorDetails | Where-Object { $_.Found -eq $false } | Should -BeNullOrEmpty
+        }
+    }
+}
+
 Describe 'Baseline profile helpers' {
     It 'lists built-in profiles' {
         InModuleScope DomainSecurityAuditor {
