@@ -21,6 +21,10 @@ function Publish-DSAHtmlReport {
         [Parameter(Mandatory = $true)]
         [datetime]$GeneratedOn,
 
+        [string]$BaselineName,
+
+        [string]$BaselineVersion,
+
         [string]$LogFile
     )
 
@@ -36,7 +40,9 @@ function Publish-DSAHtmlReport {
     $summary = Get-DSAReportSummary -Profiles $profilesList
     $module = Get-Module -Name DomainSecurityAuditor -ErrorAction SilentlyContinue | Select-Object -First 1
     $moduleVersion = if ($module) { $module.Version.ToString() } else { 'unknown' }
-    $testSuiteText = 'Test Suite: Baseline Email Security v1.2'
+    $baselineNameText = if ($BaselineName) { $BaselineName } else { 'Baseline' }
+    $baselineVersionText = if ($BaselineVersion) { " v$BaselineVersion" } else { '' }
+    $testSuiteText = "Test Suite: $baselineNameText$baselineVersionText"
 
     $builder = [System.Text.StringBuilder]::new()
     $null = $builder.AppendLine('<!DOCTYPE html>')
@@ -54,7 +60,7 @@ function Publish-DSAHtmlReport {
     $null = $builder.AppendLine('    <header class="header">')
     $null = $builder.AppendLine('      <h1>Domain Security Compliance Report</h1>')
     $localTimeZone = [System.TimeZoneInfo]::Local
-    $timeZoneSuffix = $localTimeZone.StandardName
+    $timeZoneSuffix = if ($localTimeZone.IsDaylightSavingTime($GeneratedOn)) { $localTimeZone.DaylightName } else { $localTimeZone.StandardName }
     $collectedText = '{0} {1}' -f ($GeneratedOn.ToString('MMMM d, yyyy h:mm tt')), $timeZoneSuffix
     $null = $builder.AppendLine(('      <div class="meta">Collected: {0}</div>' -f (ConvertTo-DSAHtml $collectedText)))
     $null = $builder.AppendLine(('      <div class="meta">{0}</div>' -f (ConvertTo-DSAHtml $testSuiteText)))
@@ -68,7 +74,7 @@ function Publish-DSAHtmlReport {
     $poweredByHtml = 'Powered by <a href="https://github.com/EvotecIT/DomainDetective" target="_blank" rel="noopener">DomainDetective</a> + <a href="https://github.com/pester/Pester" target="_blank" rel="noopener">Pester</a>'
     $null = $builder.AppendLine(("      <p><strong>DomainSecurityAuditor v{0}</strong> | {1}</p>" -f $moduleVersion, $poweredByHtml))
     $projectHtml = '<a href="https://github.com/thetechgy/DomainSecurityAuditor" target="_blank" rel="noopener">DomainSecurityAuditor on GitHub</a>'
-    $null = $builder.AppendLine(("      <p style=""margin-top: 10px; font-size: 0.9rem;"">{0}</p>" -f $projectHtml))
+    $null = $builder.AppendLine(("      <p class=""footer-secondary"">{0}</p>" -f $projectHtml))
     $null = $builder.AppendLine('    </footer>')
 
     $null = $builder.AppendLine('  </div>')
@@ -143,12 +149,6 @@ function Add-DSADomainSections {
         if ($checkCount -gt 0) {
             $null = $metaSegments.Add(("{0} checks executed" -f $checkCount))
         }
-        <#
-        if ($profile.PSObject.Properties.Name -contains 'Timestamp' -and $profile.Timestamp) {
-            $formatted = $profile.Timestamp.ToString('MMMM d, yyyy h:mm tt')
-            $null = $metaSegments.Add(("Evaluated on {0}" -f $formatted))
-        }
-        #>
         $statusText = if ($profile.OverallStatus) { $profile.OverallStatus.ToUpperInvariant() } else { '' }
 
         $null = $Builder.AppendLine(("    <section class=""domain-results status-{0}"" data-status=""{0}"">" -f $statusAttr))
@@ -620,6 +620,10 @@ body {
 }
 .footer p {
     margin-bottom: 8px;
+}
+.footer-secondary {
+    margin-top: 10px;
+    font-size: 0.9rem;
 }
 .value-none { color: #9ca3af; font-style: italic; }
 .value-positive { color: #065f46; font-weight: 600; }

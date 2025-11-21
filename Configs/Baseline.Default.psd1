@@ -1,4 +1,6 @@
 @{
+    Name = 'Baseline Email Security'
+    Version = '1.0'
     Profiles = @{
         SendingOnly = @{
             Description = 'Domains that originate mail but do not host inbound mailboxes.'

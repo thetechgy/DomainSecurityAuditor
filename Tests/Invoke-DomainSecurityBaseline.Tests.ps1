@@ -100,6 +100,15 @@ Describe 'Invoke-DomainSecurityBaseline' {
                 Mock -CommandName Write-DSALog -MockWith { }
                 Mock -CommandName Publish-DSAHtmlReport -MockWith { 'C:\Reports\domain_report.html' }
                 Mock -CommandName Open-DSAReport -MockWith { }
+                Mock Get-DSABaseline {
+                    $baselineFile = Join-Path -Path $script:ModuleRoot -ChildPath 'Configs/Baseline.Default.psd1'
+                    $definition = Import-PowerShellDataFile -Path $baselineFile
+                    [pscustomobject]@{
+                        Name     = $definition.Name
+                        Version  = $definition.Version
+                        Profiles = $definition.Profiles
+                    }
+                }
             }
         }
 
@@ -191,6 +200,8 @@ Describe 'Invoke-DomainSecurityBaseline' {
                 $profilePath = Join-Path -Path $TestDrive -ChildPath 'custom-baseline.psd1'
                 $psd1Content = @"
 @{
+    Name = 'Custom Test Baseline'
+    Version = '1.0'
     Profiles = @{
         SendingAndReceiving = @{
             Name = 'SendingAndReceiving'
@@ -213,6 +224,17 @@ Describe 'Invoke-DomainSecurityBaseline' {
 }
 "@
                 Set-Content -Path $profilePath -Value $psd1Content -Encoding UTF8
+
+                # Override the BeforeEach mock to load the custom baseline file
+                Mock Get-DSABaseline {
+                    param($ProfilePath, $ProfileName)
+                    $definition = Import-PowerShellDataFile -Path $ProfilePath
+                    [pscustomobject]@{
+                        Name     = $definition.Name
+                        Version  = $definition.Version
+                        Profiles = $definition.Profiles
+                    }
+                } -ParameterFilter { $ProfilePath -eq $profilePath }
 
                 $result = Invoke-DomainSecurityBaseline -Domain 'example.com' -BaselineProfilePath $profilePath -SkipReportLaunch
                 $profile = $result | Select-Object -First 1

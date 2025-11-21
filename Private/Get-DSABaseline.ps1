@@ -34,5 +34,9 @@ function Get-DSABaseline {
         throw "Baseline profile '$resolvedProfile' is missing the 'Profiles' collection."
     }
 
-    return $profiles
+    return @{
+        Name     = Get-DSABaselinePropertyValue -InputObject $definition -Name 'Name'
+        Version  = Get-DSABaselinePropertyValue -InputObject $definition -Name 'Version'
+        Profiles = $profiles
+    }
 }

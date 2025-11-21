@@ -202,10 +202,11 @@ Resources:
             $domainCount = $targetDomains.Count
             $currentIndex = 0
             if ($PSBoundParameters.ContainsKey('BaselineProfilePath')) {
-                $baselineDefinition = Get-DSABaseline -ProfilePath $BaselineProfilePath
+                $loadedBaseline = Get-DSABaseline -ProfilePath $BaselineProfilePath
             } else {
-                $baselineDefinition = Get-DSABaseline -ProfileName $Baseline
+                $loadedBaseline = Get-DSABaseline -ProfileName $Baseline
             }
+            $baselineProfiles = $loadedBaseline.Profiles
 
             foreach ($domainName in $targetDomains) {
                 $currentIndex++
@@ -249,7 +250,7 @@ Resources:
                 Write-DSALog -Message "Collecting evidence for '$domainName'." -LogFile $logFile -Level 'DEBUG'
 
                 $evidence = Get-DSADomainEvidence -Domain $domainName -LogFile $logFile -DkimSelector $DkimSelector
-                $profile = Invoke-DSABaselineTest -DomainEvidence $evidence -BaselineDefinition $baselineDefinition -ClassificationOverride $classificationOverride
+                $profile = Invoke-DSABaselineTest -DomainEvidence $evidence -BaselineDefinition $baselineProfiles -ClassificationOverride $classificationOverride
                 $profileWithMetadata = [pscustomobject]@{
                     Domain                 = $profile.Domain
                     Classification         = $profile.Classification
@@ -274,7 +275,7 @@ Resources:
             Write-DSALog -Message "Processed $domainCount domain(s)." -LogFile $logFile
 
             $resultArray = $results.ToArray()
-            $reportPath = Publish-DSAHtmlReport -Profiles $resultArray -OutputRoot $resolvedOutputRoot -GeneratedOn $runDate -LogFile $logFile
+            $reportPath = Publish-DSAHtmlReport -Profiles $resultArray -OutputRoot $resolvedOutputRoot -GeneratedOn $runDate -BaselineName $loadedBaseline.Name -BaselineVersion $loadedBaseline.Version -LogFile $logFile
             foreach ($item in $resultArray) {
                 $item | Add-Member -NotePropertyName 'ReportPath' -NotePropertyValue $reportPath -Force
             }

@@ -12,7 +12,8 @@ function Invoke-DSABaselineTest {
     )
 
     if (-not $BaselineDefinition) {
-        $BaselineDefinition = Get-DSABaseline
+        $baseline = Get-DSABaseline
+        $BaselineDefinition = $baseline.Profiles
     }
 
     $effectiveClassification = if (-not [string]::IsNullOrWhiteSpace($ClassificationOverride)) {
