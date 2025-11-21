@@ -133,7 +133,7 @@ Resources:
                     if (-not $record) {
                         continue
                     }
-                    if ($record.PSObject -and $record.PSObject.Properties.Name -contains 'Domain' -and -not [string]::IsNullOrWhiteSpace($record.Domain)) {
+                    if ($record.PSObject.Properties.Name -contains 'Domain' -and -not [string]::IsNullOrWhiteSpace($record.Domain)) {
                         $null = $collectedDomains.Add($record.Domain.Trim())
                         $importedCount++
                     }
