@@ -19,7 +19,7 @@ function Invoke-DomainSecurityBaseline {
 .PARAMETER SkipDependencies
     Bypass automatic dependency checks and exit after logging the decision.
 .PARAMETER DkimSelector
-    Optional DKIM selectors to verify via DomainDetective; if omitted, DKIM evaluation is skipped.
+    Optional DKIM selectors to verify via DomainDetective; if omitted, DomainDetective defaults are used.
 .PARAMETER Baseline
     Name of the built-in baseline profile to load (defaults to 'Default').
 .PARAMETER BaselineProfilePath
@@ -79,6 +79,7 @@ Resources:
         [int]$RetentionCount = 30,
 
         [switch]$SkipDependencies,
+        [Alias('DkimSelectors')]
         [string[]]$DkimSelector,
         [string]$Baseline = 'Default',
         [string]$BaselineProfilePath,
@@ -92,9 +93,14 @@ Resources:
         $domainMetadata = @{}
         $directDomainSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
         $defaultClassificationOverride = $null
+        $globalDkimSelectors = @()
 
         if ($PSBoundParameters.ContainsKey('ClassificationOverride')) {
             $defaultClassificationOverride = Resolve-DSAClassificationOverride -Value $ClassificationOverride -SourceDescription 'ClassificationOverride parameter'
+        }
+
+        if ($PSBoundParameters.ContainsKey('DkimSelector')) {
+            $globalDkimSelectors = @($DkimSelector | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
         }
     }
 
@@ -165,6 +171,22 @@ Resources:
                             $record.Classification = Resolve-DSAClassificationOverride -Value $record.Classification -SourceDescription $sourceDescription
                             $record | Add-Member -NotePropertyName 'ClassificationSource' -NotePropertyValue 'CSV' -Force
                         }
+
+                        $dkimSelectorsFromCsv = @()
+                        $dkimSelectorProperty = $record.PSObject.Properties | Where-Object { $_.Name -in @('DkimSelectors', 'DKIMSelectors') } | Select-Object -First 1
+                        if ($dkimSelectorProperty) {
+                            $rawSelectors = $dkimSelectorProperty.Value
+                            if ($rawSelectors -is [System.Collections.IEnumerable] -and -not ($rawSelectors -is [string])) {
+                                $dkimSelectorsFromCsv = @($rawSelectors | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+                            } else {
+                                $selectorString = "$rawSelectors"
+                                $dkimSelectorsFromCsv = @($selectorString -split '[,;]' | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+                            }
+                        }
+                        if ($dkimSelectorsFromCsv) {
+                            $record | Add-Member -NotePropertyName 'DkimSelectors' -NotePropertyValue $dkimSelectorsFromCsv -Force
+                        }
+
                         $null = $collectedDomains.Add($domainValue)
                         $domainMetadata[$domainValue] = $record
                         $importedCount++
@@ -222,6 +244,7 @@ Resources:
 
                 $classificationOverride = $null
                 $classificationSource = $null
+                $metadataRecord = $null
                 if ($domainMetadata.ContainsKey($domainName)) {
                     $metadataRecord = $domainMetadata[$domainName]
                     if ($metadataRecord -and $metadataRecord.PSObject.Properties.Name -contains 'Classification') {
@@ -248,9 +271,28 @@ Resources:
                     Write-DSALog -Message ("Classification override '{0}' detected for '{1}' from {2}." -f $classificationOverride, $domainName, $sourceText) -LogFile $logFile -Level 'INFO'
                 }
 
+                $effectiveDkimSelectors = $null
+                if ($metadataRecord -and $metadataRecord.PSObject.Properties.Name -contains 'DkimSelectors') {
+                    $effectiveDkimSelectors = @($metadataRecord.DkimSelectors | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+                }
+                if (-not $effectiveDkimSelectors -and $globalDkimSelectors) {
+                    $effectiveDkimSelectors = $globalDkimSelectors
+                }
+
                 Write-DSALog -Message "Collecting evidence for '$domainName'." -LogFile $logFile -Level 'DEBUG'
 
-                $evidence = Get-DSADomainEvidence -Domain $domainName -LogFile $logFile -DkimSelector $DkimSelector
+                $evidenceParams = @{
+                    Domain  = $domainName
+                    LogFile = $logFile
+                }
+                if ($effectiveDkimSelectors) {
+                    $evidenceParams.DkimSelector = $effectiveDkimSelectors
+                    Write-DSALog -Message ("Using custom DKIM selectors for '{0}': {1}" -f $domainName, ($effectiveDkimSelectors -join ', ')) -LogFile $logFile -Level 'DEBUG'
+                } else {
+                    Write-DSALog -Message ("Using DomainDetective default DKIM selectors for '{0}'." -f $domainName) -LogFile $logFile -Level 'DEBUG'
+                }
+
+                $evidence = Get-DSADomainEvidence @evidenceParams
                 $profile = Invoke-DSABaselineTest -DomainEvidence $evidence -BaselineDefinition $baselineProfiles -ClassificationOverride $classificationOverride
                 $profileWithMetadata = [pscustomobject]@{
                     Domain                 = $profile.Domain

@@ -11,7 +11,7 @@ function Get-DSADomainEvidence {
 .PARAMETER LogFile
     Optional path to a log file for recording errors and diagnostic messages.
 .PARAMETER DkimSelector
-    Optional DKIM selector names to verify. If omitted, DKIM analysis is skipped.
+    Optional DKIM selector names to verify. If omitted, DomainDetective's default selectors are used.
 .OUTPUTS
     PSCustomObject with Domain, Classification, and Records properties.
 #>
@@ -23,6 +23,7 @@ function Get-DSADomainEvidence {
 
         [string]$LogFile,
 
+        [Alias('DkimSelectors')]
         [string[]]$DkimSelector
     )
 
@@ -38,12 +39,14 @@ function Get-DSADomainEvidence {
         throw $message
     }
 
-    $healthCheckTypes = [System.Collections.Generic.List[string]]::new()
-    foreach ($type in @('SPF', 'DMARC', 'MX', 'MTASTS', 'TLSRPT')) {
-        $null = $healthCheckTypes.Add($type)
+    $resolvedDkimSelectors = @()
+    if ($PSBoundParameters.ContainsKey('DkimSelector')) {
+        $resolvedDkimSelectors = @($DkimSelector | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     }
-    if ($DkimSelector) {
-        $null = $healthCheckTypes.Add('DKIM')
+
+    $healthCheckTypes = [System.Collections.Generic.List[string]]::new()
+    foreach ($type in @('SPF', 'DMARC', 'DKIM', 'MX', 'MTASTS', 'TLSRPT')) {
+        $null = $healthCheckTypes.Add($type)
     }
 
     try {
@@ -52,8 +55,8 @@ function Get-DSADomainEvidence {
             HealthCheckType = $healthCheckTypes.ToArray()
             ErrorAction     = 'Stop'
         }
-        if ($DkimSelector) {
-            $healthParams.DkimSelectors = $DkimSelector
+        if ($resolvedDkimSelectors) {
+            $healthParams.DkimSelectors = $resolvedDkimSelectors
         }
 
         $overall = Test-DDDomainOverallHealth @healthParams
@@ -300,12 +303,42 @@ function Get-DSADkimSelectorDetails {
     foreach ($entry in $Analysis.AnalysisResults.GetEnumerator()) {
         $selector = $entry.Key
         $data = $entry.Value
+
+        $dataProperties = $data.PSObject.Properties
+        $keyLength = $dataProperties['KeyLength']?.Value
+        if ($keyLength) {
+            $keyLength = [int]$keyLength
+        }
+
+        $ttl = $dataProperties['Ttl']?.Value
+        if (-not $ttl) {
+            $ttl = $dataProperties['TTL']?.Value
+        }
+
+        $isValid = $null
+        if ($null -ne $dataProperties['IsValid']) {
+            $isValid = [bool]$dataProperties['IsValid'].Value
+        } else {
+            $isValid = $true
+            if ($null -ne $dataProperties['ValidPublicKey']) {
+                $isValid = $isValid -and [bool]$data.ValidPublicKey
+            }
+            if ($null -ne $dataProperties['ValidRsaKeyLength']) {
+                $isValid = $isValid -and [bool]$data.ValidRsaKeyLength
+            }
+            if ($null -ne $dataProperties['DkimRecordExists']) {
+                $isValid = $isValid -and [bool]$data.DkimRecordExists
+            }
+            if ($null -ne $dataProperties['StartsCorrectly']) {
+                $isValid = $isValid -and [bool]$data.StartsCorrectly
+            }
+        }
+
         $record = [pscustomobject]@{
             Name      = $selector
-            Status    = $data.Status
-            KeyLength = $data.KeyLength
-            Ttl       = $data.Ttl
-            IsValid   = $data.Valid
+            KeyLength = $keyLength
+            Ttl       = $ttl
+            IsValid   = $isValid
         }
         $null = $details.Add($record)
     }
@@ -319,12 +352,12 @@ function Get-DSADkimMinimumKeyLength {
     )
 
     $details = @(Get-DSADkimSelectorDetails -Analysis $Analysis)
-    if ($details.Count -eq 0) {
+    if (@($details).Count -eq 0) {
         return $null
     }
 
     $lengths = @($details | Where-Object { $_.KeyLength } | ForEach-Object { [int]$_.KeyLength })
-    if ($lengths.Count -eq 0) {
+    if (@($lengths).Count -eq 0) {
         return $null
     }
 
@@ -337,11 +370,11 @@ function Get-DSADkimWeakSelectorCount {
     )
 
     $details = @(Get-DSADkimSelectorDetails -Analysis $Analysis)
-    if ($details.Count -eq 0) {
+    if (@($details).Count -eq 0) {
         return 0
     }
 
-    return ($details | Where-Object {
+    return @($details | Where-Object {
             (($_.KeyLength -as [int]) -lt 1024) -or ($_.IsValid -eq $false)
         }).Count
 }

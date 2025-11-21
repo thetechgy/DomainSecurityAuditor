@@ -130,6 +130,44 @@ Describe 'Invoke-DomainSecurityBaseline' {
             }
         }
 
+        It 'uses DomainDetective default DKIM selectors when none are provided' {
+            InModuleScope DomainSecurityAuditor {
+                Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence }
+
+                Invoke-DomainSecurityBaseline -Domain 'example.com' -SkipReportLaunch | Out-Null
+
+                Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { -not $DkimSelector }
+            }
+        }
+
+        It 'passes custom DKIM selectors from parameters' {
+            InModuleScope DomainSecurityAuditor {
+                Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence -Domain $Domain }
+
+                Invoke-DomainSecurityBaseline -Domain 'example.com' -DkimSelector 'sel1','sel2' -SkipReportLaunch | Out-Null
+
+                Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { $DkimSelector -and $DkimSelector -contains 'sel1' -and $DkimSelector -contains 'sel2' }
+            }
+        }
+
+        It 'honors per-domain DKIM selectors from CSV metadata' {
+            InModuleScope DomainSecurityAuditor {
+                Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence -Domain $Domain }
+
+                $csvPath = Join-Path -Path $TestDrive -ChildPath 'domain-selectors.csv'
+                @"
+Domain,DKIMSelectors
+example.com,alpha;beta
+contoso.com,
+"@ | Set-Content -Encoding UTF8 -Path $csvPath
+
+                Invoke-DomainSecurityBaseline -InputFile $csvPath -SkipReportLaunch | Out-Null
+
+                Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { $Domain -eq 'example.com' -and $DkimSelector -and $DkimSelector -contains 'alpha' -and $DkimSelector -contains 'beta' }
+                Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { $Domain -eq 'contoso.com' -and -not $DkimSelector }
+            }
+        }
+
         It 'flags missing MX records for active domains' {
             InModuleScope DomainSecurityAuditor {
                 Mock -CommandName Get-DSADomainEvidence -MockWith {

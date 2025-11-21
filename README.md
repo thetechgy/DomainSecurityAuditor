@@ -123,10 +123,23 @@ Invoke-DomainSecurityBaseline -InputFile ./domains-with-classifications.csv
 ```
 Accepted values mirror the built-in profile keys (`SendingOnly`, `ReceivingOnly`, `SendingAndReceiving`, or `Parked`) and are matched case-insensitively.
 
+DKIM selector coverage defaults to the list baked into DomainDetective. Override that list for specific domains by adding a `DKIMSelectors` column to your CSV. Comma or semicolon separators are accepted; blank cells fall back to the DomainDetective defaults:
+
+```powershell
+@'
+Domain,DKIMSelectors
+example.com,selector1;selector2
+legacy.example,
+'@ | Set-Content -Encoding UTF8 -Path ./domains-with-dkim-selectors.csv
+
+Invoke-DomainSecurityBaseline -InputFile ./domains-with-dkim-selectors.csv
+```
+
 For single-domain or ad-hoc runs without a CSV, specify the override directly:
 
 ```powershell
 Invoke-DomainSecurityBaseline -Domain 'example.com' -Classification SendingOnly
+Invoke-DomainSecurityBaseline -Domain 'example.com' -DkimSelector 'selector1','selector2'
 ```
 
 By default, the generated HTML report opens when processing completes. Use `-SkipReportLaunch` in CI/CD or other non-interactive scenarios.
