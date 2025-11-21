@@ -20,6 +20,7 @@ function Invoke-DomainSecurityBaseline {
     Bypass automatic dependency checks and exit after logging the decision.
 .PARAMETER DkimSelector
     Optional DKIM selectors to verify via DomainDetective; if omitted, DomainDetective defaults are used.
+    When using -InputFile with CSV, per-domain selectors in a 'DkimSelectors' column override this parameter.
 .PARAMETER Baseline
     Name of the built-in baseline profile to load (defaults to 'Default').
 .PARAMETER BaselineProfilePath
