@@ -105,7 +105,8 @@ function Add-DSASummaryCards {
         $isFilterable = -not [string]::IsNullOrWhiteSpace($card.Filter)
         $cardClasses = if ($isFilterable) { 'card filter-card' } else { 'card' }
         $filterAttr = if ($isFilterable) { " data-filter=""$($card.Filter)""" } else { '' }
-        $null = $Builder.AppendLine(("        <div class=""{0}""{1}>" -f $cardClasses, $filterAttr))
+        $interactiveAttr = if ($isFilterable) { ' role="button" tabindex="0" aria-pressed="false"' } else { '' }
+        $null = $Builder.AppendLine(("        <div class=""{0}""{1}{2}>" -f $cardClasses, $filterAttr, $interactiveAttr))
         $null = $Builder.AppendLine('          <div class="card-header">')
         $null = $Builder.AppendLine(("            <div class='card-icon {0}'>{1}</div>" -f $styleClass, (ConvertTo-DSAHtml $icon)))
         $null = $Builder.AppendLine(("            <div class='card-title'>{0}</div>" -f (ConvertTo-DSAHtml $card.Label)))
@@ -199,9 +200,10 @@ function Add-DSAProtocolSection {
     $sectionClass = 'protocol-section'
     $detailsClass = 'protocol-details'
     $checkLabel = if ($checkCount -eq 1) { '1 check' } else { ('{0} checks' -f $checkCount) }
+    $detailsId = 'protocol-details-' + ([System.Guid]::NewGuid().ToString('N'))
 
     $null = $Builder.AppendLine(("      <div class=""{0}"">" -f $sectionClass))
-    $null = $Builder.AppendLine('        <div class="protocol-header">')
+    $null = $Builder.AppendLine(("        <div class=""protocol-header"" role=""button"" tabindex=""0"" aria-expanded=""false"" aria-controls=""{0}"">" -f $detailsId))
     $null = $Builder.AppendLine(("          <div class='protocol-name'>{0}</div>" -f (ConvertTo-DSAHtml $Group.Name)))
     $null = $Builder.AppendLine('          <div class="protocol-status">')
     $null = $Builder.AppendLine(("            <span class='status-badge {0}'>{1}</span>" -f $statusClass, (ConvertTo-DSAHtml $areaStatus)))
@@ -209,7 +211,7 @@ function Add-DSAProtocolSection {
     $null = $Builder.AppendLine('            <span class="chevron" aria-hidden="true">▶</span>')
     $null = $Builder.AppendLine('          </div>')
     $null = $Builder.AppendLine('        </div>')
-    $null = $Builder.AppendLine(("        <div class=""{0}"">" -f $detailsClass))
+    $null = $Builder.AppendLine(("        <div class=""{0}"" id=""{1}"" aria-hidden=""true"">" -f $detailsClass, $detailsId))
 
     foreach ($check in $groupChecks) {
         Add-DSATestResult -Builder $Builder -Check $check
@@ -360,12 +362,32 @@ function Get-DSAReportSummary {
 
 function Get-DSAReportStyles {
 @"
+:root {
+    --color-bg: #f5f7fa;
+    --color-surface: #ffffff;
+    --color-text: #1f2937;
+    --color-muted: #4b5563;
+    --color-muted-light: #6b7280;
+    --color-border: #e5e7eb;
+    --color-pass: #0f766e;
+    --color-pass-bg: #ecfdf3;
+    --color-fail: #b91c1c;
+    --color-fail-bg: #fef2f2;
+    --color-warn: #92400e;
+    --color-warn-bg: #fffbeb;
+    --color-info: #1d4ed8;
+    --color-info-bg: #e0e7ff;
+    --color-focus: #111827;
+    --color-header-start: #363671;
+    --color-header-end: #1f2a44;
+}
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    line-height: 1.6;
-    color: #333;
-    background-color: #f5f7fa;
+    line-height: 1.7;
+    color: var(--color-text);
+    background-color: var(--color-bg);
+    font-size: 16px;
 }
 .container {
     max-width: 1200px;
@@ -373,16 +395,16 @@ body {
     padding: 20px;
 }
 .header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--color-header-start) 0%, var(--color-header-end) 100%);
     color: white;
-    padding: 30px;
+    padding: 32px;
     border-radius: 12px;
     margin-bottom: 30px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.12);
 }
 .header h1 {
-    font-size: 2.5rem;
-    margin-bottom: 10px;
+    font-size: clamp(2rem, 2vw + 1rem, 2.6rem);
+    margin-bottom: 12px;
 }
 .header .meta {
     opacity: 0.95;
@@ -395,13 +417,17 @@ body {
     margin-bottom: 30px;
 }
 .card {
-    background: white;
-    padding: 25px;
+    background: var(--color-surface);
+    padding: 24px;
     border-radius: 12px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.08);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .card:hover { transform: translateY(-2px); }
+.card:focus-visible, .protocol-header:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 4px;
+}
 .card-header { display: flex; align-items: center; margin-bottom: 12px; }
 .card-icon {
     width: 42px;
@@ -415,25 +441,25 @@ body {
     color: white;
     font-size: 1.1rem;
 }
-.card-title { font-size: 1.1rem; font-weight: 600; color: #374151; }
+.card-title { font-size: 1.1rem; font-weight: 600; color: #111827; }
 .card-value {
     font-size: 2.1rem;
     font-weight: 700;
     margin-bottom: 6px;
 }
-.card-subtitle { color: #6b7280; font-size: 0.95rem; }
-.card-icon.passed { background-color: #10b981; }
-.card-value.passed { color: #10b981; }
-.card-icon.failed { background-color: #ef4444; }
-.card-value.failed { color: #ef4444; }
-.card-icon.warning { background-color: #f59e0b; }
-.card-value.warning { color: #f59e0b; }
-.card-icon.info { background-color: #3b82f6; }
-.card-value.info { color: #3b82f6; }
+.card-subtitle { color: var(--color-muted-light); font-size: 1rem; }
+.card-icon.passed { background-color: var(--color-pass); }
+.card-value.passed { color: var(--color-pass); }
+.card-icon.failed { background-color: var(--color-fail); }
+.card-value.failed { color: var(--color-fail); }
+.card-icon.warning { background-color: var(--color-warn); }
+.card-value.warning { color: var(--color-warn); }
+.card-icon.info { background-color: var(--color-info); }
+.card-value.info { color: var(--color-info); }
 .card.filter-card { cursor: pointer; transition: box-shadow 0.2s ease, transform 0.2s ease; }
-.card.filter-card.active { box-shadow: 0 0 0 3px rgba(59,130,246,0.35); transform: translateY(-2px); }
+.card.filter-card.active { box-shadow: 0 0 0 3px rgba(17,24,39,0.3); transform: translateY(-2px); }
 .domain-results {
-    background: white;
+    background: var(--color-surface);
     border-radius: 12px;
     box-shadow: 0 2px 12px rgba(0,0,0,0.08);
     margin-bottom: 30px;
@@ -441,34 +467,34 @@ body {
 }
 .domain-empty {
     padding: 24px;
-    color: #6b7280;
+    color: var(--color-muted-light);
     font-style: italic;
     border-top: 1px solid #f3f4f6;
 }
 .domain-header {
     background: #f8fafc;
     padding: 22px;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--color-border);
 }
 .domain-title {
     display: flex;
     align-items: center;
     justify-content: space-between;
 }
-.domain-name { font-size: 1.5rem; font-weight: 600; color: #374151; }
-.domain-meta { margin-top: 12px; color: #6b7280; font-size: 0.95rem; }
+.domain-name { font-size: 1.5rem; font-weight: 700; color: #111827; }
+.domain-meta { margin-top: 12px; color: var(--color-muted-light); font-size: 0.98rem; }
 .domain-status {
     padding: 8px 18px;
     border-radius: 999px;
-    font-weight: 600;
-    font-size: 0.9rem;
+    font-weight: 700;
+    font-size: 0.95rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
-.domain-status.passed { background-color: #d1fae5; color: #065f46; }
-.domain-status.failed { background-color: #fee2e2; color: #991b1b; }
-.domain-status.warning { background-color: #fef3c7; color: #92400e; }
-.protocol-section { border-bottom: 1px solid #e5e7eb; }
+.domain-status.passed { background-color: var(--color-pass-bg); color: var(--color-pass); }
+.domain-status.failed { background-color: var(--color-fail-bg); color: var(--color-fail); }
+.domain-status.warning { background-color: var(--color-warn-bg); color: var(--color-warn); }
+.protocol-section { border-bottom: 1px solid var(--color-border); }
 .protocol-header {
     background: #f9fafb;
     padding: 18px 24px;
@@ -479,9 +505,9 @@ body {
     justify-content: space-between;
 }
 .protocol-header:hover { background: #f3f4f6; }
-.protocol-name { font-weight: 600; font-size: 1.05rem; color: #374151; }
-.protocol-status { display: flex; align-items: center; gap: 12px; font-size: 0.9rem; color: #6b7280; }
-.protocol-count { font-weight: 500; color: #4b5563; }
+.protocol-name { font-weight: 700; font-size: 1.05rem; color: #111827; }
+.protocol-status { display: flex; align-items: center; gap: 12px; font-size: 0.95rem; color: var(--color-muted); }
+.protocol-count { font-weight: 600; color: #111827; }
 .chevron {
     display: inline-flex;
     align-items: center;
@@ -490,26 +516,29 @@ body {
     height: 22px;
     border-radius: 50%;
     background: #e5e7eb;
-    color: #4b5563;
+    color: #111827;
     font-size: 0.75rem;
     transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease;
 }
 .protocol-section.expanded .chevron {
     transform: rotate(90deg);
-    background: #c7d2fe;
-    color: #312e81;
+    background: var(--color-info-bg);
+    color: #1e3a8a;
 }
 .status-badge {
     padding: 4px 12px;
     border-radius: 12px;
-    font-size: 0.85rem;
-    font-weight: 600;
+    font-size: 0.9rem;
+    font-weight: 700;
     text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
-.status-badge.passed { background-color: #d1fae5; color: #065f46; }
-.status-badge.failed { background-color: #fee2e2; color: #991b1b; }
-.status-badge.warning { background-color: #fef3c7; color: #92400e; }
-.status-badge.info { background-color: #e0e7ff; color: #312e81; }
+.status-badge.passed { background-color: var(--color-pass-bg); color: var(--color-pass); }
+.status-badge.failed { background-color: var(--color-fail-bg); color: var(--color-fail); }
+.status-badge.warning { background-color: var(--color-warn-bg); color: var(--color-warn); }
+.status-badge.info { background-color: var(--color-info-bg); color: #1e3a8a; }
 .protocol-details { display: none; padding: 0; }
 .protocol-details.expanded { display: block; }
 .test-result {
@@ -531,25 +560,25 @@ body {
     flex-shrink: 0;
     box-shadow: 0 2px 6px rgba(0,0,0,0.12);
 }
-.test-icon.passed { background-color: #10b981; }
-.test-icon.failed { background-color: #ef4444; }
-.test-icon.warning { background-color: #f59e0b; }
-.test-icon.info { background-color: #3b82f6; }
+.test-icon.passed { background-color: var(--color-pass); }
+.test-icon.failed { background-color: var(--color-fail); }
+.test-icon.warning { background-color: var(--color-warn); }
+.test-icon.info { background-color: var(--color-info); }
 .test-content { flex: 1; display: flex; flex-direction: column; gap: 10px; }
 .test-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.test-name { font-weight: 600; color: #111827; font-size: 1rem; }
-.test-message { color: #6b7280; font-size: 0.95rem; }
+.test-name { font-weight: 700; color: #111827; font-size: 1rem; }
+.test-message { color: var(--color-muted-light); font-size: 0.97rem; }
 .status-pill {
     padding: 2px 10px;
     border-radius: 12px;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     text-transform: uppercase;
-    font-weight: 600;
+    font-weight: 700;
 }
-.status-pill.passed { background-color: #d1fae5; color: #065f46; }
-.status-pill.failed { background-color: #fee2e2; color: #991b1b; }
-.status-pill.warning { background-color: #fef3c7; color: #92400e; }
-.status-pill.info { background-color: #e0e7ff; color: #312e81; }
+.status-pill.passed { background-color: var(--color-pass-bg); color: var(--color-pass); }
+.status-pill.failed { background-color: var(--color-fail-bg); color: var(--color-fail); }
+.status-pill.warning { background-color: var(--color-warn-bg); color: var(--color-warn); }
+.status-pill.info { background-color: var(--color-info-bg); color: #1e3a8a; }
 .details-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -561,15 +590,15 @@ body {
     border-radius: 8px;
 }
 .detail-label {
-    font-size: 0.75rem;
-    color: #6b7280;
+    font-size: 0.78rem;
+    color: var(--color-muted-light);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-bottom: 4px;
 }
 .detail-value {
-    font-weight: 600;
-    color: #374151;
+    font-weight: 700;
+    color: #111827;
 }
 .test-recommendation {
     background: #eef2ff;
@@ -578,7 +607,7 @@ body {
     border-left: 4px solid #4338ca;
 }
 .test-recommendation .label {
-    font-weight: 600;
+    font-weight: 700;
     color: #312e81;
     margin-bottom: 4px;
 }
@@ -593,10 +622,10 @@ body {
     padding: 6px 12px;
     border-radius: 999px;
     background: #e5e7eb;
-    color: #374151;
+    color: #111827;
     text-decoration: none;
-    font-size: 0.85rem;
-    font-weight: 600;
+    font-size: 0.9rem;
+    font-weight: 700;
     transition: background-color 0.2s ease, color 0.2s ease;
 }
 .reference-link:hover {
@@ -606,15 +635,15 @@ body {
 .reference-link.reference-link--static {
     cursor: default;
     background: #f3f4f6;
-    color: #6b7280;
+    color: var(--color-muted-light);
 }
 .footer {
-    background: #ffffff;
+    background: var(--color-surface);
     padding: 24px;
     border-radius: 12px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.08);
     text-align: center;
-    color: #6b7280;
+    color: var(--color-muted-light);
     margin: 40px auto 0;
     max-width: 960px;
 }
@@ -623,15 +652,21 @@ body {
 }
 .footer-secondary {
     margin-top: 10px;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
 }
 .value-none { color: #9ca3af; font-style: italic; }
-.value-positive { color: #065f46; font-weight: 600; }
-.value-negative { color: #991b1b; font-weight: 600; }
+.value-positive { color: var(--color-pass); font-weight: 700; }
+.value-negative { color: var(--color-fail); font-weight: 700; }
 @media (max-width: 640px) {
     .domain-title { flex-direction: column; align-items: flex-start; gap: 10px; }
     .summary-cards { grid-template-columns: 1fr; }
     .test-title-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+    .protocol-header { padding: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation-duration: 0.01ms !important; }
+    .card:hover { transform: none; }
+    .chevron { transform: none !important; }
 }
 "@
 }
@@ -640,20 +675,47 @@ body {
 function Get-DSAReportScript {
 @"
 const protocolSections = document.querySelectorAll('.protocol-section');
+
+const setSectionExpanded = (section, header, details, expanded) => {
+    section.classList.toggle('expanded', expanded);
+    if (details) {
+        details.classList.toggle('expanded', expanded);
+        details.setAttribute('aria-hidden', expanded ? 'false' : 'true');
+    }
+    if (header) {
+        header.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    }
+};
+
 protocolSections.forEach((section) => {
     const header = section.querySelector('.protocol-header');
     const details = section.querySelector('.protocol-details');
     if (!header || !details) {
         return;
     }
-    header.addEventListener('click', () => {
-        section.classList.toggle('expanded');
-        details.classList.toggle('expanded');
+    setSectionExpanded(section, header, details, false);
+
+    const toggleSection = () => {
+        const expanded = !section.classList.contains('expanded');
+        setSectionExpanded(section, header, details, expanded);
+    };
+
+    header.addEventListener('click', toggleSection);
+    header.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            toggleSection();
+        }
     });
 });
 
 const filterCards = document.querySelectorAll('.summary-cards .card[data-filter]');
 const domainSections = document.querySelectorAll('.domain-results');
+
+const setCardState = (card, isActive) => {
+    card.classList.toggle('active', isActive);
+    card.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+};
 
 const applyDomainFilter = (filter) => {
     const normalizedFilter = (filter || 'all').toLowerCase();
@@ -679,31 +741,16 @@ const applyDomainFilter = (filter) => {
 
             if (matchAll) {
                 section.style.display = '';
-                if (section.dataset.filterExpanded === 'true') {
-                    section.classList.remove('expanded');
-                    if (details) {
-                        details.classList.remove('expanded');
-                    }
-                    delete section.dataset.filterExpanded;
-                }
+                setSectionExpanded(section, section.querySelector('.protocol-header'), details, section.classList.contains('expanded'));
+                delete section.dataset.filterExpanded;
             } else if (sectionHasMatch) {
                 section.style.display = '';
                 domainHasMatch = true;
-                if (!section.classList.contains('expanded')) {
-                    section.classList.add('expanded');
-                    if (details) {
-                        details.classList.add('expanded');
-                    }
-                    section.dataset.filterExpanded = 'true';
-                }
+                setSectionExpanded(section, section.querySelector('.protocol-header'), details, true);
+                section.dataset.filterExpanded = 'true';
             } else {
                 section.style.display = 'none';
-                if (section.dataset.filterExpanded === 'true') {
-                    section.classList.remove('expanded');
-                    if (details) {
-                        details.classList.remove('expanded');
-                    }
-                }
+                setSectionExpanded(section, section.querySelector('.protocol-header'), details, false);
                 delete section.dataset.filterExpanded;
             }
         });
@@ -715,15 +762,22 @@ const applyDomainFilter = (filter) => {
 filterCards.forEach(card => {
     card.addEventListener('click', () => {
         const filter = card.getAttribute('data-filter') || 'all';
-        filterCards.forEach(c => c.classList.remove('active'));
-        card.classList.add('active');
+        filterCards.forEach(c => setCardState(c, false));
+        setCardState(card, true);
         applyDomainFilter(filter);
+    });
+
+    card.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            card.click();
+        }
     });
 });
 
 const defaultFilter = document.querySelector('.summary-cards .card[data-filter=\"all\"]');
 if (defaultFilter) {
-    defaultFilter.classList.add('active');
+    setCardState(defaultFilter, true);
     applyDomainFilter(defaultFilter.getAttribute('data-filter'));
 } else {
     applyDomainFilter('all');
