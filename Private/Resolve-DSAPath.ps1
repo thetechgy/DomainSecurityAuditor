@@ -12,6 +12,11 @@ function Resolve-DSAPath {
         [switch]$EnsureExists
     )
 
+    $invalidChars = [System.IO.Path]::GetInvalidPathChars()
+    if ($Path.IndexOfAny($invalidChars) -ge 0) {
+        throw "Path '$Path' contains invalid characters."
+    }
+
     # Normalize relative components before validation
     $expandedPath = [System.IO.Path]::GetFullPath((Resolve-Path -Path $Path -ErrorAction SilentlyContinue)?.Path ?? $Path)
 
@@ -34,6 +39,7 @@ function Resolve-DSAPath {
         throw "Unable to resolve path '$Path'."
     }
 
+    # Limit path length to leave headroom for child items within the 260-character Windows maximum
     if ($expandedPath.Length -gt 180) {
         throw "Resolved path '$expandedPath' exceeds the 180-character limit."
     }

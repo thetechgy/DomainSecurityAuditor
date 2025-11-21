@@ -18,6 +18,10 @@ function Invoke-DomainSecurityBaseline {
     Bypass automatic dependency checks and exit after logging the decision.
 .PARAMETER DkimSelector
     Optional DKIM selectors to verify via DomainDetective; if omitted, DKIM evaluation is skipped.
+.PARAMETER Baseline
+    Name of the built-in baseline profile to load (defaults to 'Default').
+.PARAMETER BaselineProfilePath
+    Optional path to a .psd1 file describing a full baseline profile. Copy the default profile, adjust values, and pass the new file to this parameter.
 .PARAMETER DryRun
     Simulate work without calling DomainDetective or writing artifacts.
 .PARAMETER ShowProgress
@@ -37,7 +41,7 @@ Revision History:
       0.1.0 - 11/16/2025 - Initial scaffolded implementation with logging/transcript plumbing.
 
 Known Issues:
-      - Data collection and baseline assertions are placeholders pending DomainDetective wiring.
+      - TTL evidence fields require DomainDetective updates to expose DNS record TTLs.
 
 Resources:
       - https://github.com/thetechgy/DomainSecurityAuditor
@@ -69,6 +73,8 @@ Resources:
 
         [switch]$SkipDependencies,
         [string[]]$DkimSelector,
+        [string]$Baseline = 'Default',
+        [string]$BaselineProfilePath,
         [switch]$DryRun,
         [switch]$ShowProgress = $true
         #endregion Parameters
@@ -152,7 +158,11 @@ Resources:
             $results = [System.Collections.Generic.List[object]]::new()
             $domainCount = $targetDomains.Count
             $currentIndex = 0
-            $baselineDefinition = Get-DSABaseline
+            if ($PSBoundParameters.ContainsKey('BaselineProfilePath')) {
+                $baselineDefinition = Get-DSABaseline -ProfilePath $BaselineProfilePath
+            } else {
+                $baselineDefinition = Get-DSABaseline -ProfileName $Baseline
+            }
 
             foreach ($domainName in $targetDomains) {
                 $currentIndex++

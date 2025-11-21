@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(git fetch:*)",
+      "Bash(pwsh -Command \"Invoke-Pester -Path ./Tests/Invoke-DomainSecurityBaseline.Tests.ps1 -Output Detailed 2>&1\")",
+      "Bash(pwsh -Command \"\nGet-Content /mnt/c/Users/TravisMcDade/VSCode_Workspace/DomainSecurityAuditor/Public/Get-DSABaselineProfile.ps1 -Raw | \nSelect-String -Pattern ''(Help|.PARAMETER|ValidateNotNullOrEmpty)'' | Select-Object -First 20\n\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -13,7 +13,12 @@
         'Pester'
         'PSScriptAnalyzer'
     )
-    FunctionsToExport = @('Invoke-DomainSecurityBaseline')
+    FunctionsToExport = @(
+        'Invoke-DomainSecurityBaseline',
+        'Get-DSABaselineProfile',
+        'New-DSABaselineProfile',
+        'Test-DSABaselineProfile'
+    )
     CmdletsToExport   = @()
     VariablesToExport = @()
     AliasesToExport   = @()
