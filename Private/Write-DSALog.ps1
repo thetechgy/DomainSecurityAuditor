@@ -35,7 +35,7 @@ function Write-DSALog {
         $null = New-Item -ItemType Directory -Path $logDirectory -Force
     }
 
-    Add-Content -Path $LogFile -Value $entry
+    Add-Content -Path $LogFile -Value $entry -Encoding UTF8
     if ($PSBoundParameters.ContainsKey('Verbose') -or $VerbosePreference -ne 'SilentlyContinue') {
         Write-Verbose -Message $entry
     }

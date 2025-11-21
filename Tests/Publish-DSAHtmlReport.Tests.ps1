@@ -1,4 +1,9 @@
 BeforeAll {
+    $stubModuleRoot = Join-Path -Path $PSScriptRoot -ChildPath 'Stubs'
+    if (Test-Path -Path $stubModuleRoot) {
+        $env:PSModulePath = "{0}{1}{2}" -f $stubModuleRoot, [System.IO.Path]::PathSeparator, $env:PSModulePath
+    }
+
     $moduleManifest = Join-Path -Path $PSScriptRoot -ChildPath '..\DomainSecurityAuditor.psd1'
     Import-Module -Name (Resolve-Path -Path $moduleManifest) -Force
 }
@@ -33,7 +38,7 @@ Describe 'Publish-DSAHtmlReport' {
 Describe 'Resolve-DSAClassificationOverride' {
     It 'rejects blank override values' {
         InModuleScope DomainSecurityAuditor {
-            { Resolve-DSAClassificationOverride -Value '' -SourceDescription 'test parameter' } | Should -Throw -ExpectedMessage '*argument is null or empty*'
+            { Resolve-DSAClassificationOverride -Value '' -SourceDescription 'test parameter' } | Should -Throw -ExpectedMessage '*cannot be empty*Allowed values*'
         }
     }
 }
