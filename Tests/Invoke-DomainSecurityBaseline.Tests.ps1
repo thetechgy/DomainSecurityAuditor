@@ -96,6 +96,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
                 Mock -CommandName Invoke-DSALogRetention -MockWith { }
                 Mock -CommandName Write-DSALog -MockWith { }
                 Mock -CommandName Publish-DSAHtmlReport -MockWith { 'C:\Reports\domain_report.html' }
+                Mock -CommandName Open-DSAReport -MockWith { }
             }
         }
 
@@ -111,6 +112,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
                 $profile.ReportPath | Should -BeNullOrEmpty
 
                 Assert-MockCalled -CommandName Publish-DSAHtmlReport -Times 0 -Scope It
+                Assert-MockCalled -CommandName Open-DSAReport -Times 0 -Scope It
             }
         }
 
@@ -132,6 +134,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
                 $profile.ReportPath | Should -Be 'C:\Reports\domain_report.html'
 
                 Assert-MockCalled -CommandName Publish-DSAHtmlReport -Times 1 -Scope It
+                Assert-MockCalled -CommandName Open-DSAReport -Times 1 -Scope It
             }
         }
 
@@ -149,6 +152,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
                 $spfLookup = $profile.Checks | Where-Object { $_.Id -eq 'SPFLookupLimit' }
                 $spfLookup.Status | Should -Be 'Fail'
                 Assert-MockCalled -CommandName Publish-DSAHtmlReport -Times 1 -Scope It
+                Assert-MockCalled -CommandName Open-DSAReport -Times 1 -Scope It
             }
         }
 
@@ -167,6 +171,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
                 $nullMxCheck = $profile.Checks | Where-Object { $_.Id -eq 'MXNullForParked' }
                 $nullMxCheck.Status | Should -Be 'Fail'
                 Assert-MockCalled -CommandName Publish-DSAHtmlReport -Times 1 -Scope It
+                Assert-MockCalled -CommandName Open-DSAReport -Times 1 -Scope It
             }
         }
 
@@ -208,6 +213,19 @@ Describe 'Invoke-DomainSecurityBaseline' {
                 $profile = $result | Select-Object -First 1
                 $spfLookup = $profile.Checks | Where-Object { $_.Id -eq 'SPFLookupLimit' }
                 $spfLookup.Status | Should -Be 'Fail'
+                Assert-MockCalled -CommandName Open-DSAReport -Times 0 -Scope It
+            }
+        }
+
+        It 'skips report launch when requested' {
+            InModuleScope DomainSecurityAuditor {
+                Mock -CommandName Get-DSADomainEvidence -MockWith {
+                    $records = Get-DSADryRunRecords
+                    New-DSADomainEvidenceObject -Domain 'example.com' -Classification 'SendingAndReceiving' -Records $records
+                }
+
+                Invoke-DomainSecurityBaseline -Domain 'example.com' -SkipReportLaunch | Out-Null
+                Assert-MockCalled -CommandName Open-DSAReport -Times 0 -Scope It
             }
         }
     }

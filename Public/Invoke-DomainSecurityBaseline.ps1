@@ -22,6 +22,8 @@ function Invoke-DomainSecurityBaseline {
     Name of the built-in baseline profile to load (defaults to 'Default').
 .PARAMETER BaselineProfilePath
     Optional path to a .psd1 file describing a full baseline profile. Copy the default profile, adjust values, and pass the new file to this parameter.
+.PARAMETER SkipReportLaunch
+    Prevents automatic opening of the generated HTML report. Use this in CI/CD or other non-interactive scenarios.
 .PARAMETER DryRun
     Simulate work without calling DomainDetective or writing artifacts.
 .PARAMETER ShowProgress
@@ -75,6 +77,7 @@ Resources:
         [string[]]$DkimSelector,
         [string]$Baseline = 'Default',
         [string]$BaselineProfilePath,
+        [switch]$SkipReportLaunch,
         [switch]$DryRun,
         [switch]$ShowProgress = $true
         #endregion Parameters
@@ -203,11 +206,16 @@ Resources:
             Write-DSALog -Message "Processed $domainCount domain(s)." -LogFile $logFile
 
             $resultArray = $results.ToArray()
+            $reportPath = $null
             if (-not $DryRun) {
                 $reportPath = Publish-DSAHtmlReport -Profiles $resultArray -OutputRoot $resolvedOutputRoot -GeneratedOn $runDate -LogFile $logFile
                 foreach ($item in $resultArray) {
                     $item | Add-Member -NotePropertyName 'ReportPath' -NotePropertyValue $reportPath -Force
                 }
+            }
+
+            if (-not $DryRun -and -not $SkipReportLaunch -and $reportPath) {
+                Open-DSAReport -Path $reportPath -LogFile $logFile
             }
 
             return $resultArray
