@@ -118,6 +118,7 @@ function Add-DSASummaryCards {
         $null = $Builder.AppendLine('        </div>')
     }
     $null = $Builder.AppendLine('      </div>')
+    $null = $Builder.AppendLine('      <div class="filter-summary" id="filter-summary" aria-live="polite">Showing: All checks</div>')
     $null = $Builder.AppendLine('    </section>')
 }
 
@@ -448,6 +449,12 @@ body {
     gap: 20px;
     margin-bottom: 30px;
 }
+.filter-summary {
+    margin-top: 8px;
+    color: var(--color-muted);
+    font-size: 0.95rem;
+    font-weight: 600;
+}
 .card {
     background: var(--color-surface);
     padding: 24px;
@@ -751,15 +758,36 @@ protocolSections.forEach((section) => {
 
 const filterCards = document.querySelectorAll('.summary-cards .card[data-filter]');
 const domainSections = document.querySelectorAll('.domain-results');
+const filterSummary = document.getElementById('filter-summary');
+let activeFilters = ['all'];
 
 const setCardState = (card, isActive) => {
     card.classList.toggle('active', isActive);
     card.setAttribute('aria-pressed', isActive ? 'true' : 'false');
 };
 
-const applyDomainFilter = (filter) => {
-    const normalizedFilter = (filter || 'all').toLowerCase();
-    const matchAll = normalizedFilter === 'all';
+const renderFilterSummary = () => {
+    if (!filterSummary) {
+        return;
+    }
+    if (activeFilters.includes('all')) {
+        filterSummary.textContent = 'Showing: All checks';
+    } else {
+        const pretty = activeFilters.map(f => {
+            switch (f) {
+                case 'pass': return 'Passing';
+                case 'fail': return 'Failing';
+                case 'warning': return 'Warning';
+                default: return f;
+            }
+        });
+        filterSummary.textContent = 'Showing: ' + pretty.join(', ');
+    }
+};
+
+const applyDomainFilter = (filters) => {
+    const normalizedFilters = (filters || ['all']).map(f => (f || 'all').toLowerCase());
+    const matchAll = normalizedFilters.includes('all');
 
     domainSections.forEach(domain => {
         let domainHasMatch = false;
@@ -772,7 +800,7 @@ const applyDomainFilter = (filter) => {
 
             tests.forEach(test => {
                 const status = (test.getAttribute('data-status') || '').toLowerCase();
-                const matches = matchAll || status === normalizedFilter;
+                const matches = matchAll || normalizedFilters.includes(status);
                 test.style.display = matches ? '' : 'none';
                 if (matches) {
                     sectionHasMatch = true;
@@ -802,9 +830,27 @@ const applyDomainFilter = (filter) => {
 filterCards.forEach(card => {
     card.addEventListener('click', () => {
         const filter = card.getAttribute('data-filter') || 'all';
-        filterCards.forEach(c => setCardState(c, false));
-        setCardState(card, true);
-        applyDomainFilter(filter);
+        if (filter === 'all') {
+            activeFilters = ['all'];
+            filterCards.forEach(c => setCardState(c, c.getAttribute('data-filter') === 'all'));
+        } else {
+            const isActive = card.classList.contains('active');
+            if (isActive) {
+                activeFilters = activeFilters.filter(f => f !== filter);
+            } else {
+                activeFilters = activeFilters.filter(f => f !== 'all');
+                activeFilters.push(filter);
+            }
+            if (activeFilters.length === 0) {
+                activeFilters = ['all'];
+            }
+            filterCards.forEach(c => {
+                const f = c.getAttribute('data-filter');
+                setCardState(c, activeFilters.includes(f));
+            });
+        }
+        renderFilterSummary();
+        applyDomainFilter(activeFilters);
     });
 
     card.addEventListener('keydown', (event) => {
@@ -817,10 +863,19 @@ filterCards.forEach(card => {
 
 const defaultFilter = document.querySelector('.summary-cards .card[data-filter=\"all\"]');
 if (defaultFilter) {
+    activeFilters = ['all'];
     setCardState(defaultFilter, true);
-    applyDomainFilter(defaultFilter.getAttribute('data-filter'));
+    filterCards.forEach(c => {
+        if (c !== defaultFilter) {
+            setCardState(c, false);
+        }
+    });
+    renderFilterSummary();
+    applyDomainFilter(activeFilters);
 } else {
-    applyDomainFilter('all');
+    activeFilters = ['all'];
+    renderFilterSummary();
+    applyDomainFilter(activeFilters);
 }
 "@
 }
