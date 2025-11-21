@@ -1,7 +1,15 @@
 function Open-DSAReport {
+<#
+.SYNOPSIS
+    Opens a generated report file in the default viewer.
+.DESCRIPTION
+    Launches the specified report file using the system default application. Falls back to
+    platform-specific commands (explorer/open/xdg-open) if the initial attempt fails.
+#>
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
         [string]$Path,
 
         [string]$LogFile
@@ -11,16 +19,16 @@ function Open-DSAReport {
 
     $opened = $false
     try {
-        Start-Process -FilePath $resolved -ErrorAction Stop | Out-Null
+        $null = Start-Process -FilePath $resolved -ErrorAction Stop
         $opened = $true
     } catch {
         try {
             if ($IsWindows) {
-                Start-Process -FilePath 'explorer.exe' -ArgumentList "`"$resolved`"" -ErrorAction Stop | Out-Null
+                $null = Start-Process -FilePath 'explorer.exe' -ArgumentList "`"$resolved`"" -ErrorAction Stop
             } elseif ($IsMacOS) {
-                Start-Process -FilePath 'open' -ArgumentList "`"$resolved`"" -ErrorAction Stop | Out-Null
+                $null = Start-Process -FilePath 'open' -ArgumentList "`"$resolved`"" -ErrorAction Stop
             } else {
-                Start-Process -FilePath 'xdg-open' -ArgumentList "`"$resolved`"" -ErrorAction Stop | Out-Null
+                $null = Start-Process -FilePath 'xdg-open' -ArgumentList "`"$resolved`"" -ErrorAction Stop
             }
             $opened = $true
         } catch {

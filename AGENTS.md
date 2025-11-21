@@ -176,7 +176,7 @@ Stop-Transcript
   - Before submitting, run **PSScriptAnalyzer** using the workspace settings file (`./PSScriptAnalyzerSettings.psd1`) to ensure local results match CI (`Invoke-ScriptAnalyzer -Settings .\PSScriptAnalyzerSettings.psd1`).
   - If default IDE/editor behavior changes, update the corresponding configuration files in the repo so analyzer settings remain aligned across tooling.
 
-- Every exported module command must expose a `-DryRun` (or `SupportsShouldProcess`) switch and a `-ShowProgress` switch so behavior remains consistent when called directly or via wrapper scripts.
+- Every exported module command must expose a `-ShowProgress` switch so behavior remains consistent when called directly or via wrapper scripts.
 - Provide usage examples, either in comment-based help or a README-adjacent example block.
 - Use descriptive, self-explanatory variable names — avoid single-letter or ambiguous loop/control variables.
 - Add inline comments explaining non-obvious logic.
@@ -264,13 +264,13 @@ Resources:
     <Describe the parameter; repeat for each parameter>
 .PARAMETER SkipDependencies
     Bypass automatic module installation; logs missing dependencies and exits early.
-.PARAMETER DryRun
-    Simulate the action without making changes.
+.PARAMETER SkipReportLaunch
+    Prevents automatic launching of the generated compliance report.
 .PARAMETER ShowProgress
     Toggle `Write-Progress` output.
 .EXAMPLE
-    Invoke-DomainSecurityBaseline -Domain "example.com" -DryRun
-    Runs baseline tests without persisting artifacts.
+    Invoke-DomainSecurityBaseline -Domain "example.com"
+    Runs baseline tests and writes an HTML report to the default output folder.
 .OUTPUTS
     PSCustomObject describing compliance results.
 .NOTES

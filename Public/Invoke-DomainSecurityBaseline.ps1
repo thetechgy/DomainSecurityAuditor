@@ -24,13 +24,11 @@ function Invoke-DomainSecurityBaseline {
     Optional path to a .psd1 file describing a full baseline profile. Copy the default profile, adjust values, and pass the new file to this parameter.
 .PARAMETER SkipReportLaunch
     Prevents automatic opening of the generated HTML report. Use this in CI/CD or other non-interactive scenarios.
-.PARAMETER DryRun
-    Simulate work without calling DomainDetective or writing artifacts.
 .PARAMETER ShowProgress
     Toggle Write-Progress output for long-running collections.
 .EXAMPLE
-    Invoke-DomainSecurityBaseline -Domain 'example.com' -DryRun
-    Runs baseline setup for example.com without persisting changes, useful for CI smoke validation.
+    Invoke-DomainSecurityBaseline -Domain 'example.com'
+    Runs the baseline workflow for example.com and writes the report to the default Output folder.
 .OUTPUTS
     PSCustomObject
 .NOTES
@@ -78,7 +76,6 @@ Resources:
         [string]$Baseline = 'Default',
         [string]$BaselineProfilePath,
         [switch]$SkipReportLaunch,
-        [switch]$DryRun,
         [switch]$ShowProgress = $true
         #endregion Parameters
     )
@@ -180,7 +177,7 @@ Resources:
 
                 Write-DSALog -Message "Collecting evidence for '$domainName'." -LogFile $logFile -Level 'DEBUG'
 
-                $evidence = Get-DSADomainEvidence -Domain $domainName -LogFile $logFile -DryRun:$DryRun.IsPresent -DkimSelector $DkimSelector
+                $evidence = Get-DSADomainEvidence -Domain $domainName -LogFile $logFile -DkimSelector $DkimSelector
                 $profile = Invoke-DSABaselineTest -DomainEvidence $evidence -BaselineDefinition $baselineDefinition
                 $profileWithMetadata = [pscustomobject]@{
                     Domain                 = $profile.Domain
@@ -191,7 +188,6 @@ Resources:
                     Evidence               = $evidence.Records
                     OutputPath             = $resolvedOutputRoot
                     Timestamp              = (Get-Date)
-                    DryRun                 = [bool]$DryRun
                     ReportPath             = $null
                 }
 
@@ -206,15 +202,12 @@ Resources:
             Write-DSALog -Message "Processed $domainCount domain(s)." -LogFile $logFile
 
             $resultArray = $results.ToArray()
-            $reportPath = $null
-            if (-not $DryRun) {
-                $reportPath = Publish-DSAHtmlReport -Profiles $resultArray -OutputRoot $resolvedOutputRoot -GeneratedOn $runDate -LogFile $logFile
-                foreach ($item in $resultArray) {
-                    $item | Add-Member -NotePropertyName 'ReportPath' -NotePropertyValue $reportPath -Force
-                }
+            $reportPath = Publish-DSAHtmlReport -Profiles $resultArray -OutputRoot $resolvedOutputRoot -GeneratedOn $runDate -LogFile $logFile
+            foreach ($item in $resultArray) {
+                $item | Add-Member -NotePropertyName 'ReportPath' -NotePropertyValue $reportPath -Force
             }
 
-            if (-not $DryRun -and -not $SkipReportLaunch -and $reportPath) {
+            if (-not $SkipReportLaunch -and $reportPath) {
                 Open-DSAReport -Path $reportPath -LogFile $logFile
             }
 

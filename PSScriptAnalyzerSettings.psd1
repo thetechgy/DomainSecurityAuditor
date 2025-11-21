@@ -26,7 +26,7 @@
       Enable = $true              # Keeps Public\ & Private\ functions aligned with “PowerShell-approved verbs”.
     }
     PSUseShouldProcessForStateChangingFunctions    = @{
-      Enable = $true              # Guarantees exported commands surface -WhatIf/-Confirm per the -DryRun requirement.
+      Enable = $true              # Ensures future state-changing commands wire up -WhatIf/-Confirm.
     }
     PSAvoidDefaultValueSwitchParameter             = @{
       Enable = $true              # Ensures switches like -SkipDependencies behave predictably.

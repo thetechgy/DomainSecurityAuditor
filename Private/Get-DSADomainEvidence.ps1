@@ -7,16 +7,8 @@ function Get-DSADomainEvidence {
 
         [string]$LogFile,
 
-        [switch]$DryRun,
-
         [string[]]$DkimSelector
     )
-
-    if ($DryRun) {
-        Write-Verbose -Message "Returning dry run evidence for '$Domain'."
-        $records = Get-DSADryRunRecords
-        return New-DSADomainEvidenceObject -Domain $Domain -Classification 'SendingAndReceiving' -Records $records
-    }
 
     try {
         if (-not (Get-Module -Name DomainDetective -ErrorAction SilentlyContinue)) {

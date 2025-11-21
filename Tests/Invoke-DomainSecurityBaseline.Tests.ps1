@@ -7,62 +7,65 @@ BeforeAll {
     $moduleManifest = Join-Path -Path $PSScriptRoot -ChildPath '..\DomainSecurityAuditor.psd1'
     Import-Module -Name (Resolve-Path -Path $moduleManifest) -Force
 
-InModuleScope DomainSecurityAuditor {
-    function New-TestEvidence {
-        param (
-            [string]$Classification = 'SendingAndReceiving',
-            [ScriptBlock]$Adjust
-        )
+    # Define test helper in global scope for InModuleScope access
+    function global:New-TestEvidence {
+    param (
+        [string]$Classification = 'SendingAndReceiving',
+        [ScriptBlock]$Adjust
+    )
 
-        $records = [pscustomobject]@{
-            MX                    = @('mx1.example.com')
-            MXRecordCount         = 1
-            MXHasNull             = $false
-            MXMinimumTtl          = 3600
-            SPFRecord             = 'v=spf1 include:_spf.example.com -all'
-            SPFRecords            = @('v=spf1 include:_spf.example.com -all')
-            SPFRecordCount        = 1
-            SPFLookupCount        = 2
-            SPFTerminalMechanism  = '-all'
-            SPFHasPtrMechanism    = $false
-            SPFRecordLength       = 40
-            SPFTtl                = 3600
-            SPFIncludes           = @('_spf.example.com')
-            SPFWildcardRecord     = 'v=spf1 -all'
-            SPFWildcardConfigured = $true
-            SPFUnsafeMechanisms   = @()
-            DKIMSelectors         = @('selector1')
-            DKIMSelectorDetails   = @([pscustomobject]@{ Name = 'selector1'; KeyLength = 2048; IsValid = $true; TTL = 3600 })
-            DKIMMinKeyLength      = 2048
-            DKIMWeakSelectors     = 0
-            DKIMMinimumTtl        = 3600
-            DMARCRecord           = 'v=DMARC1; p=reject; rua=mailto:dmarc@example.com'
-            DMARCPolicy           = 'reject'
-            DMARCRuaAddresses     = @('dmarc@example.com')
-            DMARCRufAddresses     = @()
-            DMARCTtl              = 3600
-            MTASTSRecordPresent   = $true
-            MTASTSPolicyValid     = $true
-            MTASTSMode            = 'enforce'
-            MTASTSTtl             = 86400
-            TLSRPTRecordPresent   = $true
-            TLSRPTAddresses       = @('tls@example.com')
-            TLSRPTTtl             = 86400
-        }
+    $records = [pscustomobject]@{
+        MX                    = @('mx1.example.com')
+        MXRecordCount         = 1
+        MXHasNull             = $false
+        MXMinimumTtl          = 3600
+        SPFRecord             = 'v=spf1 include:_spf.example.com -all'
+        SPFRecords            = @('v=spf1 include:_spf.example.com -all')
+        SPFRecordCount        = 1
+        SPFLookupCount        = 2
+        SPFTerminalMechanism  = '-all'
+        SPFHasPtrMechanism    = $false
+        SPFRecordLength       = 40
+        SPFTtl                = 3600
+        SPFIncludes           = @('_spf.example.com')
+        SPFWildcardRecord     = 'v=spf1 -all'
+        SPFWildcardConfigured = $true
+        SPFUnsafeMechanisms   = @()
+        DKIMSelectors         = @('selector1')
+        DKIMSelectorDetails   = @([pscustomobject]@{ Name = 'selector1'; KeyLength = 2048; IsValid = $true; TTL = 3600 })
+        DKIMMinKeyLength      = 2048
+        DKIMWeakSelectors     = 0
+        DKIMMinimumTtl        = 3600
+        DMARCRecord           = 'v=DMARC1; p=reject; rua=mailto:dmarc@example.com'
+        DMARCPolicy           = 'reject'
+        DMARCRuaAddresses     = @('dmarc@example.com')
+        DMARCRufAddresses     = @()
+        DMARCTtl              = 3600
+        MTASTSRecordPresent   = $true
+        MTASTSPolicyValid     = $true
+        MTASTSMode            = 'enforce'
+        MTASTSTtl             = 86400
+        TLSRPTRecordPresent   = $true
+        TLSRPTAddresses       = @('tls@example.com')
+        TLSRPTTtl             = 86400
+    }
 
-        $evidence = [pscustomobject]@{
-            Domain         = 'example.com'
-            Classification = $Classification
-            Records        = $records
-        }
+    $evidence = [pscustomobject]@{
+        Domain         = 'example.com'
+        Classification = $Classification
+        Records        = $records
+    }
 
-        if ($Adjust) {
-            & $Adjust -ArgumentList $evidence
-        }
+    if ($Adjust) {
+        & $Adjust -ArgumentList $evidence
+    }
 
-        return $evidence
+    return $evidence
     }
 }
+
+AfterAll {
+    Remove-Item -Path Function:\New-TestEvidence -ErrorAction SilentlyContinue
 }
 
 Describe 'Invoke-DomainSecurityBaseline' {
@@ -73,7 +76,6 @@ Describe 'Invoke-DomainSecurityBaseline' {
 
     It 'includes required parameters' {
         $command = Get-Command -Name Invoke-DomainSecurityBaseline -Module DomainSecurityAuditor
-        $command.Parameters.Keys | Should -Contain 'DryRun'
         $command.Parameters.Keys | Should -Contain 'ShowProgress'
         $command.Parameters.Keys | Should -Contain 'SkipDependencies'
         $command.Parameters.Keys | Should -Contain 'DkimSelector'
@@ -100,18 +102,20 @@ Describe 'Invoke-DomainSecurityBaseline' {
             }
         }
 
-        It 'returns structured compliance data for dry runs' {
+        It 'returns structured compliance data' {
             InModuleScope DomainSecurityAuditor {
-                $result = Invoke-DomainSecurityBaseline -Domain 'example.com' -DryRun
+                Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence }
+
+                $result = Invoke-DomainSecurityBaseline -Domain 'example.com' -SkipReportLaunch
                 $result | Should -Not -BeNullOrEmpty
 
                 $profile = $result | Select-Object -First 1
                 $profile.Domain | Should -Be 'example.com'
                 $profile.Checks.Count | Should -BeGreaterThan 0
                 $profile.OverallStatus | Should -Be 'Pass'
-                $profile.ReportPath | Should -BeNullOrEmpty
+                $profile.ReportPath | Should -Be 'C:\Reports\domain_report.html'
 
-                Assert-MockCalled -CommandName Publish-DSAHtmlReport -Times 0 -Scope It
+                Assert-MockCalled -CommandName Publish-DSAHtmlReport -Times 1 -Scope It
                 Assert-MockCalled -CommandName Open-DSAReport -Times 0 -Scope It
             }
         }
@@ -119,10 +123,10 @@ Describe 'Invoke-DomainSecurityBaseline' {
         It 'flags missing MX records for active domains' {
             InModuleScope DomainSecurityAuditor {
                 Mock -CommandName Get-DSADomainEvidence -MockWith {
-                    $records = Get-DSADryRunRecords
-                    $records.MX = @()
-                    $records.MXRecordCount = 0
-                    New-DSADomainEvidenceObject -Domain 'example.com' -Classification 'SendingAndReceiving' -Records $records
+                    $evidence = New-TestEvidence
+                    $evidence.Records.MX = @()
+                    $evidence.Records.MXRecordCount = 0
+                    $evidence
                 }
 
                 $result = Invoke-DomainSecurityBaseline -Domain 'example.com'
@@ -141,9 +145,9 @@ Describe 'Invoke-DomainSecurityBaseline' {
         It 'enforces SPF lookup limits' {
             InModuleScope DomainSecurityAuditor {
                 Mock -CommandName Get-DSADomainEvidence -MockWith {
-                    $records = Get-DSADryRunRecords
-                    $records.SPFLookupCount = 15
-                    New-DSADomainEvidenceObject -Domain 'example.com' -Classification 'SendingAndReceiving' -Records $records
+                    $evidence = New-TestEvidence
+                    $evidence.Records.SPFLookupCount = 15
+                    $evidence
                 }
 
                 $result = Invoke-DomainSecurityBaseline -Domain 'example.com'
@@ -159,9 +163,9 @@ Describe 'Invoke-DomainSecurityBaseline' {
         It 'requires Null MX for parked domains' {
             InModuleScope DomainSecurityAuditor {
                 Mock -CommandName Get-DSADomainEvidence -MockWith {
-                    $records = Get-DSADryRunRecords
-                    $records.MXHasNull = $false
-                    New-DSADomainEvidenceObject -Domain 'example.com' -Classification 'Parked' -Records $records
+                    $evidence = New-TestEvidence -Classification 'Parked'
+                    $evidence.Records.MXHasNull = $false
+                    $evidence
                 }
 
                 $result = Invoke-DomainSecurityBaseline -Domain 'example.com'
@@ -178,9 +182,9 @@ Describe 'Invoke-DomainSecurityBaseline' {
         It 'accepts custom baseline files' {
             InModuleScope DomainSecurityAuditor {
                 Mock -CommandName Get-DSADomainEvidence -MockWith {
-                    $records = Get-DSADryRunRecords
-                    $records.SPFLookupCount = 6
-                    New-DSADomainEvidenceObject -Domain 'example.com' -Classification 'SendingAndReceiving' -Records $records
+                    $evidence = New-TestEvidence
+                    $evidence.Records.SPFLookupCount = 6
+                    $evidence
                 }
 
                 $profilePath = Join-Path -Path $TestDrive -ChildPath 'custom-baseline.psd1'
@@ -209,7 +213,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
 "@
                 Set-Content -Path $profilePath -Value $psd1Content -Encoding UTF8
 
-                $result = Invoke-DomainSecurityBaseline -Domain 'example.com' -BaselineProfilePath $profilePath -DryRun
+                $result = Invoke-DomainSecurityBaseline -Domain 'example.com' -BaselineProfilePath $profilePath -SkipReportLaunch
                 $profile = $result | Select-Object -First 1
                 $spfLookup = $profile.Checks | Where-Object { $_.Id -eq 'SPFLookupLimit' }
                 $spfLookup.Status | Should -Be 'Fail'
@@ -219,10 +223,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
 
         It 'skips report launch when requested' {
             InModuleScope DomainSecurityAuditor {
-                Mock -CommandName Get-DSADomainEvidence -MockWith {
-                    $records = Get-DSADryRunRecords
-                    New-DSADomainEvidenceObject -Domain 'example.com' -Classification 'SendingAndReceiving' -Records $records
-                }
+                Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence }
 
                 Invoke-DomainSecurityBaseline -Domain 'example.com' -SkipReportLaunch | Out-Null
                 Assert-MockCalled -CommandName Open-DSAReport -Times 0 -Scope It

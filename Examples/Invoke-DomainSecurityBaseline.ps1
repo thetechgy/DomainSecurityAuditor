@@ -6,5 +6,5 @@ Import-Module -Name (Resolve-Path -Path $moduleManifest) -Force
 #endregion ModuleImport
 
 #region Execution
-Invoke-DomainSecurityBaseline -Domain 'example.com' -DryRun
+Invoke-DomainSecurityBaseline -Domain 'example.com'
 #endregion Execution
