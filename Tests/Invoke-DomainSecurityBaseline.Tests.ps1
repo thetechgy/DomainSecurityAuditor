@@ -161,7 +161,7 @@ example.com,alpha;beta
 contoso.com,
 "@ | Set-Content -Encoding UTF8 -Path $csvPath
 
-                Invoke-DomainSecurityBaseline -InputFile $csvPath -SkipReportLaunch | Out-Null
+                Invoke-DomainSecurityBaseline -InputFile $csvPath -SkipReportLaunch -PassThru | Out-Null
 
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { $Domain -eq 'example.com' -and $DkimSelector -and $DkimSelector -contains 'alpha' -and $DkimSelector -contains 'beta' }
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { $Domain -eq 'contoso.com' -and -not $DkimSelector }
@@ -179,7 +179,7 @@ example.com,"selector1,,selector2"
 contoso.com,;alpha;;beta;
 "@ | Set-Content -Encoding UTF8 -Path $csvPath
 
-                Invoke-DomainSecurityBaseline -InputFile $csvPath -SkipReportLaunch | Out-Null
+                Invoke-DomainSecurityBaseline -InputFile $csvPath -SkipReportLaunch -PassThru | Out-Null
 
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { $Domain -eq 'example.com' -and $DkimSelector -contains 'selector1' -and $DkimSelector -contains 'selector2' }
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { $Domain -eq 'contoso.com' -and $DkimSelector -contains 'alpha' -and $DkimSelector -contains 'beta' }

@@ -29,18 +29,25 @@ function Invoke-DomainSecurityBaseline {
     Prevents automatic opening of the generated HTML report. Use this in CI/CD or other non-interactive scenarios.
 .PARAMETER ShowProgress
     Toggle Write-Progress output for long-running collections.
+.PARAMETER PassThru
+    Returns the compliance profile objects to the pipeline instead of writing a summary to the console.
+    Use this when you need to process results programmatically or in scripts.
 .EXAMPLE
     Invoke-DomainSecurityBaseline -Domain 'example.com'
     Runs the baseline workflow for example.com and writes the report to the default Output folder.
 .OUTPUTS
-    PSCustomObject
+    None by default. Writes a summary to the information stream.
+    PSCustomObject[] when -PassThru is specified, containing compliance profiles for each domain.
 .NOTES
     Author: Travis McDade
-    Date: 11/20/2025
-    Version: 0.1.1
+    Date: 11/21/2025
+    Version: 0.1.2
     Purpose: Provide a consistent baseline entry point for the Domain Security Auditor module.
 
 Revision History:
+      0.1.2 - 11/21/2025 - BREAKING: Default output changed from returning objects to writing summary.
+                          Add -PassThru parameter to return compliance profile objects for pipeline use.
+                          Capture and log DomainDetective warnings.
       0.1.1 - 11/20/2025 - Add classification override support through CSV metadata and direct parameters.
       0.1.0 - 11/16/2025 - Initial scaffolded implementation with logging/transcript plumbing.
 
@@ -338,8 +345,12 @@ Resources:
                 Fail    = @($resultArray | Where-Object { $_.OverallStatus -eq 'Fail' }).Count
                 Warning = @($resultArray | Where-Object { $_.OverallStatus -eq 'Warning' }).Count
             }
-            $summaryLine = "Baselines complete ({0} domain{1})`n- Pass: {2}`n- Warning: {3}`n- Fail: {4}`nReport: {5}" -f $domainCount, $(if ($domainCount -eq 1) { '' } else { 's' }), $statusCounts.Pass, $statusCounts.Warning, $statusCounts.Fail, $reportPath
-            Write-Information -MessageData $summaryLine -InformationAction Continue
+            Write-Host ''
+            Write-Host "Baselines complete ($domainCount domain$(if ($domainCount -ne 1) { 's' }))"
+            Write-Host "  Pass:    $($statusCounts.Pass)" -ForegroundColor Green
+            Write-Host "  Warning: $($statusCounts.Warning)" -ForegroundColor Yellow
+            Write-Host "  Fail:    $($statusCounts.Fail)" -ForegroundColor Red
+            Write-Host "Report: $reportPath"
             return
         } catch {
             if ($logFile) {
