@@ -150,6 +150,7 @@ Resources:
                 try {
                     $inputRecords = @(Import-Csv -Path $resolvedInput -ErrorAction Stop)
                 } catch {
+                    Write-DSALog -Message "CSV import failed for '$resolvedInput': $($_.Exception.Message). Attempting line-based fallback." -LogFile $logFile -Level 'WARN'
                     $inputRecords = @()
                 }
                 foreach ($record in $inputRecords) {
@@ -171,7 +172,7 @@ Resources:
                 }
 
                 if ($importedCount -eq 0) {
-                    $lines = Get-Content -Path $resolvedInput | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+                    $lines = Get-Content -Path $resolvedInput -Encoding UTF8 | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
                     foreach ($line in $lines) {
                         $null = $collectedDomains.Add($line.Trim())
                     }

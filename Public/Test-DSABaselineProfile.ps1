@@ -13,6 +13,7 @@ function Test-DSABaselineProfile {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
         [string]$Path
     )
 
@@ -43,7 +44,7 @@ function Test-DSABaselineProfile {
             }
 
             foreach ($check in @($checks)) {
-                foreach ($required in @('Id', 'Condition', 'Target')) {
+                foreach ($required in @('Id', 'Condition', 'Target', 'Area', 'Severity')) {
                     if (-not (Get-DSABaselinePropertyValue -InputObject $check -Name $required)) {
                         $null = $errors.Add("Check '$($check.Id)' in profile '$profileKey' is missing required property '$required'.")
                     }

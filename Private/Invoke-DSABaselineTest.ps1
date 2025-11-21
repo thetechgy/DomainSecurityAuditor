@@ -1,4 +1,19 @@
 function Invoke-DSABaselineTest {
+<#
+.SYNOPSIS
+    Evaluates domain evidence against baseline check definitions.
+.DESCRIPTION
+    Runs each check in the baseline profile against the provided domain evidence,
+    evaluating conditions and returning pass/fail/warning results for each check.
+.PARAMETER DomainEvidence
+    The domain evidence object from Get-DSADomainEvidence containing Records property.
+.PARAMETER BaselineDefinition
+    Hashtable of baseline profiles keyed by classification name. If omitted, loads default baseline.
+.PARAMETER ClassificationOverride
+    Optional classification to use instead of the evidence-derived classification.
+.OUTPUTS
+    PSCustomObject with Domain, Classification, OverallStatus, and Checks array.
+#>
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]
@@ -222,11 +237,11 @@ function Test-DSABaselineCondition {
 
             $min = Get-DSABaselinePropertyValue -InputObject $ExpectedValue -Name 'Min'
             $max = Get-DSABaselinePropertyValue -InputObject $ExpectedValue -Name 'Max'
-            if ($min -ne $null -and $numericValue -lt (ConvertTo-DSADouble -Value $min)) {
+            if ($null -ne $min -and $numericValue -lt (ConvertTo-DSADouble -Value $min)) {
                 return $false
             }
 
-            if ($max -ne $null -and $numericValue -gt (ConvertTo-DSADouble -Value $max)) {
+            if ($null -ne $max -and $numericValue -gt (ConvertTo-DSADouble -Value $max)) {
                 return $false
             }
 
@@ -339,6 +354,13 @@ function ConvertTo-DSABaselineArray {
 }
 
 function ConvertTo-DSADouble {
+<#
+.SYNOPSIS
+    Converts a value to a double using culture-invariant parsing.
+.DESCRIPTION
+    Attempts to parse the input value as a double using invariant culture rules.
+    Returns null if parsing fails or input is null.
+#>
     param (
         $Value
     )
@@ -358,6 +380,13 @@ function ConvertTo-DSADouble {
 }
 
 function Get-DSAClassificationKey {
+<#
+.SYNOPSIS
+    Normalizes a classification string to its canonical key form.
+.DESCRIPTION
+    Converts classification values like 'sending-only' or 'SendingOnly' to the
+    standard key format used in baseline profiles.
+#>
     [CmdletBinding()]
     param (
         [string]$Classification
@@ -378,6 +407,13 @@ function Get-DSAClassificationKey {
 }
 
 function Get-DSABaselinePropertyValue {
+<#
+.SYNOPSIS
+    Retrieves a property value from a hashtable or PSCustomObject.
+.DESCRIPTION
+    Safely extracts a named property from either a hashtable or PSCustomObject,
+    returning null if the property doesn't exist or input is null.
+#>
     [CmdletBinding()]
     param (
         $InputObject,

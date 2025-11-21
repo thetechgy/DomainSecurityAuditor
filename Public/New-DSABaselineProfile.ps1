@@ -20,6 +20,7 @@ function New-DSABaselineProfile {
     param (
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
+        [ValidatePattern('\.psd1$')]
         [string]$Path,
 
         [string]$SourceProfile = 'Default',

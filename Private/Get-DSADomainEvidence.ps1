@@ -1,4 +1,20 @@
 function Get-DSADomainEvidence {
+<#
+.SYNOPSIS
+    Collects domain security evidence using DomainDetective.
+.DESCRIPTION
+    Invokes DomainDetective health checks to gather SPF, DMARC, DKIM, MX, MTA-STS, and TLS-RPT
+    evidence for a domain. Returns a structured object containing all collected records for
+    baseline evaluation.
+.PARAMETER Domain
+    The domain name to analyze.
+.PARAMETER LogFile
+    Optional path to a log file for recording errors and diagnostic messages.
+.PARAMETER DkimSelector
+    Optional DKIM selector names to verify. If omitted, DKIM analysis is skipped.
+.OUTPUTS
+    PSCustomObject with Domain, Classification, and Records properties.
+#>
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]
@@ -326,7 +342,7 @@ function Get-DSADkimWeakSelectorCount {
     }
 
     return ($details | Where-Object {
-            (($_.KeyLength -as [int]) -lt 1024 -and $_.KeyLength) -or ($_.IsValid -eq $false)
+            (($_.KeyLength -as [int]) -lt 1024) -or ($_.IsValid -eq $false)
         }).Count
 }
 

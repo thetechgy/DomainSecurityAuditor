@@ -287,8 +287,8 @@ function Add-DSATestResult {
         $null = $Builder.AppendLine('                </div>')
     }
 
-    if ($Check.References -and $Check.References.Count -gt 0) {
-        $references = $Check.References | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    if ($Check.References -and @($Check.References).Count -gt 0) {
+        $references = @($Check.References) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
         if ($references) {
             $null = $Builder.AppendLine('                <div class="test-references">')
             foreach ($ref in $references) {
