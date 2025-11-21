@@ -237,4 +237,20 @@ Describe 'Baseline profile helpers' {
             Test-Path -Path $target | Should -BeTrue
         }
     }
+
+    It 'renders RFC references as clickable links' {
+        InModuleScope DomainSecurityAuditor {
+            $html = ConvertTo-DSAReferenceHtml -Reference 'RFC 7208 §3.1'
+            $html | Should -Match '<a '
+            $html | Should -Match 'rfc7208#section-3\.1'
+        }
+    }
+
+    It 'renders known named references as clickable links' {
+        InModuleScope DomainSecurityAuditor {
+            $html = ConvertTo-DSAReferenceHtml -Reference 'M3AAWG Email Authentication Best Practices'
+            $html | Should -Match '<a '
+            $html | Should -Match 'm3aawg'
+        }
+    }
 }

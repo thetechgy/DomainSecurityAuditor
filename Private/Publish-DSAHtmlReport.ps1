@@ -1,3 +1,12 @@
+$script:DSAKnownReferenceLinks = @{
+    'dmarc.org Deployment Guide'             = 'https://dmarc.org/resources/deployment/'
+    'M3AAWG Email Authentication Best Practices' = 'https://www.m3aawg.org/published-documents/m3aawg-email-authentication-best-practices'
+    'M3AAWG DKIM Deployment Guide'           = 'https://www.m3aawg.org/published-documents/m3aawg-dkim-deployment-document'
+    'M3AAWG DMARC Deployment'                = 'https://www.m3aawg.org/published-documents/m3aawg-dmarc-deployment'
+    'M3AAWG TLS Guidance'                    = 'https://www.m3aawg.org/published-documents/m3aawg-tls-best-practices'
+    'M3AAWG Operational Guidance'            = 'https://www.m3aawg.org/published-documents'
+}
+
 function Publish-DSAHtmlReport {
     [CmdletBinding()]
     param (
@@ -741,14 +750,47 @@ function ConvertTo-DSAReferenceHtml {
     }
 
     $normalized = $Reference.Trim()
-    if ($normalized -match '^(https?://\S+)$') {
-        $url = $matches[1]
+    $link = Get-DSAKnownReferenceLink -Reference $normalized
+    if (-not $link -and $normalized -match '^(https?://\S+)$') {
+        $link = $matches[1]
+    }
+
+    if ($link) {
         $display = ConvertTo-DSAHtml -Value $normalized
-        return ("<a class=""reference-link"" href=""{0}"" target=""_blank"" rel=""noopener"">{1}</a>" -f $url, $display)
+        return ("<a class=""reference-link"" href=""{0}"" target=""_blank"" rel=""noopener"">{1}</a>" -f $link, $display)
     }
 
     $displayText = ConvertTo-DSAHtml -Value $normalized
     return ("<span class=""reference-link reference-link--static"">{0}</span>" -f $displayText)
+}
+
+function Get-DSAKnownReferenceLink {
+    param (
+        [string]$Reference
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Reference)) {
+        return $null
+    }
+
+    $trimmed = $Reference.Trim()
+
+    if ($trimmed -match '^RFC\s+(\d+)(?:\s+§\s*([\d\.]+))?$') {
+        $rfcNumber = $matches[1]
+        $section = $matches[2]
+        $url = "https://www.rfc-editor.org/rfc/rfc$rfcNumber"
+        if ($section) {
+            $sectionFragment = $section -replace '\s+', ''
+            $url = "$url#section-$sectionFragment"
+        }
+        return $url
+    }
+
+    if ($script:DSAKnownReferenceLinks.ContainsKey($trimmed)) {
+        return $script:DSAKnownReferenceLinks[$trimmed]
+    }
+
+    return $null
 }
 
 function Get-DSAStatusClassName {
