@@ -116,7 +116,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
             InModuleScope DomainSecurityAuditor {
                 Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence }
 
-                $result = Invoke-DomainSecurityBaseline -Domain 'example.com' -SkipReportLaunch
+                $result = Invoke-DomainSecurityBaseline -Domain 'example.com' -SkipReportLaunch -PassThru
                 $result | Should -Not -BeNullOrEmpty
 
                 $profile = $result | Select-Object -First 1
@@ -134,7 +134,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
             InModuleScope DomainSecurityAuditor {
                 Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence }
 
-                Invoke-DomainSecurityBaseline -Domain 'example.com' -SkipReportLaunch | Out-Null
+                Invoke-DomainSecurityBaseline -Domain 'example.com' -SkipReportLaunch -PassThru | Out-Null
 
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { -not $DkimSelector }
             }
@@ -144,7 +144,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
             InModuleScope DomainSecurityAuditor {
                 Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence -Domain $Domain }
 
-                Invoke-DomainSecurityBaseline -Domain 'example.com' -DkimSelector 'sel1','sel2' -SkipReportLaunch | Out-Null
+                Invoke-DomainSecurityBaseline -Domain 'example.com' -DkimSelector 'sel1','sel2' -SkipReportLaunch -PassThru | Out-Null
 
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { $DkimSelector -and $DkimSelector -contains 'sel1' -and $DkimSelector -contains 'sel2' }
             }
@@ -195,7 +195,7 @@ contoso.com,;alpha;;beta;
                     $evidence
                 }
 
-                $result = Invoke-DomainSecurityBaseline -Domain 'example.com'
+                $result = Invoke-DomainSecurityBaseline -Domain 'example.com' -PassThru
                 $profile = $result | Select-Object -First 1
                 $profile.OverallStatus | Should -Be 'Fail'
 
@@ -216,7 +216,7 @@ contoso.com,;alpha;;beta;
                     $evidence
                 }
 
-                $result = Invoke-DomainSecurityBaseline -Domain 'example.com'
+                $result = Invoke-DomainSecurityBaseline -Domain 'example.com' -PassThru
                 $profile = $result | Select-Object -First 1
 
                 $spfLookup = $profile.Checks | Where-Object { $_.Id -eq 'SPFLookupLimit' }
@@ -234,7 +234,7 @@ contoso.com,;alpha;;beta;
                     $evidence
                 }
 
-                $result = Invoke-DomainSecurityBaseline -Domain 'example.com'
+                $result = Invoke-DomainSecurityBaseline -Domain 'example.com' -PassThru
                 $profile = $result | Select-Object -First 1
                 $profile.Classification | Should -Match 'Parked'
 
@@ -292,7 +292,7 @@ contoso.com,;alpha;;beta;
                     }
                 } -ParameterFilter { $ProfilePath -eq $profilePath }
 
-                $result = Invoke-DomainSecurityBaseline -Domain 'example.com' -BaselineProfilePath $profilePath -SkipReportLaunch
+                $result = Invoke-DomainSecurityBaseline -Domain 'example.com' -BaselineProfilePath $profilePath -SkipReportLaunch -PassThru
                 $profile = $result | Select-Object -First 1
                 $spfLookup = $profile.Checks | Where-Object { $_.Id -eq 'SPFLookupLimit' }
                 $spfLookup.Status | Should -Be 'Fail'
@@ -304,7 +304,7 @@ contoso.com,;alpha;;beta;
             InModuleScope DomainSecurityAuditor {
                 Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence }
 
-                Invoke-DomainSecurityBaseline -Domain 'example.com' -SkipReportLaunch | Out-Null
+                Invoke-DomainSecurityBaseline -Domain 'example.com' -SkipReportLaunch -PassThru | Out-Null
                 Assert-MockCalled -CommandName Open-DSAReport -Times 0 -Scope It
             }
         }
@@ -316,7 +316,7 @@ contoso.com,;alpha;;beta;
                 $queue.Enqueue((New-TestEvidence -Domain 'example.com'))
                 Mock -CommandName Get-DSADomainEvidence -MockWith { $queue.Dequeue() }
 
-                $result = Invoke-DomainSecurityBaseline -Domain 'contoso.com','example.com' -SkipReportLaunch
+                $result = Invoke-DomainSecurityBaseline -Domain 'contoso.com','example.com' -SkipReportLaunch -PassThru
                 $result.Count | Should -Be 2
                 ($result | Select-Object -ExpandProperty Domain) | Should -Contain 'example.com'
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 2 -Scope It
@@ -338,7 +338,7 @@ beta.example
                 $queue.Enqueue((New-TestEvidence -Domain 'beta.example'))
                 Mock -CommandName Get-DSADomainEvidence -MockWith { $queue.Dequeue() }
 
-                $result = Invoke-DomainSecurityBaseline -InputFile $csvPath -SkipReportLaunch
+                $result = Invoke-DomainSecurityBaseline -InputFile $csvPath -SkipReportLaunch -PassThru
                 $result.Count | Should -Be 2
                 ($result | Select-Object -ExpandProperty Domain) | Should -Contain 'beta.example'
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 2 -Scope It
@@ -358,7 +358,7 @@ delta.example
                 $queue.Enqueue((New-TestEvidence -Domain 'delta.example'))
                 Mock -CommandName Get-DSADomainEvidence -MockWith { $queue.Dequeue() }
 
-                $result = Invoke-DomainSecurityBaseline -InputFile $txtPath -SkipReportLaunch
+                $result = Invoke-DomainSecurityBaseline -InputFile $txtPath -SkipReportLaunch -PassThru
                 $result.Count | Should -Be 2
                 ($result | Select-Object -ExpandProperty Domain) | Should -Contain 'gamma.example'
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 2 -Scope It
@@ -391,7 +391,7 @@ override.example,SendingOnly
                     }
                 }
 
-                $result = Invoke-DomainSecurityBaseline -InputFile $csvPath -SkipReportLaunch
+                $result = Invoke-DomainSecurityBaseline -InputFile $csvPath -SkipReportLaunch -PassThru
                 $result.Count | Should -Be 1
                 $result[0].ClassificationOverride | Should -Be 'SendingOnly'
                 $result[0].OriginalClassification | Should -Be 'Parked'
@@ -420,7 +420,7 @@ override.example,SendingOnly
                     }
                 }
 
-                $result = Invoke-DomainSecurityBaseline -Domain 'solo.example' -Classification SendingOnly -SkipReportLaunch
+                $result = Invoke-DomainSecurityBaseline -Domain 'solo.example' -Classification SendingOnly -SkipReportLaunch -PassThru
                 $result.Count | Should -Be 1
                 $result[0].ClassificationOverride | Should -Be 'SendingOnly'
                 Assert-MockCalled -CommandName Invoke-DSABaselineTest -Times 1 -Scope It -ParameterFilter { $ClassificationOverride -eq 'SendingOnly' }

@@ -54,12 +54,22 @@ function Get-DSADomainEvidence {
             DomainName      = $Domain
             HealthCheckType = $healthCheckTypes.ToArray()
             ErrorAction     = 'Stop'
+            WarningAction   = 'SilentlyContinue'
+            InformationAction = 'SilentlyContinue'
+            WarningVariable = 'ddWarnings'
         }
         if ($resolvedDkimSelectors) {
             $healthParams.DkimSelectors = $resolvedDkimSelectors
         }
 
         $overall = Test-DDDomainOverallHealth @healthParams
+        if ($LogFile -and $ddWarnings) {
+            foreach ($warning in $ddWarnings) {
+                if (-not [string]::IsNullOrWhiteSpace($warning)) {
+                    Write-DSALog -Message ("DomainDetective warning: {0}" -f $warning) -LogFile $LogFile -Level 'WARN'
+                }
+            }
+        }
     } catch {
         $message = "DomainDetective health check failed for '$Domain': $($_.Exception.Message)"
         if ($LogFile) {

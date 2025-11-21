@@ -85,7 +85,8 @@ Resources:
         [string]$Baseline = 'Default',
         [string]$BaselineProfilePath,
         [switch]$SkipReportLaunch,
-        [switch]$ShowProgress = $true
+        [switch]$ShowProgress = $true,
+        [switch]$PassThru
         #endregion Parameters
     )
 
@@ -328,7 +329,18 @@ Resources:
                 Open-DSAReport -Path $reportPath -LogFile $logFile
             }
 
-            return $resultArray
+            if ($PassThru) {
+                return $resultArray
+            }
+
+            $statusCounts = @{
+                Pass    = @($resultArray | Where-Object { $_.OverallStatus -eq 'Pass' }).Count
+                Fail    = @($resultArray | Where-Object { $_.OverallStatus -eq 'Fail' }).Count
+                Warning = @($resultArray | Where-Object { $_.OverallStatus -eq 'Warning' }).Count
+            }
+            $summaryLine = "Baselines complete ({0} domain{1})`n- Pass: {2}`n- Warning: {3}`n- Fail: {4}`nReport: {5}" -f $domainCount, $(if ($domainCount -eq 1) { '' } else { 's' }), $statusCounts.Pass, $statusCounts.Warning, $statusCounts.Fail, $reportPath
+            Write-Information -MessageData $summaryLine -InformationAction Continue
+            return
         } catch {
             if ($logFile) {
                 Write-DSALog -Message "Unhandled error: $($_.Exception.Message)" -LogFile $logFile -Level 'ERROR'
