@@ -174,7 +174,7 @@ function Add-DSADomainSections {
         $groupedChecks = $checks | Group-Object -Property Area
         $domainSlug = ($profile.Domain -replace '[^a-zA-Z0-9]', '-').ToLowerInvariant()
         foreach ($group in $groupedChecks) {
-            Add-DSAProtocolSection -Builder $Builder -Group $group -DomainSlug $domainSlug -Profile $profile
+            Add-DSAProtocolSection -Builder $Builder -Group $group -DomainSlug $domainSlug
         }
 
         $null = $Builder.AppendLine('    </section>')
@@ -185,8 +185,7 @@ function Add-DSAProtocolSection {
     param (
         [Parameter(Mandatory = $true)][System.Text.StringBuilder]$Builder,
         [Parameter(Mandatory = $true)][System.Management.Automation.PSObject]$Group,
-        [string]$DomainSlug,
-        [pscustomobject]$Profile
+        [string]$DomainSlug
     )
 
     if (-not $Group -or -not $Group.Group) {
@@ -220,13 +219,6 @@ function Add-DSAProtocolSection {
 
     foreach ($check in $groupChecks) {
         Add-DSATestResult -Builder $Builder -Check $check
-    }
-
-    if (($Group.Name -eq 'DKIM') -and $Profile -and $Profile.PSObject.Properties.Name -contains 'Evidence') {
-        $selectorDetails = $Profile.Evidence.DKIMSelectorDetails
-        if ($selectorDetails) {
-            Add-DSADkimSelectorTable -Builder $Builder -Selectors $selectorDetails
-        }
     }
 
     $null = $Builder.AppendLine('        </div>')
@@ -316,46 +308,6 @@ function Add-DSATestResult {
     }
 
     $null = $Builder.AppendLine('              </div>')
-    $null = $Builder.AppendLine('            </div>')
-    $null = $Builder.AppendLine('          </div>')
-}
-
-function Add-DSADkimSelectorTable {
-    param (
-        [Parameter(Mandatory = $true)][System.Text.StringBuilder]$Builder,
-        [pscustomobject[]]$Selectors
-    )
-
-    $selectorList = @($Selectors | Where-Object { $_ })
-    if (-not $selectorList) {
-        return
-    }
-
-    $null = $Builder.AppendLine('          <div class="dkim-selectors">')
-    $null = $Builder.AppendLine('            <div class="dkim-selectors-title">DKIM selectors tested</div>')
-    $null = $Builder.AppendLine('            <div class="dkim-selector-grid">')
-
-    foreach ($selector in $selectorList) {
-        $found = if ($selector.PSObject.Properties.Name -contains 'Found') { [bool]$selector.Found } else { $true }
-        $isValid = [bool]$selector.IsValid -and $found
-        $keyLengthValue = if ($selector.KeyLength) { $selector.KeyLength } else { 'Unknown' }
-        $ttlValue = if ($selector.Ttl) { $selector.Ttl } else { 'Unknown' }
-        $status = if ($isValid -and (($selector.KeyLength -as [int]) -ge 1024)) { 'Pass' } else { 'Fail' }
-        $statusClass = Get-DSAStatusClassName -Status $status
-
-        $null = $Builder.AppendLine(("              <div class=""selector-card {0}"">" -f $statusClass))
-        $null = $Builder.AppendLine(("                <div class=""selector-name"">{0}</div>" -f (ConvertTo-DSAHtml $selector.Name)))
-        $null = $Builder.AppendLine(("                <div class=""selector-status {0}"">{1}</div>" -f $statusClass, (ConvertTo-DSAHtml $status)))
-        $null = $Builder.AppendLine('                <div class="selector-meta">')
-        $null = $Builder.AppendLine(("                  <span>Key: {0}</span>" -f (ConvertTo-DSAHtml $keyLengthValue)))
-        $null = $Builder.AppendLine(("                  <span>TTL: {0}</span>" -f (ConvertTo-DSAHtml $ttlValue)))
-        if (-not $found) {
-            $null = $Builder.AppendLine('                  <span class="selector-warning">Not found</span>')
-        }
-        $null = $Builder.AppendLine('                </div>')
-        $null = $Builder.AppendLine('              </div>')
-    }
-
     $null = $Builder.AppendLine('            </div>')
     $null = $Builder.AppendLine('          </div>')
 }
@@ -712,38 +664,6 @@ body {
     flex-wrap: wrap;
     gap: 10px;
 }
-.dkim-selectors {
-    margin-top: 12px;
-    padding: 12px 16px;
-    border-radius: 10px;
-    background: var(--color-surface-subtle);
-    border: 1px solid var(--color-border);
-}
-.dkim-selectors-title {
-    font-weight: 700;
-    color: var(--color-text-strong);
-    margin-bottom: 10px;
-}
-.dkim-selector-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 12px;
-}
-.selector-card {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 10px;
-    padding: 12px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-}
-.selector-card.passed { border-color: var(--color-pass); }
-.selector-card.failed { border-color: var(--color-fail); }
-.selector-name { font-weight: 700; color: var(--color-text-strong); }
-.selector-status { font-weight: 700; margin-top: 4px; text-transform: uppercase; font-size: 0.85rem; }
-.selector-status.passed { color: var(--color-pass); }
-.selector-status.failed { color: var(--color-fail); }
-.selector-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; color: var(--color-muted); font-size: 0.9rem; }
-.selector-warning { color: var(--color-warn); font-weight: 700; }
 .reference-link {
     display: inline-block;
     padding: 6px 12px;
