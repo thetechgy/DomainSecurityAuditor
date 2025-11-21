@@ -56,7 +56,8 @@ function Publish-DSAHtmlReport {
     $null = $builder.AppendLine('    </style>')
     $null = $builder.AppendLine('</head>')
     $null = $builder.AppendLine('<body>')
-    $null = $builder.AppendLine('  <div class="container">')
+    $null = $builder.AppendLine('  <a href="#main-content" class="skip-link">Skip to main content</a>')
+    $null = $builder.AppendLine('  <main class="container" id="main-content" role="main">')
     $null = $builder.AppendLine('    <header class="header">')
     $null = $builder.AppendLine('      <h1>Domain Security Compliance Report</h1>')
     $localTimeZone = [System.TimeZoneInfo]::Local
@@ -64,7 +65,6 @@ function Publish-DSAHtmlReport {
     $collectedText = '{0} {1}' -f ($GeneratedOn.ToString('MMMM d, yyyy h:mm tt')), $timeZoneSuffix
     $null = $builder.AppendLine(('      <div class="meta">Collected: {0}</div>' -f (ConvertTo-DSAHtml $collectedText)))
     $null = $builder.AppendLine(('      <div class="meta">{0}</div>' -f (ConvertTo-DSAHtml $testSuiteText)))
-    $null = $builder.AppendLine(('      <div class="meta">Domains Evaluated: {0}</div>' -f (ConvertTo-DSAHtml $summary.DomainCount)))
     $null = $builder.AppendLine('    </header>')
 
     Add-DSASummaryCards -Builder $builder -Summary $summary
@@ -105,8 +105,8 @@ function Add-DSASummaryCards {
         $isFilterable = -not [string]::IsNullOrWhiteSpace($card.Filter)
         $cardClasses = if ($isFilterable) { 'card filter-card' } else { 'card' }
         $filterAttr = if ($isFilterable) { " data-filter=""$($card.Filter)""" } else { '' }
-        $interactiveAttr = if ($isFilterable) { ' role="button" tabindex="0" aria-pressed="false"' } else { '' }
-        $null = $Builder.AppendLine(("        <div class=""{0}""{1}{2}>" -f $cardClasses, $filterAttr, $interactiveAttr))
+        $ariaAttr = if ($isFilterable) { ' aria-pressed="false" role="button" tabindex="0"' } else { '' }
+        $null = $Builder.AppendLine(("        <div class=""{0}""{1}{2}>" -f $cardClasses, $filterAttr, $ariaAttr))
         $null = $Builder.AppendLine('          <div class="card-header">')
         $null = $Builder.AppendLine(("            <div class='card-icon {0}'>{1}</div>" -f $styleClass, (ConvertTo-DSAHtml $icon)))
         $null = $Builder.AppendLine(("            <div class='card-title'>{0}</div>" -f (ConvertTo-DSAHtml $card.Label)))
@@ -171,8 +171,9 @@ function Add-DSADomainSections {
         }
 
         $groupedChecks = $checks | Group-Object -Property Area
+        $domainSlug = ($profile.Domain -replace '[^a-zA-Z0-9]', '-').ToLowerInvariant()
         foreach ($group in $groupedChecks) {
-            Add-DSAProtocolSection -Builder $Builder -Group $group
+            Add-DSAProtocolSection -Builder $Builder -Group $group -DomainSlug $domainSlug
         }
 
         $null = $Builder.AppendLine('    </section>')
@@ -182,7 +183,8 @@ function Add-DSADomainSections {
 function Add-DSAProtocolSection {
     param (
         [Parameter(Mandatory = $true)][System.Text.StringBuilder]$Builder,
-        [Parameter(Mandatory = $true)][System.Management.Automation.PSObject]$Group
+        [Parameter(Mandatory = $true)][System.Management.Automation.PSObject]$Group,
+        [string]$DomainSlug
     )
 
     if (-not $Group -or -not $Group.Group) {
@@ -200,7 +202,8 @@ function Add-DSAProtocolSection {
     $sectionClass = 'protocol-section'
     $detailsClass = 'protocol-details'
     $checkLabel = if ($checkCount -eq 1) { '1 check' } else { ('{0} checks' -f $checkCount) }
-    $detailsId = 'protocol-details-' + ([System.Guid]::NewGuid().ToString('N'))
+    $areaSlug = ($Group.Name -replace '[^a-zA-Z0-9]', '-').ToLowerInvariant()
+    $detailsId = "protocol-{0}-{1}" -f $DomainSlug, $areaSlug
 
     $null = $Builder.AppendLine(("      <div class=""{0}"">" -f $sectionClass))
     $null = $Builder.AppendLine(("        <div class=""protocol-header"" role=""button"" tabindex=""0"" aria-expanded=""false"" aria-controls=""{0}"">" -f $detailsId))
@@ -365,10 +368,15 @@ function Get-DSAReportStyles {
 :root {
     --color-bg: #f5f7fa;
     --color-surface: #ffffff;
+    --color-surface-alt: #f8fafc;
+    --color-surface-subtle: #f9fafb;
     --color-text: #1f2937;
+    --color-text-strong: #111827;
     --color-muted: #4b5563;
     --color-muted-light: #6b7280;
+    --color-muted-lightest: #9ca3af;
     --color-border: #e5e7eb;
+    --color-border-light: #f3f4f6;
     --color-pass: #0f766e;
     --color-pass-bg: #ecfdf3;
     --color-fail: #b91c1c;
@@ -377,9 +385,14 @@ function Get-DSAReportStyles {
     --color-warn-bg: #fffbeb;
     --color-info: #1d4ed8;
     --color-info-bg: #e0e7ff;
-    --color-focus: #111827;
+    --color-info-text: #1e3a8a;
+    --color-focus: #2563eb;
+    --color-focus-light: #ffffff;
     --color-header-start: #363671;
     --color-header-end: #1f2a44;
+    --color-recommendation-bg: #eef2ff;
+    --color-recommendation-border: #4338ca;
+    --color-recommendation-label: #312e81;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -388,6 +401,25 @@ body {
     color: var(--color-text);
     background-color: var(--color-bg);
     font-size: 16px;
+}
+.skip-link {
+    position: absolute;
+    top: -100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--color-text-strong);
+    color: var(--color-surface);
+    padding: 12px 24px;
+    border-radius: 0 0 8px 8px;
+    text-decoration: none;
+    font-weight: 700;
+    z-index: 1000;
+    transition: top 0.2s ease;
+}
+.skip-link:focus {
+    top: 0;
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
 }
 .container {
     max-width: 1200px;
@@ -425,8 +457,11 @@ body {
 }
 .card:hover { transform: translateY(-2px); }
 .card:focus-visible, .protocol-header:focus-visible {
-    outline: 2px solid var(--color-focus);
+    outline: 3px solid var(--color-focus);
     outline-offset: 4px;
+}
+.header .card:focus-visible {
+    outline-color: var(--color-focus-light);
 }
 .card-header { display: flex; align-items: center; margin-bottom: 12px; }
 .card-icon {
@@ -441,7 +476,7 @@ body {
     color: white;
     font-size: 1.1rem;
 }
-.card-title { font-size: 1.1rem; font-weight: 600; color: #111827; }
+.card-title { font-size: 1.1rem; font-weight: 600; color: var(--color-text-strong); }
 .card-value {
     font-size: 2.1rem;
     font-weight: 700;
@@ -456,8 +491,11 @@ body {
 .card-value.warning { color: var(--color-warn); }
 .card-icon.info { background-color: var(--color-info); }
 .card-value.info { color: var(--color-info); }
-.card.filter-card { cursor: pointer; transition: box-shadow 0.2s ease, transform 0.2s ease; }
-.card.filter-card.active { box-shadow: 0 0 0 3px rgba(17,24,39,0.3); transform: translateY(-2px); }
+.card.filter-card {
+    cursor: pointer;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card.filter-card.active { box-shadow: 0 0 0 3px rgba(37,99,235,0.5); transform: translateY(-2px); }
 .domain-results {
     background: var(--color-surface);
     border-radius: 12px;
@@ -469,10 +507,10 @@ body {
     padding: 24px;
     color: var(--color-muted-light);
     font-style: italic;
-    border-top: 1px solid #f3f4f6;
+    border-top: 1px solid var(--color-border-light);
 }
 .domain-header {
-    background: #f8fafc;
+    background: var(--color-surface-alt);
     padding: 22px;
     border-bottom: 1px solid var(--color-border);
 }
@@ -481,7 +519,7 @@ body {
     align-items: center;
     justify-content: space-between;
 }
-.domain-name { font-size: 1.5rem; font-weight: 700; color: #111827; }
+.domain-name { font-size: 1.5rem; font-weight: 700; color: var(--color-text-strong); }
 .domain-meta { margin-top: 12px; color: var(--color-muted-light); font-size: 0.98rem; }
 .domain-status {
     padding: 8px 18px;
@@ -491,12 +529,12 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
-.domain-status.passed { background-color: var(--color-pass-bg); color: var(--color-pass); }
-.domain-status.failed { background-color: var(--color-fail-bg); color: var(--color-fail); }
-.domain-status.warning { background-color: var(--color-warn-bg); color: var(--color-warn); }
+.domain-status.passed { background-color: var(--color-pass-bg); color: var(--color-pass); border: 2px solid var(--color-pass); }
+.domain-status.failed { background-color: var(--color-fail-bg); color: var(--color-fail); border: 2px solid var(--color-fail); }
+.domain-status.warning { background-color: var(--color-warn-bg); color: var(--color-warn); border: 2px solid var(--color-warn); }
 .protocol-section { border-bottom: 1px solid var(--color-border); }
 .protocol-header {
-    background: #f9fafb;
+    background: var(--color-surface-subtle);
     padding: 18px 24px;
     cursor: pointer;
     user-select: none;
@@ -504,10 +542,10 @@ body {
     align-items: center;
     justify-content: space-between;
 }
-.protocol-header:hover { background: #f3f4f6; }
-.protocol-name { font-weight: 700; font-size: 1.05rem; color: #111827; }
+.protocol-header:hover { background: var(--color-border-light); }
+.protocol-name { font-weight: 700; font-size: 1.05rem; color: var(--color-text-strong); }
 .protocol-status { display: flex; align-items: center; gap: 12px; font-size: 0.95rem; color: var(--color-muted); }
-.protocol-count { font-weight: 600; color: #111827; }
+.protocol-count { font-weight: 600; color: var(--color-text-strong); }
 .chevron {
     display: inline-flex;
     align-items: center;
@@ -515,15 +553,15 @@ body {
     width: 22px;
     height: 22px;
     border-radius: 50%;
-    background: #e5e7eb;
-    color: #111827;
+    background: var(--color-border);
+    color: var(--color-text-strong);
     font-size: 0.75rem;
     transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease;
 }
 .protocol-section.expanded .chevron {
     transform: rotate(90deg);
     background: var(--color-info-bg);
-    color: #1e3a8a;
+    color: var(--color-info-text);
 }
 .status-badge {
     padding: 4px 12px;
@@ -535,15 +573,15 @@ body {
     align-items: center;
     gap: 6px;
 }
-.status-badge.passed { background-color: var(--color-pass-bg); color: var(--color-pass); }
-.status-badge.failed { background-color: var(--color-fail-bg); color: var(--color-fail); }
-.status-badge.warning { background-color: var(--color-warn-bg); color: var(--color-warn); }
-.status-badge.info { background-color: var(--color-info-bg); color: #1e3a8a; }
+.status-badge.passed { background-color: var(--color-pass-bg); color: var(--color-pass); border-bottom: 2px solid var(--color-pass); }
+.status-badge.failed { background-color: var(--color-fail-bg); color: var(--color-fail); border-bottom: 2px solid var(--color-fail); }
+.status-badge.warning { background-color: var(--color-warn-bg); color: var(--color-warn); border-bottom: 2px solid var(--color-warn); }
+.status-badge.info { background-color: var(--color-info-bg); color: var(--color-info-text); border-bottom: 2px solid var(--color-info); }
 .protocol-details { display: none; padding: 0; }
 .protocol-details.expanded { display: block; }
 .test-result {
     padding: 18px 24px;
-    border-top: 1px solid #f3f4f6;
+    border-top: 1px solid var(--color-border-light);
 }
 .test-result:last-child { border-bottom: none; }
 .test-header { display: flex; align-items: flex-start; gap: 16px; }
@@ -566,7 +604,7 @@ body {
 .test-icon.info { background-color: var(--color-info); }
 .test-content { flex: 1; display: flex; flex-direction: column; gap: 10px; }
 .test-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.test-name { font-weight: 700; color: #111827; font-size: 1rem; }
+.test-name { font-weight: 700; color: var(--color-text-strong); font-size: 1rem; }
 .test-message { color: var(--color-muted-light); font-size: 0.97rem; }
 .status-pill {
     padding: 2px 10px;
@@ -575,17 +613,17 @@ body {
     text-transform: uppercase;
     font-weight: 700;
 }
-.status-pill.passed { background-color: var(--color-pass-bg); color: var(--color-pass); }
-.status-pill.failed { background-color: var(--color-fail-bg); color: var(--color-fail); }
-.status-pill.warning { background-color: var(--color-warn-bg); color: var(--color-warn); }
-.status-pill.info { background-color: var(--color-info-bg); color: #1e3a8a; }
+.status-pill.passed { background-color: var(--color-pass-bg); color: var(--color-pass); border-bottom: 2px solid var(--color-pass); }
+.status-pill.failed { background-color: var(--color-fail-bg); color: var(--color-fail); border-bottom: 2px solid var(--color-fail); }
+.status-pill.warning { background-color: var(--color-warn-bg); color: var(--color-warn); border-bottom: 2px solid var(--color-warn); }
+.status-pill.info { background-color: var(--color-info-bg); color: var(--color-info-text); border-bottom: 2px solid var(--color-info); }
 .details-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 12px;
 }
 .detail-item {
-    background: #f9fafb;
+    background: var(--color-surface-subtle);
     padding: 10px;
     border-radius: 8px;
 }
@@ -598,20 +636,20 @@ body {
 }
 .detail-value {
     font-weight: 700;
-    color: #111827;
+    color: var(--color-text-strong);
 }
 .test-recommendation {
-    background: #eef2ff;
+    background: var(--color-recommendation-bg);
     padding: 12px;
     border-radius: 8px;
-    border-left: 4px solid #4338ca;
+    border-left: 4px solid var(--color-recommendation-border);
 }
 .test-recommendation .label {
     font-weight: 700;
-    color: #312e81;
+    color: var(--color-recommendation-label);
     margin-bottom: 4px;
 }
-.test-recommendation .text { color: #1f2937; }
+.test-recommendation .text { color: var(--color-text); }
 .test-references {
     display: flex;
     flex-wrap: wrap;
@@ -621,8 +659,8 @@ body {
     display: inline-block;
     padding: 6px 12px;
     border-radius: 999px;
-    background: #e5e7eb;
-    color: #111827;
+    background: var(--color-border);
+    color: var(--color-text-strong);
     text-decoration: none;
     font-size: 0.9rem;
     font-weight: 700;
@@ -630,11 +668,11 @@ body {
 }
 .reference-link:hover {
     background: #d1d5db;
-    color: #111827;
+    color: var(--color-text-strong);
 }
 .reference-link.reference-link--static {
     cursor: default;
-    background: #f3f4f6;
+    background: var(--color-border-light);
     color: var(--color-muted-light);
 }
 .footer {
@@ -654,7 +692,7 @@ body {
     margin-top: 10px;
     font-size: 0.95rem;
 }
-.value-none { color: #9ca3af; font-style: italic; }
+.value-none { color: var(--color-muted-lightest); font-style: italic; }
 .value-positive { color: var(--color-pass); font-weight: 700; }
 .value-negative { color: var(--color-fail); font-weight: 700; }
 @media (max-width: 640px) {
