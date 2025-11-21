@@ -9,6 +9,7 @@ function Resolve-DSAClassificationOverride {
     [CmdletBinding()]
     param (
         [Parameter()]
+        [ValidateNotNullOrEmpty()]
         [string]$Value,
 
         [Parameter()]
