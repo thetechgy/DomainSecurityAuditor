@@ -271,6 +271,9 @@ Resources:
 .EXAMPLE
     Invoke-DomainSecurityBaseline -Domain "example.com"
     Runs baseline tests and writes an HTML report to the default output folder.
+.EXAMPLE
+    Invoke-DomainSecurityBaseline -InputFile ".\domains.csv" -SkipReportLaunch
+    Processes every domain listed in the CSV and suppresses auto-launching the HTML report (CI-friendly).
 .OUTPUTS
     PSCustomObject describing compliance results.
 .NOTES

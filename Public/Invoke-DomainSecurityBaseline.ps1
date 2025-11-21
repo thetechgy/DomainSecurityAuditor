@@ -122,20 +122,32 @@ Resources:
 
             if ($PSBoundParameters.ContainsKey('InputFile')) {
                 $resolvedInput = Resolve-DSAPath -Path $InputFile -PathType 'File'
-                $inputRecords = Import-Csv -Path $resolvedInput -ErrorAction SilentlyContinue
-                if ($inputRecords) {
-                    foreach ($record in $inputRecords) {
-                        if ($record.PSObject.Properties.Name -contains 'Domain' -and -not [string]::IsNullOrWhiteSpace($record.Domain)) {
-                            $null = $collectedDomains.Add($record.Domain.Trim())
-                        }
+                $importedCount = 0
+                [array]$inputRecords = @()
+                try {
+                    $inputRecords = @(Import-Csv -Path $resolvedInput -ErrorAction Stop)
+                } catch {
+                    $inputRecords = @()
+                }
+                foreach ($record in $inputRecords) {
+                    if (-not $record) {
+                        continue
                     }
-                } else {
+                    if ($record.PSObject -and $record.PSObject.Properties.Name -contains 'Domain' -and -not [string]::IsNullOrWhiteSpace($record.Domain)) {
+                        $null = $collectedDomains.Add($record.Domain.Trim())
+                        $importedCount++
+                    }
+                }
+
+                if ($importedCount -eq 0) {
                     $lines = Get-Content -Path $resolvedInput | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
                     foreach ($line in $lines) {
                         $null = $collectedDomains.Add($line.Trim())
                     }
+                    Write-DSALog -Message "Loaded domains from '$resolvedInput' as newline-delimited text." -LogFile $logFile
+                } else {
+                    Write-DSALog -Message "Loaded $importedCount domain(s) from '$resolvedInput' (CSV)." -LogFile $logFile
                 }
-                Write-DSALog -Message "Loaded domains from '$resolvedInput'." -LogFile $logFile
             }
 
             $targetDomains = @($collectedDomains | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)

@@ -83,6 +83,35 @@
 
 DSA generates comprehensive HTML reports with intuitive modern styling, interactive elements, and detailed test results that make security posture immediately clear while providing relevant remediation steps.
 
+### Running Baselines
+
+Analyze a single domain:
+
+```powershell
+Invoke-DomainSecurityBaseline -Domain 'example.com'
+```
+
+Analyze multiple domains at once:
+
+```powershell
+Invoke-DomainSecurityBaseline -Domain 'example.com','contoso.com' -SkipReportLaunch
+```
+
+Provide a CSV (or newline-delimited text) file with a `Domain` column to batch large lists:
+
+```powershell
+@'
+Domain
+example.com
+contoso.com
+legacy.example
+'@ | Set-Content -Encoding UTF8 -Path ./domains.csv
+
+Invoke-DomainSecurityBaseline -InputFile ./domains.csv
+```
+
+By default, the generated HTML report opens when processing completes. Use `-SkipReportLaunch` in CI/CD or other non-interactive scenarios.
+
 ### Report Features
 
 The HTML reports provide:

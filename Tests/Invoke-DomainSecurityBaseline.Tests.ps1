@@ -10,6 +10,7 @@ BeforeAll {
     # Define test helper in global scope for InModuleScope access
     function global:New-TestEvidence {
     param (
+        [string]$Domain = 'example.com',
         [string]$Classification = 'SendingAndReceiving',
         [ScriptBlock]$Adjust
     )
@@ -51,7 +52,7 @@ BeforeAll {
     }
 
     $evidence = [pscustomobject]@{
-        Domain         = 'example.com'
+        Domain         = $Domain
         Classification = $Classification
         Records        = $records
     }
@@ -227,6 +228,62 @@ Describe 'Invoke-DomainSecurityBaseline' {
 
                 Invoke-DomainSecurityBaseline -Domain 'example.com' -SkipReportLaunch | Out-Null
                 Assert-MockCalled -CommandName Open-DSAReport -Times 0 -Scope It
+            }
+        }
+
+        It 'processes multiple domains' {
+            InModuleScope DomainSecurityAuditor {
+                $queue = [System.Collections.Generic.Queue[pscustomobject]]::new()
+                $queue.Enqueue((New-TestEvidence -Domain 'contoso.com'))
+                $queue.Enqueue((New-TestEvidence -Domain 'example.com'))
+                Mock -CommandName Get-DSADomainEvidence -MockWith { $queue.Dequeue() }
+
+                $result = Invoke-DomainSecurityBaseline -Domain 'contoso.com','example.com' -SkipReportLaunch
+                $result.Count | Should -Be 2
+                ($result | Select-Object -ExpandProperty Domain) | Should -Contain 'example.com'
+                Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 2 -Scope It
+                Assert-MockCalled -CommandName Publish-DSAHtmlReport -Times 1 -Scope It
+            }
+        }
+
+        It 'accepts domains from input files' {
+            InModuleScope DomainSecurityAuditor {
+                $csvPath = Join-Path -Path $TestDrive -ChildPath 'domains.csv'
+@'
+Domain
+alpha.example
+beta.example
+'@ | Set-Content -Path $csvPath
+
+                $queue = [System.Collections.Generic.Queue[pscustomobject]]::new()
+                $queue.Enqueue((New-TestEvidence -Domain 'alpha.example'))
+                $queue.Enqueue((New-TestEvidence -Domain 'beta.example'))
+                Mock -CommandName Get-DSADomainEvidence -MockWith { $queue.Dequeue() }
+
+                $result = Invoke-DomainSecurityBaseline -InputFile $csvPath -SkipReportLaunch
+                $result.Count | Should -Be 2
+                ($result | Select-Object -ExpandProperty Domain) | Should -Contain 'beta.example'
+                Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 2 -Scope It
+            }
+        }
+
+        It 'falls back to newline-delimited lists when CSV headers are absent' {
+            InModuleScope DomainSecurityAuditor {
+                $txtPath = Join-Path -Path $TestDrive -ChildPath 'domains.txt'
+@'
+gamma.example
+delta.example
+'@ | Set-Content -Path $txtPath
+
+                $queue = [System.Collections.Generic.Queue[pscustomobject]]::new()
+                $queue.Enqueue((New-TestEvidence -Domain 'gamma.example'))
+                $queue.Enqueue((New-TestEvidence -Domain 'delta.example'))
+                Mock -CommandName Get-DSADomainEvidence -MockWith { $queue.Dequeue() }
+
+                $result = Invoke-DomainSecurityBaseline -InputFile $txtPath -SkipReportLaunch
+                $result.Count | Should -Be 2
+                ($result | Select-Object -ExpandProperty Domain) | Should -Contain 'gamma.example'
+                Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 2 -Scope It
             }
         }
     }
