@@ -7,62 +7,62 @@ BeforeAll {
     $moduleManifest = Join-Path -Path $PSScriptRoot -ChildPath '..\DomainSecurityAuditor.psd1'
     Import-Module -Name (Resolve-Path -Path $moduleManifest) -Force
 
-    InModuleScope DomainSecurityAuditor {
-        function New-TestEvidence {
-            param (
-                [string]$Classification = 'SendingAndReceiving',
-                [ScriptBlock]$Adjust
-            )
+InModuleScope DomainSecurityAuditor {
+    function New-TestEvidence {
+        param (
+            [string]$Classification = 'SendingAndReceiving',
+            [ScriptBlock]$Adjust
+        )
 
-            $records = [pscustomobject]@{
-                MX                    = @('mx1.example.com')
-                MXRecordCount         = 1
-                MXHasNull             = $false
-                MXMinimumTtl          = 3600
-                SPFRecord             = 'v=spf1 include:_spf.example.com -all'
-                SPFRecords            = @('v=spf1 include:_spf.example.com -all')
-                SPFRecordCount        = 1
-                SPFLookupCount        = 2
-                SPFTerminalMechanism  = '-all'
-                SPFHasPtrMechanism    = $false
-                SPFRecordLength       = 40
-                SPFTtl                = 3600
-                SPFIncludes           = @('_spf.example.com')
-                SPFWildcardRecord     = 'v=spf1 -all'
-                SPFWildcardConfigured = $true
-                SPFUnsafeMechanisms   = @()
-                DKIMSelectors         = @('selector1')
-                DKIMSelectorDetails   = @([pscustomobject]@{ Name = 'selector1'; KeyLength = 2048; IsValid = $true; TTL = 3600 })
-                DKIMMinKeyLength      = 2048
-                DKIMWeakSelectors     = 0
-                DKIMMinimumTtl        = 3600
-                DMARCRecord           = 'v=DMARC1; p=reject; rua=mailto:dmarc@example.com'
-                DMARCPolicy           = 'reject'
-                DMARCRuaAddresses     = @('dmarc@example.com')
-                DMARCRufAddresses     = @()
-                DMARCTtl              = 3600
-                MTASTSRecordPresent   = $true
-                MTASTSPolicyValid     = $true
-                MTASTSMode            = 'enforce'
-                MTASTSTtl             = 86400
-                TLSRPTRecordPresent   = $true
-                TLSRPTAddresses       = @('tls@example.com')
-                TLSRPTTtl             = 86400
-            }
-
-            $evidence = [pscustomobject]@{
-                Domain         = 'example.com'
-                Classification = $Classification
-                Records        = $records
-            }
-
-            if ($Adjust) {
-                & $Adjust -ArgumentList $evidence
-            }
-
-            return $evidence
+        $records = [pscustomobject]@{
+            MX                    = @('mx1.example.com')
+            MXRecordCount         = 1
+            MXHasNull             = $false
+            MXMinimumTtl          = 3600
+            SPFRecord             = 'v=spf1 include:_spf.example.com -all'
+            SPFRecords            = @('v=spf1 include:_spf.example.com -all')
+            SPFRecordCount        = 1
+            SPFLookupCount        = 2
+            SPFTerminalMechanism  = '-all'
+            SPFHasPtrMechanism    = $false
+            SPFRecordLength       = 40
+            SPFTtl                = 3600
+            SPFIncludes           = @('_spf.example.com')
+            SPFWildcardRecord     = 'v=spf1 -all'
+            SPFWildcardConfigured = $true
+            SPFUnsafeMechanisms   = @()
+            DKIMSelectors         = @('selector1')
+            DKIMSelectorDetails   = @([pscustomobject]@{ Name = 'selector1'; KeyLength = 2048; IsValid = $true; TTL = 3600 })
+            DKIMMinKeyLength      = 2048
+            DKIMWeakSelectors     = 0
+            DKIMMinimumTtl        = 3600
+            DMARCRecord           = 'v=DMARC1; p=reject; rua=mailto:dmarc@example.com'
+            DMARCPolicy           = 'reject'
+            DMARCRuaAddresses     = @('dmarc@example.com')
+            DMARCRufAddresses     = @()
+            DMARCTtl              = 3600
+            MTASTSRecordPresent   = $true
+            MTASTSPolicyValid     = $true
+            MTASTSMode            = 'enforce'
+            MTASTSTtl             = 86400
+            TLSRPTRecordPresent   = $true
+            TLSRPTAddresses       = @('tls@example.com')
+            TLSRPTTtl             = 86400
         }
+
+        $evidence = [pscustomobject]@{
+            Domain         = 'example.com'
+            Classification = $Classification
+            Records        = $records
+        }
+
+        if ($Adjust) {
+            & $Adjust -ArgumentList $evidence
+        }
+
+        return $evidence
     }
+}
 }
 
 Describe 'Invoke-DomainSecurityBaseline' {
@@ -77,6 +77,8 @@ Describe 'Invoke-DomainSecurityBaseline' {
         $command.Parameters.Keys | Should -Contain 'ShowProgress'
         $command.Parameters.Keys | Should -Contain 'SkipDependencies'
         $command.Parameters.Keys | Should -Contain 'DkimSelector'
+        $command.Parameters.Keys | Should -Contain 'Baseline'
+        $command.Parameters.Keys | Should -Contain 'BaselineProfilePath'
     }
 
     Context 'baseline evaluation' {
@@ -166,6 +168,73 @@ Describe 'Invoke-DomainSecurityBaseline' {
                 $nullMxCheck.Status | Should -Be 'Fail'
                 Assert-MockCalled -CommandName Publish-DSAHtmlReport -Times 1 -Scope It
             }
+        }
+
+        It 'accepts custom baseline files' {
+            InModuleScope DomainSecurityAuditor {
+                Mock -CommandName Get-DSADomainEvidence -MockWith {
+                    $records = Get-DSADryRunRecords
+                    $records.SPFLookupCount = 6
+                    New-DSADomainEvidenceObject -Domain 'example.com' -Classification 'SendingAndReceiving' -Records $records
+                }
+
+                $profilePath = Join-Path -Path $TestDrive -ChildPath 'custom-baseline.psd1'
+                $psd1Content = @"
+@{
+    Profiles = @{
+        SendingAndReceiving = @{
+            Name = 'SendingAndReceiving'
+            Checks = @(
+                @{
+                    Id = 'SPFLookupLimit'
+                    Area = 'SPF'
+                    Condition = 'LessThanOrEqual'
+                    Target = 'Records.SPFLookupCount'
+                    ExpectedValue = 5
+                    Expectation = 'SPF lookups must remain under five.'
+                    Remediation = 'Reduce include chains.'
+                    Severity = 'High'
+                    Enforcement = 'Required'
+                    References = @()
+                }
+            )
+        }
+    }
+}
+"@
+                Set-Content -Path $profilePath -Value $psd1Content -Encoding UTF8
+
+                $result = Invoke-DomainSecurityBaseline -Domain 'example.com' -BaselineProfilePath $profilePath -DryRun
+                $profile = $result | Select-Object -First 1
+                $spfLookup = $profile.Checks | Where-Object { $_.Id -eq 'SPFLookupLimit' }
+                $spfLookup.Status | Should -Be 'Fail'
+            }
+        }
+    }
+}
+
+Describe 'Baseline profile helpers' {
+    It 'lists built-in profiles' {
+        InModuleScope DomainSecurityAuditor {
+            $profiles = Get-DSABaselineProfile
+            ($profiles | Where-Object { $_.Name -eq 'Default' }).Count | Should -BeGreaterThan 0
+        }
+    }
+
+    It 'validates profile files' {
+        InModuleScope DomainSecurityAuditor {
+            $defaultProfile = Get-DSABaselineProfile -Name 'Default'
+            $result = Test-DSABaselineProfile -Path $defaultProfile.Path
+            $result.IsValid | Should -BeTrue
+            $result.Errors.Count | Should -Be 0
+        }
+    }
+
+    It 'creates copies from built-in profiles' {
+        InModuleScope DomainSecurityAuditor {
+            $target = Join-Path -Path $TestDrive -ChildPath 'Baseline.Copy.psd1'
+            New-DSABaselineProfile -Path $target -SourceProfile 'Default' | Should -Be $target
+            Test-Path -Path $target | Should -BeTrue
         }
     }
 }

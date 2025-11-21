@@ -17,6 +17,7 @@ function Get-DSABaselineProfile {
 
     [CmdletBinding()]
     param (
+        [ValidateNotNullOrEmpty()]
         [string]$Name
     )
 

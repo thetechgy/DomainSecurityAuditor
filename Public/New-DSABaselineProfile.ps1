@@ -19,6 +19,7 @@ function New-DSABaselineProfile {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param (
         [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
         [string]$Path,
 
         [string]$SourceProfile = 'Default',

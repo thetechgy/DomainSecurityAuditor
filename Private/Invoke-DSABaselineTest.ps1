@@ -19,6 +19,10 @@ function Invoke-DSABaselineTest {
     }
 
     $profileDefinition = $BaselineDefinition[$classificationKey]
+    if (-not $profileDefinition -or -not $profileDefinition.Checks) {
+        throw "Baseline profile '$classificationKey' is missing or has no checks defined."
+    }
+
     $checkResults = [System.Collections.Generic.List[object]]::new()
 
     foreach ($check in $profileDefinition.Checks) {

@@ -5,7 +5,7 @@ function Test-DSABaselineProfile {
 .DESCRIPTION
     Loads the specified PSD1/JSON baseline and verifies it contains the Profiles collection plus required fields for each check.
 .PARAMETER Path
-    Path to the baseline profile file (PSD1 or JSON).
+    Path to the baseline profile file (PSD1).
 .EXAMPLE
     Test-DSABaselineProfile -Path '.\Baseline.MyOrg.psd1'
 #>
