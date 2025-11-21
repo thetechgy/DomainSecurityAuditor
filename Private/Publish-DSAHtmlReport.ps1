@@ -285,7 +285,7 @@ function Add-DSATestResult {
         $null = $Builder.AppendLine('                </div>')
     }
 
-    if ($Check.Remediation) {
+    if ($Check.Remediation -and ($Check.Status -ne 'Pass')) {
         $null = $Builder.AppendLine('                <div class="test-recommendation">')
         $null = $Builder.AppendLine('                  <div class="label">Remediation</div>')
         $null = $Builder.AppendLine(("                  <div class='text'>{0}</div>" -f (ConvertTo-DSAHtml $Check.Remediation)))
