@@ -9,11 +9,12 @@
     Module: DomainSecurityAuditor
     Author: Travis McDade
     Date: 11/16/2025
-    Version: 0.1.0
+    Version: 0.1.1
     Requestor: DomainSecurityAuditor Stakeholders
     Purpose: Provide a structured baseline for automated domain and email security evidence collection.
 
 Release Notes:
+      0.1.1 - 11/20/2025 - Added CSV and CLI classification overrides with validation.
       0.1.0 - 11/16/2025 - Initial scaffolding with dependency enforcement and entry-point stub.
 
 Resources:

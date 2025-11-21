@@ -6,14 +6,22 @@ function Invoke-DSABaselineTest {
         [pscustomobject]$DomainEvidence,
 
         [Parameter()]
-        [hashtable]$BaselineDefinition
+        [hashtable]$BaselineDefinition,
+
+        [string]$ClassificationOverride
     )
 
     if (-not $BaselineDefinition) {
         $BaselineDefinition = Get-DSABaseline
     }
 
-    $classificationKey = Get-DSAClassificationKey -Classification $DomainEvidence.Classification
+    $effectiveClassification = if (-not [string]::IsNullOrWhiteSpace($ClassificationOverride)) {
+        $ClassificationOverride
+    } else {
+        $DomainEvidence.Classification
+    }
+
+    $classificationKey = Get-DSAClassificationKey -Classification $effectiveClassification
     if (-not $classificationKey -or -not $BaselineDefinition.ContainsKey($classificationKey)) {
         $classificationKey = 'Default'
     }
@@ -63,11 +71,12 @@ function Invoke-DSABaselineTest {
 
     $overallStatus = Get-DSAOverallStatus -Checks $checkResults
     return [pscustomobject]@{
-        Domain                = $DomainEvidence.Domain
-        Classification        = $profileDefinition.Name
+        Domain                 = $DomainEvidence.Domain
+        Classification         = $profileDefinition.Name
         OriginalClassification = $DomainEvidence.Classification
-        OverallStatus         = $overallStatus
-        Checks                = $checkResults.ToArray()
+        ClassificationOverride = $ClassificationOverride
+        OverallStatus          = $overallStatus
+        Checks                 = $checkResults.ToArray()
     }
 }
 

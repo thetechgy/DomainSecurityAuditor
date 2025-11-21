@@ -122,11 +122,14 @@ function Add-DSADomainSections {
         $checks = if ($profile.Checks) { @($profile.Checks | Where-Object { $_ }) } else { @() }
         $checkCount = ($checks | Measure-Object).Count
         $metaSegments = [System.Collections.Generic.List[string]]::new()
-        if ($profile.Classification) {
-            $null = $metaSegments.Add($profile.Classification)
+        $hasOverride = $false
+        if ($profile.PSObject.Properties.Name -contains 'ClassificationOverride' -and -not [string]::IsNullOrWhiteSpace($profile.ClassificationOverride)) {
+            $null = $metaSegments.Add(("Override: {0}" -f $profile.ClassificationOverride))
+            $hasOverride = $true
         }
         if ($profile.OriginalClassification) {
-            $null = $metaSegments.Add(("Detected: {0}" -f $profile.OriginalClassification))
+            $label = if ($hasOverride) { 'Detected' } else { 'Detected' }
+            $null = $metaSegments.Add(("{0}: {1}" -f $label, $profile.OriginalClassification))
         }
         if ($checkCount -gt 0) {
             $null = $metaSegments.Add(("{0} checks executed" -f $checkCount))

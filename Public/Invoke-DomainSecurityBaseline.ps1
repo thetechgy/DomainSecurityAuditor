@@ -6,6 +6,8 @@ function Invoke-DomainSecurityBaseline {
     Gathers domain data (via DomainDetective), validates it with Pester-driven baselines, and emits structured logs plus report-ready data.
 .PARAMETER Domain
     One or more domains to analyze. Accepts pipeline input or explicit arrays.
+.PARAMETER ClassificationOverride
+    Override the DomainDetective-provided classification for directly supplied domains (single-domain CLI usage). Valid values: SendingOnly, ReceivingOnly, SendingAndReceiving, Parked.
 .PARAMETER InputFile
     Optional path to a text or CSV file containing domain names (one per line or column header named 'Domain').
 .PARAMETER OutputRoot
@@ -33,11 +35,12 @@ function Invoke-DomainSecurityBaseline {
     PSCustomObject
 .NOTES
     Author: Travis McDade
-    Date: 11/16/2025
-    Version: 0.1.0
+    Date: 11/20/2025
+    Version: 0.1.1
     Purpose: Provide a consistent baseline entry point for the Domain Security Auditor module.
 
 Revision History:
+      0.1.1 - 11/20/2025 - Add classification override support through CSV metadata and direct parameters.
       0.1.0 - 11/16/2025 - Initial scaffolded implementation with logging/transcript plumbing.
 
 Known Issues:
@@ -54,6 +57,10 @@ Resources:
         [ValidateNotNullOrEmpty()]
         [Alias('Domains')]
         [string[]]$Domain,
+
+        [Parameter()]
+        [Alias('Classification')]
+        [string]$ClassificationOverride,
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
@@ -82,13 +89,29 @@ Resources:
 
     begin {
         $collectedDomains = [System.Collections.Generic.List[string]]::new()
+        $domainMetadata = @{}
+        $directDomainSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $defaultClassificationOverride = $null
+
+        if ($PSBoundParameters.ContainsKey('ClassificationOverride')) {
+            $defaultClassificationOverride = Resolve-DSAClassificationOverride -Value $ClassificationOverride -SourceDescription 'ClassificationOverride parameter'
+        }
     }
 
     process {
         if ($PSBoundParameters.ContainsKey('Domain')) {
             foreach ($domainValue in $Domain) {
                 if (-not [string]::IsNullOrWhiteSpace($domainValue)) {
-                    $null = $collectedDomains.Add($domainValue.Trim())
+                    $trimmedDomain = $domainValue.Trim()
+                    $null = $collectedDomains.Add($trimmedDomain)
+                    $null = $directDomainSet.Add($trimmedDomain)
+                    if ($defaultClassificationOverride) {
+                        $domainMetadata[$trimmedDomain] = [pscustomobject]@{
+                            Domain                = $trimmedDomain
+                            Classification        = $defaultClassificationOverride
+                            ClassificationSource  = 'Parameter'
+                        }
+                    }
                 }
             }
         }
@@ -134,7 +157,15 @@ Resources:
                         continue
                     }
                     if ($record.PSObject.Properties.Name -contains 'Domain' -and -not [string]::IsNullOrWhiteSpace($record.Domain)) {
-                        $null = $collectedDomains.Add($record.Domain.Trim())
+                        $domainValue = $record.Domain.Trim()
+                        $record.Domain = $domainValue
+                        if ($record.PSObject.Properties.Name -contains 'Classification' -and -not [string]::IsNullOrWhiteSpace($record.Classification)) {
+                            $sourceDescription = "CSV row for '$domainValue'"
+                            $record.Classification = Resolve-DSAClassificationOverride -Value $record.Classification -SourceDescription $sourceDescription
+                            $record | Add-Member -NotePropertyName 'ClassificationSource' -NotePropertyValue 'CSV' -Force
+                        }
+                        $null = $collectedDomains.Add($domainValue)
+                        $domainMetadata[$domainValue] = $record
                         $importedCount++
                     }
                 }
@@ -187,14 +218,43 @@ Resources:
                     Write-Progress @progressSplat
                 }
 
+                $classificationOverride = $null
+                $classificationSource = $null
+                if ($domainMetadata.ContainsKey($domainName)) {
+                    $metadataRecord = $domainMetadata[$domainName]
+                    if ($metadataRecord -and $metadataRecord.PSObject.Properties.Name -contains 'Classification') {
+                        $classificationCandidate = $metadataRecord.Classification
+                        if (-not [string]::IsNullOrWhiteSpace($classificationCandidate)) {
+                            $classificationOverride = $classificationCandidate.Trim()
+                        }
+                    }
+                    if ($metadataRecord -and $metadataRecord.PSObject.Properties.Name -contains 'ClassificationSource') {
+                        $classificationSource = $metadataRecord.ClassificationSource
+                    }
+                }
+                elseif ($defaultClassificationOverride -and $directDomainSet.Contains($domainName)) {
+                    $classificationOverride = $defaultClassificationOverride
+                    $classificationSource = 'Parameter'
+                }
+
+                if ($classificationOverride) {
+                    $sourceText = switch ($classificationSource) {
+                        'CSV' { 'CSV metadata' }
+                        'Parameter' { 'command parameter' }
+                        default { 'metadata' }
+                    }
+                    Write-DSALog -Message ("Classification override '{0}' detected for '{1}' from {2}." -f $classificationOverride, $domainName, $sourceText) -LogFile $logFile -Level 'INFO'
+                }
+
                 Write-DSALog -Message "Collecting evidence for '$domainName'." -LogFile $logFile -Level 'DEBUG'
 
                 $evidence = Get-DSADomainEvidence -Domain $domainName -LogFile $logFile -DkimSelector $DkimSelector
-                $profile = Invoke-DSABaselineTest -DomainEvidence $evidence -BaselineDefinition $baselineDefinition
+                $profile = Invoke-DSABaselineTest -DomainEvidence $evidence -BaselineDefinition $baselineDefinition -ClassificationOverride $classificationOverride
                 $profileWithMetadata = [pscustomobject]@{
                     Domain                 = $profile.Domain
                     Classification         = $profile.Classification
                     OriginalClassification = $profile.OriginalClassification
+                    ClassificationOverride = $profile.ClassificationOverride
                     OverallStatus          = $profile.OverallStatus
                     Checks                 = $profile.Checks
                     Evidence               = $evidence.Records

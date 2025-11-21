@@ -286,6 +286,92 @@ delta.example
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 2 -Scope It
             }
         }
+
+        It 'honors classification overrides sourced from CSV metadata' {
+            InModuleScope DomainSecurityAuditor {
+                $csvPath = Join-Path -Path $TestDrive -ChildPath 'domains-with-metadata.csv'
+@'
+Domain,Classification
+override.example,SendingOnly
+'@ | Set-Content -Path $csvPath
+
+                Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence -Domain 'override.example' -Classification 'Parked' }
+                Mock -CommandName Invoke-DSABaselineTest -MockWith {
+                    param(
+                        $DomainEvidence,
+                        $BaselineDefinition,
+                        $ClassificationOverride
+                    )
+
+                    [pscustomobject]@{
+                        Domain                 = $DomainEvidence.Domain
+                        Classification         = if ($ClassificationOverride) { "Profile:$ClassificationOverride" } else { 'Profile:Default' }
+                        OriginalClassification = $DomainEvidence.Classification
+                        ClassificationOverride = $ClassificationOverride
+                        OverallStatus          = 'Pass'
+                        Checks                 = @()
+                    }
+                }
+
+                $result = Invoke-DomainSecurityBaseline -InputFile $csvPath -SkipReportLaunch
+                $result.Count | Should -Be 1
+                $result[0].ClassificationOverride | Should -Be 'SendingOnly'
+                $result[0].OriginalClassification | Should -Be 'Parked'
+
+                Assert-MockCalled -CommandName Invoke-DSABaselineTest -Times 1 -Scope It -ParameterFilter { $ClassificationOverride -eq 'SendingOnly' }
+            }
+        }
+
+        It 'supports command-line classification overrides for direct domains' {
+            InModuleScope DomainSecurityAuditor {
+                Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence -Domain 'solo.example' -Classification 'ReceivingOnly' }
+                Mock -CommandName Invoke-DSABaselineTest -MockWith {
+                    param(
+                        $DomainEvidence,
+                        $BaselineDefinition,
+                        $ClassificationOverride
+                    )
+
+                    [pscustomobject]@{
+                        Domain                 = $DomainEvidence.Domain
+                        Classification         = if ($ClassificationOverride) { "Profile:$ClassificationOverride" } else { 'Profile:Default' }
+                        OriginalClassification = $DomainEvidence.Classification
+                        ClassificationOverride = $ClassificationOverride
+                        OverallStatus          = 'Pass'
+                        Checks                 = @()
+                    }
+                }
+
+                $result = Invoke-DomainSecurityBaseline -Domain 'solo.example' -Classification SendingOnly -SkipReportLaunch
+                $result.Count | Should -Be 1
+                $result[0].ClassificationOverride | Should -Be 'SendingOnly'
+                Assert-MockCalled -CommandName Invoke-DSABaselineTest -Times 1 -Scope It -ParameterFilter { $ClassificationOverride -eq 'SendingOnly' }
+            }
+        }
+
+        It 'errors when CSV classification overrides contain unsupported values' {
+            InModuleScope DomainSecurityAuditor {
+                $csvPath = Join-Path -Path $TestDrive -ChildPath 'domains-invalid-metadata.csv'
+@'
+Domain,Classification
+invalid.example,Unknown
+'@ | Set-Content -Path $csvPath
+
+                Mock -CommandName Get-DSADomainEvidence -MockWith { throw 'Should not execute for invalid CSV override' }
+
+                { Invoke-DomainSecurityBaseline -InputFile $csvPath -SkipReportLaunch } | Should -Throw -ExpectedMessage '*Allowed values*'
+                Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 0 -Scope It
+            }
+        }
+
+        It 'errors when the command-line classification override is invalid' {
+            InModuleScope DomainSecurityAuditor {
+                Mock -CommandName Get-DSADomainEvidence -MockWith { throw 'Should not execute for invalid CLI override' }
+
+                { Invoke-DomainSecurityBaseline -Domain 'solo.example' -Classification 'InvalidType' -SkipReportLaunch } | Should -Throw -ExpectedMessage '*Allowed values*'
+                Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 0 -Scope It
+            }
+        }
     }
 }
 

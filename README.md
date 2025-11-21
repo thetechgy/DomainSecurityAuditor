@@ -110,6 +110,25 @@ legacy.example
 Invoke-DomainSecurityBaseline -InputFile ./domains.csv
 ```
 
+Add optional metadata columns when the defaults need adjustment. A `Classification` column overrides the DomainDetective-detected type for that row, ensuring the correct baseline is selected:
+
+```powershell
+@'
+Domain,Classification
+example.com,SendingAndReceiving
+legacy.example,SendingOnly
+'@ | Set-Content -Encoding UTF8 -Path ./domains-with-classifications.csv
+
+Invoke-DomainSecurityBaseline -InputFile ./domains-with-classifications.csv
+```
+Accepted values mirror the built-in profile keys (`SendingOnly`, `ReceivingOnly`, `SendingAndReceiving`, or `Parked`) and are matched case-insensitively.
+
+For single-domain or ad-hoc runs without a CSV, specify the override directly:
+
+```powershell
+Invoke-DomainSecurityBaseline -Domain 'example.com' -Classification SendingOnly
+```
+
 By default, the generated HTML report opens when processing completes. Use `-SkipReportLaunch` in CI/CD or other non-interactive scenarios.
 
 ### Report Features
