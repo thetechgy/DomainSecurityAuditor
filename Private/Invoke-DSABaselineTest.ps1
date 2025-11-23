@@ -77,6 +77,7 @@ function Invoke-DSABaselineTest {
             Severity    = $check.Severity
             Enforcement = $check.Enforcement
             Expectation = $check.Expectation
+            ExpectedValue = $expectedValue
             Actual      = $actualValue
             Remediation = $check.Remediation
             References  = $check.References
