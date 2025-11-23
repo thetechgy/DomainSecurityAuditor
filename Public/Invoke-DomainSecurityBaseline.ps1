@@ -303,6 +303,25 @@ Resources:
 
                 $evidence = Get-DSADomainEvidence @evidenceParams
                 $profile = Invoke-DSABaselineTest -DomainEvidence $evidence -BaselineDefinition $baselineProfiles -ClassificationOverride $classificationOverride
+
+                # Apply per-selector DKIM status aggregation so overall/status counts reflect selector outcomes
+                if ($profile.Checks -and $evidence.PSObject.Properties.Name -contains 'Records' -and $evidence.Records.PSObject.Properties.Name -contains 'DKIMSelectorDetails') {
+                    $dkimSelectors = $evidence.Records.DKIMSelectorDetails
+                    $adjustedChecks = [System.Collections.Generic.List[object]]::new()
+                    foreach ($check in $profile.Checks) {
+                        if ($check.Area -eq 'DKIM' -and $dkimSelectors) {
+                            $effectiveStatus = Get-DSADkimEffectiveStatus -Check $check -Selectors $dkimSelectors
+                            $clone = $check.PSObject.Copy()
+                            $clone | Add-Member -NotePropertyName 'Status' -NotePropertyValue $effectiveStatus -Force
+                            $null = $adjustedChecks.Add($clone)
+                        } else {
+                            $null = $adjustedChecks.Add($check)
+                        }
+                    }
+                    $profile.Checks = $adjustedChecks.ToArray()
+                    $profile.OverallStatus = Get-DSAOverallStatus -Checks $profile.Checks
+                }
+
                 $profileWithMetadata = [pscustomobject]@{
                     Domain                 = $profile.Domain
                     Classification         = $profile.Classification
@@ -341,9 +360,18 @@ Resources:
             }
 
             $statusCounts = @{
-                Pass    = @($resultArray | Where-Object { $_.OverallStatus -eq 'Pass' }).Count
-                Fail    = @($resultArray | Where-Object { $_.OverallStatus -eq 'Fail' }).Count
-                Warning = @($resultArray | Where-Object { $_.OverallStatus -eq 'Warning' }).Count
+                Pass    = 0
+                Fail    = 0
+                Warning = 0
+            }
+            foreach ($profile in $resultArray) {
+                foreach ($check in ($profile.Checks | Where-Object { $_ })) {
+                    switch ($check.Status) {
+                        'Pass' { $statusCounts.Pass++ }
+                        'Fail' { $statusCounts.Fail++ }
+                        'Warning' { $statusCounts.Warning++ }
+                    }
+                }
             }
             Write-Host ''
             Write-Host "Baselines complete ($domainCount domain$(if ($domainCount -ne 1) { 's' }))"
