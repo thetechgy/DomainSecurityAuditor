@@ -44,15 +44,16 @@ Describe 'Publish-DSAHtmlReport' {
                 OverallStatus          = 'Pass'
                 Checks                 = @(
                     [pscustomobject]@{
-                        Id          = 'DKIMSelectorPresence'
+                        Id          = 'DKIMKeyStrength'
                         Area        = 'DKIM'
                         Status      = 'Pass'
                         Severity    = 'High'
                         Enforcement = 'Required'
-                        Expectation = 'Ensure DKIM selectors are present.'
+                        Expectation = 'Ensure DKIM selectors are strong.'
                         Actual      = 'selector1, selector2, missing'
                         Remediation = ''
                         References  = @()
+                        ExpectedValue = 1024
                     }
                 )
                 Timestamp              = (Get-Date)

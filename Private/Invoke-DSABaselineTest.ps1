@@ -327,6 +327,21 @@ function Get-DSAOverallStatus {
     )
 
     $statuses = @($Checks | ForEach-Object { $_.Status })
+
+    # If all checks belong to DKIM and all share the same status, honor that exact status to mirror per-selector breakdowns.
+    $dkimOnly = @($Checks | Where-Object { $_.Area -eq 'DKIM' })
+    if ($dkimOnly.Count -gt 0 -and $dkimOnly.Count -eq $Checks.Count) {
+        if ($statuses -and ($statuses | Where-Object { $_ -eq 'Fail' }).Count -eq $statuses.Count) {
+            return 'Fail'
+        }
+        if ($statuses -and ($statuses | Where-Object { $_ -eq 'Warning' }).Count -eq $statuses.Count) {
+            return 'Warning'
+        }
+        if ($statuses -and ($statuses | Where-Object { $_ -eq 'Pass' }).Count -eq $statuses.Count) {
+            return 'Pass'
+        }
+    }
+
     if ($statuses -contains 'Fail') {
         return 'Fail'
     }

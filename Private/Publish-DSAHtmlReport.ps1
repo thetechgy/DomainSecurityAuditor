@@ -198,14 +198,31 @@ function Add-DSAProtocolSection {
         return
     }
 
-    $areaStatus = Get-DSAAreaStatus -Checks $Group.Group
-    $statusClass = Get-DSAStatusClassName -Status $areaStatus
     $checkCount = ($groupChecks | Measure-Object).Count
     $sectionClass = 'protocol-section'
     $detailsClass = 'protocol-details'
     $checkLabel = if ($checkCount -eq 1) { '1 check' } else { ('{0} checks' -f $checkCount) }
     $areaSlug = ($Group.Name -replace '[^a-zA-Z0-9]', '-').ToLowerInvariant()
     $detailsId = "protocol-{0}-{1}" -f $DomainSlug, $areaSlug
+
+    $selectorDetails = $null
+    if (($Group.Name -eq 'DKIM') -and $Profile -and $Profile.PSObject.Properties.Name -contains 'Evidence') {
+        $selectorDetails = $Profile.Evidence.DKIMSelectorDetails
+    }
+
+    $effectiveChecks = $groupChecks
+    if ($selectorDetails -and $Group.Name -eq 'DKIM') {
+        $effectiveChecks = @()
+        foreach ($check in $groupChecks) {
+            $effectiveStatus = Get-DSADkimEffectiveStatus -Check $check -Selectors $selectorDetails
+            $clone = $check.PSObject.Copy()
+            $clone | Add-Member -NotePropertyName 'Status' -NotePropertyValue $effectiveStatus -Force
+            $effectiveChecks += $clone
+        }
+    }
+
+    $areaStatus = Get-DSAAreaStatus -Checks $effectiveChecks
+    $statusClass = Get-DSAStatusClassName -Status $areaStatus
 
     $null = $Builder.AppendLine(("      <div class=""{0}"">" -f $sectionClass))
     $null = $Builder.AppendLine(("        <div class=""protocol-header"" role=""button"" tabindex=""0"" aria-expanded=""false"" aria-controls=""{0}"">" -f $detailsId))
@@ -218,12 +235,7 @@ function Add-DSAProtocolSection {
     $null = $Builder.AppendLine('        </div>')
     $null = $Builder.AppendLine(("        <div class=""{0}"" id=""{1}"" aria-hidden=""true"">" -f $detailsClass, $detailsId))
 
-    $selectorDetails = $null
-    if (($Group.Name -eq 'DKIM') -and $Profile -and $Profile.PSObject.Properties.Name -contains 'Evidence') {
-        $selectorDetails = $Profile.Evidence.DKIMSelectorDetails
-    }
-
-    foreach ($check in $groupChecks) {
+    foreach ($check in $effectiveChecks) {
         Add-DSATestResult -Builder $Builder -Check $check -Selectors $selectorDetails
     }
 
@@ -242,16 +254,25 @@ function Add-DSATestResult {
         return
     }
 
-    $statusClass = Get-DSAStatusClassName -Status $Check.Status
-    $statusIcon = Get-DSAStatusIcon -Status $Check.Status
-    $filterStatus = Get-DSAFilterStatus -Status $Check.Status
+    $effectiveStatus = Get-DSADkimEffectiveStatus -Check $Check -Selectors $Selectors
+
+    $statusClass = Get-DSAStatusClassName -Status $effectiveStatus
+    $statusIcon = Get-DSAStatusIcon -Status $effectiveStatus
+    $filterStatus = Get-DSAFilterStatus -Status $effectiveStatus
     $detailItems = [System.Collections.Generic.List[object]]::new()
-    if ($Check.PSObject.Properties.Name -contains 'Actual' -and ($Check.Actual -ne $null)) {
+    $suppressActual = ($Check.Area -eq 'DKIM' -and $Check.Id -in @('DKIMKeyStrength','DKIMTtl'))
+    if (-not $suppressActual -and $Check.PSObject.Properties.Name -contains 'Actual' -and ($Check.Actual -ne $null)) {
         $valueHtml = ConvertTo-DSAValueHtml -Value $Check.Actual
         $null = $detailItems.Add([pscustomobject]@{
                 Label = 'Observed Value'
                 Value = $valueHtml
                 IsHtml = $true
+            })
+    } elseif ($suppressActual) {
+        $null = $detailItems.Add([pscustomobject]@{
+                Label = 'Observed Value'
+                Value = 'See selector details below'
+                IsHtml = $false
             })
     }
     if ($Check.Severity) {
@@ -314,7 +335,8 @@ function Add-DSATestResult {
         }
     }
 
-    if ($Selectors -and $Check.Area -eq 'DKIM') {
+    $breakdownEligibleIds = @('DKIMKeyStrength', 'DKIMTtl')
+    if ($Selectors -and $Check.Area -eq 'DKIM' -and ($Check.Id -in $breakdownEligibleIds)) {
         Add-DSADkimSelectorBreakdown -Builder $Builder -Selectors $Selectors -Check $Check
     }
 
@@ -344,12 +366,21 @@ function Get-DSAReportSummary {
     $totalChecks = 0
     foreach ($profile in $profileList) {
         $checks = if ($profile.Checks) { @($profile.Checks | Where-Object { $_ }) } else { @() }
+        $selectorDetails = $null
+        if ($profile.PSObject.Properties.Name -contains 'Evidence' -and $profile.Evidence.PSObject.Properties.Name -contains 'DKIMSelectorDetails') {
+            $selectorDetails = $profile.Evidence.DKIMSelectorDetails
+        }
         foreach ($check in $checks) {
             if (-not $check) {
                 continue
             }
             $totalChecks++
-            switch ($check.Status) {
+            $statusForCount = if ($selectorDetails -and $check.Area -eq 'DKIM') {
+                Get-DSADkimEffectiveStatus -Check $check -Selectors $selectorDetails
+            } else {
+                $check.Status
+            }
+            switch ($statusForCount) {
                 'Pass' { $checkStatusCounts['Pass'] += 1 }
                 'Fail' { $checkStatusCounts['Fail'] += 1 }
                 'Warning' { $checkStatusCounts['Warning'] += 1 }
@@ -1092,8 +1123,12 @@ function Add-DSADkimSelectorBreakdown {
         $null = $Builder.AppendLine(("                      <div class=""selector-name"">{0}</div>" -f (ConvertTo-DSAHtml $selector.Name)))
         $null = $Builder.AppendLine(("                      <div class=""selector-status {0}"">{1}</div>" -f $statusClass, (ConvertTo-DSAHtml $status)))
         $null = $Builder.AppendLine('                      <div class="selector-meta">')
-        $null = $Builder.AppendLine(("                        <span>Key: {0}</span>" -f (ConvertTo-DSAHtml $keyLengthValue)))
-        $null = $Builder.AppendLine(("                        <span>TTL: {0}</span>" -f (ConvertTo-DSAHtml $ttlValue)))
+        if ($Check.Id -eq 'DKIMKeyStrength') {
+            $null = $Builder.AppendLine(("                        <span>Key: {0}</span>" -f (ConvertTo-DSAHtml $keyLengthValue)))
+        }
+        if ($Check.Id -eq 'DKIMTtl') {
+            $null = $Builder.AppendLine(("                        <span>TTL: {0}</span>" -f (ConvertTo-DSAHtml $ttlValue)))
+        }
         if (-not $found) {
             $null = $Builder.AppendLine('                        <span class="selector-warning">Not found</span>')
         }
@@ -1150,6 +1185,26 @@ function Get-DSADkimSelectorStatus {
     }
 }
 
+function Get-DSADkimEffectiveStatus {
+    param (
+        [Parameter(Mandatory = $true)][pscustomobject]$Check,
+        [pscustomobject[]]$Selectors
+    )
+
+    $effectiveStatus = $Check.Status
+    if ($Selectors -and $Check.Area -eq 'DKIM' -and ($Check.Id -in @('DKIMKeyStrength','DKIMTtl','DKIMSelectorHealth','DKIMSelectorPresence'))) {
+        $selectorStatuses = @($Selectors | ForEach-Object { Get-DSADkimSelectorStatus -Selector $_ -Check $Check })
+        if ($selectorStatuses -contains 'Fail') {
+            $effectiveStatus = 'Fail'
+        } elseif ($selectorStatuses -contains 'Warning') {
+            $effectiveStatus = 'Warning'
+        } elseif ($selectorStatuses -contains 'Pass') {
+            $effectiveStatus = 'Pass'
+        }
+    }
+
+    return $effectiveStatus
+}
 function Get-DSAAreaStatus {
     param (
         [Parameter(Mandatory = $true)][System.Collections.IEnumerable]$Checks
