@@ -140,7 +140,10 @@ For single-domain or ad-hoc runs without a CSV, specify the override directly:
 ```powershell
 Invoke-DomainSecurityBaseline -Domain 'example.com' -Classification SendingOnly
 Invoke-DomainSecurityBaseline -Domain 'example.com' -DkimSelector 'selector1','selector2'
+Invoke-DomainSecurityBaseline -Domain 'example.com' -DNSEndpoint 'udp://1.1.1.1:53'
 ```
+
+When `-DNSEndpoint` is omitted, DomainDetective automatically uses the system resolver.
 
 By default, the generated HTML report opens when processing completes. Use `-SkipReportLaunch` in CI/CD or other non-interactive scenarios.
 

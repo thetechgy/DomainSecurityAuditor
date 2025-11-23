@@ -12,6 +12,8 @@ function Get-DSADomainEvidence {
     Optional path to a log file for recording errors and diagnostic messages.
 .PARAMETER DkimSelector
     Optional DKIM selector names to verify. If omitted, DomainDetective's default selectors are used.
+.PARAMETER DNSEndpoint
+    Optional DNS endpoint (e.g., a resolver IP/port) forwarded to DomainDetective. Defaults to DomainDetective's system resolver when omitted.
 .OUTPUTS
     PSCustomObject with Domain, Classification, and Records properties.
 #>
@@ -24,7 +26,9 @@ function Get-DSADomainEvidence {
         [string]$LogFile,
 
         [Alias('DkimSelectors')]
-        [string[]]$DkimSelector
+        [string[]]$DkimSelector,
+
+        [string]$DNSEndpoint
     )
 
     try {
@@ -44,6 +48,14 @@ function Get-DSADomainEvidence {
         $resolvedDkimSelectors = @($DkimSelector | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     }
 
+    $resolvedDnsEndpoint = $null
+    if ($PSBoundParameters.ContainsKey('DNSEndpoint')) {
+        $resolvedDnsEndpoint = "$DNSEndpoint".Trim()
+        if (-not [string]::IsNullOrWhiteSpace($resolvedDnsEndpoint) -and $LogFile) {
+            Write-DSALog -Message ("Using DNS endpoint override '{0}' for '{1}'." -f $resolvedDnsEndpoint, $Domain) -LogFile $LogFile -Level 'DEBUG'
+        }
+    }
+
     $healthCheckTypes = [System.Collections.Generic.List[string]]::new()
     foreach ($type in @('SPF', 'DMARC', 'DKIM', 'MX', 'MTASTS', 'TLSRPT')) {
         $null = $healthCheckTypes.Add($type)
@@ -57,6 +69,10 @@ function Get-DSADomainEvidence {
             WarningAction     = 'SilentlyContinue'
             InformationAction = 'SilentlyContinue'
             WarningVariable   = 'ddWarnings'
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($resolvedDnsEndpoint)) {
+            $baseParams['DnsEndpoint'] = $resolvedDnsEndpoint
         }
 
         $ddWarnings = $null

@@ -21,6 +21,8 @@ function Invoke-DomainSecurityBaseline {
 .PARAMETER DkimSelector
     Optional DKIM selectors to verify via DomainDetective; if omitted, DomainDetective defaults are used.
     When using -InputFile with CSV, per-domain selectors in a 'DkimSelectors' column override this parameter.
+.PARAMETER DNSEndpoint
+    Optional DNS endpoint forwarded to DomainDetective. If omitted, DomainDetective uses its system resolver.
 .PARAMETER Baseline
     Name of the built-in baseline profile to load (defaults to 'Default').
 .PARAMETER BaselineProfilePath
@@ -89,6 +91,7 @@ Resources:
         [switch]$SkipDependencies,
         [Alias('DkimSelectors')]
         [string[]]$DkimSelector,
+        [string]$DNSEndpoint,
         [string]$Baseline = 'Default',
         [string]$BaselineProfilePath,
         [switch]$SkipReportLaunch,
@@ -103,6 +106,7 @@ Resources:
         $directDomainSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
         $defaultClassificationOverride = $null
         $globalDkimSelectors = @()
+        $resolvedDnsEndpoint = $null
 
         if ($PSBoundParameters.ContainsKey('ClassificationOverride')) {
             $defaultClassificationOverride = Resolve-DSAClassificationOverride -Value $ClassificationOverride -SourceDescription 'ClassificationOverride parameter'
@@ -110,6 +114,10 @@ Resources:
 
         if ($PSBoundParameters.ContainsKey('DkimSelector')) {
             $globalDkimSelectors = @($DkimSelector | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        }
+
+        if ($PSBoundParameters.ContainsKey('DNSEndpoint')) {
+            $resolvedDnsEndpoint = "$DNSEndpoint".Trim()
         }
     }
 
@@ -299,6 +307,11 @@ Resources:
                     Write-DSALog -Message ("Using custom DKIM selectors for '{0}': {1}" -f $domainName, ($effectiveDkimSelectors -join ', ')) -LogFile $logFile -Level 'DEBUG'
                 } else {
                     Write-DSALog -Message ("Using DomainDetective default DKIM selectors for '{0}'." -f $domainName) -LogFile $logFile -Level 'DEBUG'
+                }
+
+                if (-not [string]::IsNullOrWhiteSpace($resolvedDnsEndpoint)) {
+                    $evidenceParams.DNSEndpoint = $resolvedDnsEndpoint
+                    Write-DSALog -Message ("Using DNS endpoint '{0}' for '{1}'." -f $resolvedDnsEndpoint, $domainName) -LogFile $logFile -Level 'DEBUG'
                 }
 
                 $evidence = Get-DSADomainEvidence @evidenceParams

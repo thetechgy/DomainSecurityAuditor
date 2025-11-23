@@ -80,6 +80,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
         $command.Parameters.Keys | Should -Contain 'ShowProgress'
         $command.Parameters.Keys | Should -Contain 'SkipDependencies'
         $command.Parameters.Keys | Should -Contain 'DkimSelector'
+        $command.Parameters.Keys | Should -Contain 'DNSEndpoint'
         $command.Parameters.Keys | Should -Contain 'Baseline'
         $command.Parameters.Keys | Should -Contain 'BaselineProfilePath'
     }
@@ -147,6 +148,16 @@ Describe 'Invoke-DomainSecurityBaseline' {
                 Invoke-DomainSecurityBaseline -Domain 'example.com' -DkimSelector 'sel1','sel2' -SkipReportLaunch -PassThru | Out-Null
 
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { $DkimSelector -and $DkimSelector -contains 'sel1' -and $DkimSelector -contains 'sel2' }
+            }
+        }
+
+        It 'passes DNSEndpoint through to evidence collection' {
+            InModuleScope DomainSecurityAuditor {
+                Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence -Domain $Domain }
+
+                Invoke-DomainSecurityBaseline -Domain 'example.com' -DNSEndpoint 'udp://1.1.1.1:53' -SkipReportLaunch -PassThru | Out-Null
+
+                Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { $DNSEndpoint -eq 'udp://1.1.1.1:53' }
             }
         }
 
@@ -455,6 +466,54 @@ invalid.example,Unknown
 }
 
 Describe 'Get-DSADomainEvidence' {
+    It 'forwards DNSEndpoint to DomainDetective health checks' {
+        InModuleScope DomainSecurityAuditor {
+            Mock -CommandName Write-DSALog -MockWith { }
+            Mock -CommandName Get-Module -MockWith { $null }
+            Mock -CommandName Import-Module -MockWith { }
+            Mock -CommandName Test-DDDomainOverallHealth -MockWith {
+                [pscustomobject]@{
+                    Raw = [pscustomobject]@{
+                        Summary       = [pscustomobject]@{ HasMxRecord = $true; HasSpfRecord = $true; HasDmarcRecord = $true }
+                        MXAnalysis     = [pscustomobject]@{ MxRecords = @('mx1.example'); HasNullMx = $false }
+                        SpfAnalysis    = [pscustomobject]@{
+                            SpfRecord        = 'v=spf1 -all'
+                            SpfRecords       = @('v=spf1 -all')
+                            DnsLookupsCount  = 0
+                            AllMechanism     = '-all'
+                            HasPtrType       = $false
+                            IncludeRecords   = @()
+                            UnknownMechanisms = @()
+                        }
+                        DKIMAnalysis   = [pscustomobject]@{
+                            AnalysisResults = @{
+                                'selector1' = [pscustomobject]@{ KeyLength = 2048; Ttl = 3600; IsValid = $true }
+                            }
+                        }
+                        DmarcAnalysis  = [pscustomobject]@{
+                            DmarcRecord = 'v=DMARC1; p=reject'
+                            Policy      = 'reject'
+                            MailtoRua   = @()
+                            HttpRua     = @()
+                            MailtoRuf   = @()
+                            HttpRuf     = @()
+                        }
+                        MTASTSAnalysis = [pscustomobject]@{ DnsRecordPresent = $true; PolicyValid = $true; Mode = 'enforce'; MaxAge = 86400 }
+                        TLSRPTAnalysis = [pscustomobject]@{
+                            TlsRptRecordExists = $true
+                            MailtoRua          = @()
+                            HttpRua            = @()
+                        }
+                    }
+                }
+            } -ParameterFilter { $DNSEndpoint -eq 'udp://9.9.9.9:53' }
+
+            $evidence = Get-DSADomainEvidence -Domain 'example.com' -DNSEndpoint 'udp://9.9.9.9:53'
+            $evidence | Should -Not -BeNullOrEmpty
+            Assert-MockCalled -CommandName Test-DDDomainOverallHealth -Times 1 -ParameterFilter { $DNSEndpoint -eq 'udp://9.9.9.9:53' -and $HealthCheckType -contains 'SPF' }
+        }
+    }
+
     It 'captures all requested DKIM selectors without stopping at first match' {
         InModuleScope DomainSecurityAuditor {
             Mock -CommandName Write-DSALog -MockWith { }
