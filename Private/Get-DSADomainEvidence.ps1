@@ -63,12 +63,13 @@ function Get-DSADomainEvidence {
 
     try {
         $baseParams = @{
-            DomainName        = $Domain
-            HealthCheckType   = $healthCheckTypes.ToArray()
-            ErrorAction       = 'Stop'
-            WarningAction     = 'SilentlyContinue'
-            InformationAction = 'SilentlyContinue'
-            WarningVariable   = 'ddWarnings'
+            DomainName              = $Domain
+            HealthCheckType         = $healthCheckTypes.ToArray()
+            CollectAuthoritativeTtls = $true
+            ErrorAction             = 'Stop'
+            WarningAction           = 'SilentlyContinue'
+            InformationAction       = 'SilentlyContinue'
+            WarningVariable         = 'ddWarnings'
         }
 
         if (-not [string]::IsNullOrWhiteSpace($resolvedDnsEndpoint)) {
@@ -119,6 +120,7 @@ function Get-DSADomainEvidence {
                 $dkimOnlyParams = $baseParams.Clone()
                 $dkimOnlyParams['HealthCheckType'] = @('DKIM')
                 $dkimOnlyParams['DkimSelectors'] = $customMissing
+                $dkimOnlyParams['CollectAuthoritativeTtls'] = $true
                 $ddWarnings = $null
                 $customOverall = Test-DDDomainOverallHealth @dkimOnlyParams
                 if ($LogFile -and $ddWarnings) {
@@ -156,6 +158,7 @@ function Get-DSADomainEvidence {
     $missingSelectors = @()
     $dkimDetails = @()
     $dkimSelectorsPresent = @()
+    $ttlAnalysis = $null
 
     try {
         $dkimSelectorsFound = @(Get-DSADkimSelectorNames -Analysis $raw.DKIMAnalysis)
@@ -180,7 +183,13 @@ function Get-DSADomainEvidence {
             }
         }
 
-        $dkimDetails = @(Get-DSADkimSelectorDetails -Analysis $raw.DKIMAnalysis -Selectors $dkimSelectorsToEvaluate -IncludeMissing:$usingCustomSelectors -MissingSelectors $missingSelectors)
+        $ttlAnalysis = Get-DSAAuthoritativeTtlAnalysis -Domain $Domain -Raw $raw -DkimSelectors $dkimSelectorsToEvaluate -LogFile $LogFile
+        $authoritativeDkimTtls = $null
+        if ($ttlAnalysis -and $ttlAnalysis.PSObject.Properties.Name -contains 'AuthoritativeDkimTxtTtls') {
+            $authoritativeDkimTtls = $ttlAnalysis.AuthoritativeDkimTxtTtls
+        }
+
+        $dkimDetails = @(Get-DSADkimSelectorDetails -Analysis $raw.DKIMAnalysis -Selectors $dkimSelectorsToEvaluate -IncludeMissing:$usingCustomSelectors -MissingSelectors $missingSelectors -Domain $Domain -AuthoritativeDkimTtls $authoritativeDkimTtls)
         $dkimSelectorsPresent = @($dkimDetails | Where-Object { $_.Found } | ForEach-Object { $_.Name })
     } catch {
         if ($LogFile) {
@@ -192,11 +201,52 @@ function Get-DSADomainEvidence {
         $missingSelectors = @()
     }
 
+    $mxMinimumTtl = $null
+    if ($ttlAnalysis -and $ttlAnalysis.PSObject.Properties.Name -contains 'AuthoritativeMxTtls') {
+        $mxMinimumTtl = Get-DSAMinimumIntFromValues -Values $ttlAnalysis.AuthoritativeMxTtls
+    }
+    if ($null -eq $mxMinimumTtl) {
+        $mxMinimumTtl = ConvertTo-DSAInt -Value (Get-DSAAnalysisProperty -Analysis $raw.MXAnalysis -PropertyName 'MinMxTtl')
+    }
+
+    $spfTtl = $null
+    if ($ttlAnalysis -and $ttlAnalysis.PSObject.Properties.Name -contains 'AuthoritativeSpfTxtTtls') {
+        $spfTtl = Get-DSAMinimumIntFromValues -Values $ttlAnalysis.AuthoritativeSpfTxtTtls
+    }
+    if ($null -eq $spfTtl) {
+        $spfTtl = ConvertTo-DSAInt -Value (Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'DnsRecordTtl')
+    }
+
+    $dkimMinimumTtl = Get-DSADkimMinimumTtl -Analysis $dkimDetails
+    $dmarcTtl = $null
+    if ($ttlAnalysis -and $ttlAnalysis.PSObject.Properties.Name -contains 'AuthoritativeDmarcTxtTtls') {
+        $dmarcTtl = Get-DSAMinimumIntFromValues -Values $ttlAnalysis.AuthoritativeDmarcTxtTtls
+    }
+    if ($null -eq $dmarcTtl) {
+        $dmarcTtl = ConvertTo-DSAInt -Value (Get-DSADmarcProperty -Analysis $raw.DmarcAnalysis -Property 'DnsRecordTtl')
+    }
+
+    $mtastsTtl = $null
+    if ($ttlAnalysis -and $ttlAnalysis.PSObject.Properties.Name -contains 'AuthoritativeMtastsTxtTtls') {
+        $mtastsTtl = Get-DSAMinimumIntFromValues -Values $ttlAnalysis.AuthoritativeMtastsTxtTtls
+    }
+    if ($null -eq $mtastsTtl) {
+        $mtastsTtl = ConvertTo-DSAInt -Value (Get-DSAAnalysisProperty -Analysis $raw.MTASTSAnalysis -PropertyName 'DnsRecordTtl')
+    }
+
+    $tlsRptTtl = $null
+    if ($ttlAnalysis -and $ttlAnalysis.PSObject.Properties.Name -contains 'AuthoritativeTlsRptTxtTtls') {
+        $tlsRptTtl = Get-DSAMinimumIntFromValues -Values $ttlAnalysis.AuthoritativeTlsRptTxtTtls
+    }
+    if ($null -eq $tlsRptTtl) {
+        $tlsRptTtl = ConvertTo-DSAInt -Value (Get-DSAAnalysisProperty -Analysis $raw.TLSRPTAnalysis -PropertyName 'DnsRecordTtl')
+    }
+
     $records = [pscustomobject]@{
         MX                    = @(Get-DSAMxHosts -Analysis $raw.MXAnalysis)
         MXRecordCount         = Get-DSAAnalysisProperty -Analysis $raw.MXAnalysis -PropertyName 'MxRecords' -AsCount
         MXHasNull             = Get-DSAAnalysisProperty -Analysis $raw.MXAnalysis -PropertyName 'HasNullMx'
-        MXMinimumTtl          = $null
+        MXMinimumTtl          = $mxMinimumTtl
 
         SPFRecord             = Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'SpfRecord'
         SPFRecords            = @(Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'SpfRecords')
@@ -205,7 +255,7 @@ function Get-DSADomainEvidence {
         SPFTerminalMechanism  = Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'AllMechanism'
         SPFHasPtrMechanism    = [bool](Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'HasPtrType')
         SPFRecordLength       = Get-DSASpfRecordLength -Analysis $raw.SpfAnalysis
-        SPFTtl                = $null
+        SPFTtl                = $spfTtl
         SPFIncludes           = @(Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'IncludeRecords')
         SPFWildcardRecord     = $null
         SPFWildcardConfigured = $false
@@ -215,22 +265,22 @@ function Get-DSADomainEvidence {
         DKIMSelectorDetails   = $dkimDetails
         DKIMMinKeyLength      = Get-DSADkimMinimumKeyLength -Analysis $dkimDetails
         DKIMWeakSelectors     = Get-DSADkimWeakSelectorCount -Analysis $dkimDetails
-        DKIMMinimumTtl        = $null
+        DKIMMinimumTtl        = $dkimMinimumTtl
 
         DMARCRecord           = Get-DSADmarcProperty -Analysis $raw.DmarcAnalysis -Property 'DmarcRecord'
         DMARCPolicy           = Get-DSADmarcProperty -Analysis $raw.DmarcAnalysis -Property 'Policy'
         DMARCRuaAddresses     = @(Get-DSADmarcAddresses -Analysis $raw.DmarcAnalysis -PropertyNames @('MailtoRua', 'HttpRua'))
         DMARCRufAddresses     = @(Get-DSADmarcAddresses -Analysis $raw.DmarcAnalysis -PropertyNames @('MailtoRuf', 'HttpRuf'))
-        DMARCTtl              = $null
+        DMARCTtl              = $dmarcTtl
 
         MTASTSRecordPresent   = [bool](Get-DSAAnalysisProperty -Analysis $raw.MTASTSAnalysis -PropertyName 'DnsRecordPresent')
         MTASTSPolicyValid     = [bool](Get-DSAAnalysisProperty -Analysis $raw.MTASTSAnalysis -PropertyName 'PolicyValid')
         MTASTSMode            = Get-DSAAnalysisProperty -Analysis $raw.MTASTSAnalysis -PropertyName 'Mode'
-        MTASTSTtl             = Get-DSAAnalysisProperty -Analysis $raw.MTASTSAnalysis -PropertyName 'MaxAge'
+        MTASTSTtl             = $mtastsTtl
 
         TLSRPTRecordPresent   = [bool](Get-DSAAnalysisProperty -Analysis $raw.TLSRPTAnalysis -PropertyName 'TlsRptRecordExists')
         TLSRPTAddresses       = @(Get-DSATlsRptAddresses -Analysis $raw.TLSRPTAnalysis)
-        TLSRPTTtl             = $null
+        TLSRPTTtl             = $tlsRptTtl
     }
 
     Write-Verbose -Message "Collected DomainDetective evidence for '$Domain'."
@@ -249,6 +299,11 @@ function Get-DSAAnalysisProperty {
     )
 
     if (-not $Analysis) {
+        if ($AsCount) { return 0 }
+        return $null
+    }
+
+    if (-not $Analysis.PSObject.Properties[$PropertyName]) {
         if ($AsCount) { return 0 }
         return $null
     }
@@ -272,6 +327,11 @@ function Get-DSASpfProperty {
     )
 
     if (-not $Analysis) {
+        if ($AsCount) { return 0 }
+        return $null
+    }
+
+    if (-not $Analysis.PSObject.Properties[$Property]) {
         if ($AsCount) { return 0 }
         return $null
     }
@@ -310,10 +370,10 @@ function Get-DSASpfUnsafeMechanisms {
         return $unsafe
     }
 
-    if ($Analysis.HasPtrType) {
+    if ($Analysis.PSObject.Properties['HasPtrType'] -and $Analysis.HasPtrType) {
         $null = $unsafe.Add('ptr')
     }
-    if ($Analysis.UnknownMechanisms) {
+    if ($Analysis.PSObject.Properties['UnknownMechanisms'] -and $Analysis.UnknownMechanisms) {
         foreach ($entry in $Analysis.UnknownMechanisms) {
             if (-not [string]::IsNullOrWhiteSpace($entry)) {
                 $null = $unsafe.Add($entry)
@@ -331,6 +391,10 @@ function Get-DSADmarcProperty {
     )
 
     if (-not $Analysis) {
+        return $null
+    }
+
+    if (-not $Analysis.PSObject.Properties[$Property]) {
         return $null
     }
 
@@ -416,7 +480,9 @@ function Get-DSADkimSelectorDetails {
         $Analysis,
         [string[]]$Selectors,
         [switch]$IncludeMissing,
-        [string[]]$MissingSelectors
+        [string[]]$MissingSelectors,
+        [string]$Domain,
+        $AuthoritativeDkimTtls
     )
 
     $analysisMap = ConvertTo-DSADkimAnalysisMap -Analysis $Analysis
@@ -460,6 +526,21 @@ function Get-DSADkimSelectorDetails {
         if ($data) {
             $keyLength = ConvertTo-DSAInt -Value ($data.PSObject.Properties['KeyLength']?.Value)
             $ttl = ConvertTo-DSAInt -Value ($data.PSObject.Properties['Ttl']?.Value ?? $data.PSObject.Properties['TTL']?.Value)
+            if ($null -eq $ttl -and $null -ne $data.PSObject.Properties['Ttls']) {
+                $ttl = Get-DSAMinimumIntFromValues -Values $data.Ttls
+            }
+
+            if ($AuthoritativeDkimTtls -and -not [string]::IsNullOrWhiteSpace($Domain)) {
+                $fqdn = "{0}._domainkey.{1}" -f $selector, $Domain
+                if ($AuthoritativeDkimTtls -is [System.Collections.IDictionary]) {
+                    if ($AuthoritativeDkimTtls.ContainsKey($fqdn)) {
+                        $authTtl = Get-DSAMinimumIntFromValues -Values $AuthoritativeDkimTtls[$fqdn]
+                        if ($null -ne $authTtl) {
+                            $ttl = $authTtl
+                        }
+                    }
+                }
+            }
 
             if ($null -ne $data.PSObject.Properties['IsValid']) {
                 $isValid = [bool]$data.IsValid
@@ -522,6 +603,49 @@ function Get-DSADkimMinimumKeyLength {
     }
 
     return ($lengths | Measure-Object -Minimum).Minimum
+}
+
+function Get-DSADkimMinimumTtl {
+    param (
+        $Analysis
+    )
+
+    if ($Analysis -is [System.Collections.IEnumerable] -and -not ($Analysis -is [string]) -and -not ($Analysis.PSObject.Properties.Name -contains 'AnalysisResults')) {
+        $details = @($Analysis | Where-Object { $_ })
+    } else {
+        $details = @(Get-DSADkimSelectorDetails -Analysis $Analysis)
+    }
+
+    if (@($details).Count -eq 0) {
+        return $null
+    }
+
+    $ttls = @()
+    foreach ($detail in $details) {
+        if (-not $detail.Found) { continue }
+        $parsed = ConvertTo-DSAInt -Value ($detail.PSObject.Properties['Ttl']?.Value ?? $detail.PSObject.Properties['TTL']?.Value ?? $detail.Ttl)
+        if ($null -eq $parsed -and $null -ne $detail.PSObject.Properties['Ttls']) {
+            $ttlCandidates = @()
+            foreach ($value in $detail.Ttls) {
+                $ttlParsed = ConvertTo-DSAInt -Value $value
+                if ($null -ne $ttlParsed) {
+                    $ttlCandidates += $ttlParsed
+                }
+            }
+            if ($ttlCandidates) {
+                $parsed = ($ttlCandidates | Measure-Object -Minimum).Minimum
+            }
+        }
+        if ($null -ne $parsed) {
+            $ttls += $parsed
+        }
+    }
+
+    if (@($ttls).Count -eq 0) {
+        return $null
+    }
+
+    return ($ttls | Measure-Object -Minimum).Minimum
 }
 
 function Get-DSADkimWeakSelectorCount {
@@ -617,6 +741,137 @@ function ConvertTo-DSADkimAnalysisMap {
     }
 
     return $map
+}
+
+function Test-DSAAuthoritativeTtlPresent {
+    param (
+        $Analysis
+    )
+
+    if (-not $Analysis) {
+        return $false
+    }
+
+    $props = @(
+        'AuthoritativeATtls'
+        'AuthoritativeAaaaTtls'
+        'AuthoritativeNsTtls'
+        'AuthoritativeMxTtls'
+        'AuthoritativeSpfTxtTtls'
+        'AuthoritativeDmarcTxtTtls'
+        'AuthoritativeMtastsTxtTtls'
+        'AuthoritativeTlsRptTxtTtls'
+    )
+
+    foreach ($prop in $props) {
+        if ($Analysis.PSObject.Properties.Name -contains $prop) {
+            $value = $Analysis.$prop
+            if ($value -and ($value -is [System.Collections.IEnumerable]) -and -not ($value -is [string]) -and (@($value).Count -gt 0)) {
+                return $true
+            }
+        }
+    }
+
+    if ($Analysis.PSObject.Properties.Name -contains 'AuthoritativeDkimTxtTtls') {
+        $dkimMap = $Analysis.AuthoritativeDkimTxtTtls
+        if ($dkimMap -is [System.Collections.IDictionary] -and $dkimMap.Count -gt 0) {
+            foreach ($entry in $dkimMap.GetEnumerator()) {
+                if ($entry.Value -and (@($entry.Value).Count -gt 0)) {
+                    return $true
+                }
+            }
+        }
+    }
+
+    if ($Analysis.PSObject.Properties.Name -contains 'AuthoritativeSoaTtl' -and $null -ne $Analysis.AuthoritativeSoaTtl) {
+        return $true
+    }
+
+    return $false
+}
+
+function Get-DSAAuthoritativeTtlAnalysis {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$Domain,
+
+        $Raw,
+
+        [string[]]$DkimSelectors,
+
+        [string]$LogFile
+    )
+
+    $analysis = $null
+    if ($Raw -and $Raw.PSObject.Properties.Name -contains 'DnsTtlAnalysis') {
+        $analysis = $Raw.DnsTtlAnalysis
+        if (Test-DSAAuthoritativeTtlPresent -Analysis $analysis) {
+            return $analysis
+        }
+    }
+
+    if (-not ("DomainDetective.DnsTtlAnalysis" -as [type])) {
+        return $analysis
+    }
+
+    if (-not $analysis) {
+        $analysis = [DomainDetective.DnsTtlAnalysis]::new()
+    }
+
+    if ($Raw -and $Raw.PSObject.Properties.Name -contains 'DnsConfiguration' -and $analysis.PSObject.Properties.Name -contains 'DnsConfiguration') {
+        $analysis.DnsConfiguration = $Raw.DnsConfiguration
+    }
+
+    if ($DkimSelectors -and $analysis.PSObject.Properties.Name -contains 'DkimSelectors') {
+        $analysis.DkimSelectors = $DkimSelectors
+    }
+
+    if ($analysis.PSObject.Properties.Name -contains 'CollectAuthoritativeTtls') {
+        $analysis.CollectAuthoritativeTtls = $true
+    }
+
+    try {
+        $logger = [DomainDetective.InternalLogger]::new()
+        $null = $analysis.Analyze($Domain, $logger).GetAwaiter().GetResult()
+        $null = $analysis.AnalyzeUniformityAcrossServers($Domain, $logger).GetAwaiter().GetResult()
+    } catch {
+        if ($LogFile) {
+            Write-DSALog -Message ("Authoritative TTL lookup failed: $($_.Exception.Message)") -LogFile $LogFile -Level 'WARN'
+        }
+    }
+
+    return $analysis
+}
+
+function Get-DSAMinimumIntFromValues {
+    param (
+        $Values
+    )
+
+    if (-not $Values) {
+        return $null
+    }
+
+    $parsed = @()
+    if ($Values -is [System.Collections.IEnumerable] -and -not ($Values -is [string])) {
+        foreach ($val in $Values) {
+            $converted = ConvertTo-DSAInt -Value $val
+            if ($null -ne $converted) {
+                $parsed += $converted
+            }
+        }
+    } else {
+        $convertedSingle = ConvertTo-DSAInt -Value $Values
+        if ($null -ne $convertedSingle) {
+            $parsed += $convertedSingle
+        }
+    }
+
+    if ($parsed.Count -gt 0) {
+        return ($parsed | Measure-Object -Minimum).Minimum
+    }
+
+    return $null
 }
 
 function Test-DSADkimSelectorName {

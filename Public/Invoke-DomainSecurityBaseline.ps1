@@ -54,7 +54,7 @@ Revision History:
       0.1.0 - 11/16/2025 - Initial scaffolded implementation with logging/transcript plumbing.
 
 Known Issues:
-      - TTL evidence fields require DomainDetective updates to expose DNS record TTLs.
+      - None currently documented.
 
 Resources:
       - https://github.com/thetechgy/DomainSecurityAuditor

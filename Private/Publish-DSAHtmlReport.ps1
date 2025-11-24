@@ -367,7 +367,8 @@ function Get-DSAReportSummary {
     foreach ($profile in $profileList) {
         $checks = if ($profile.Checks) { @($profile.Checks | Where-Object { $_ }) } else { @() }
         $selectorDetails = $null
-        if ($profile.PSObject.Properties.Name -contains 'Evidence' -and $profile.Evidence.PSObject.Properties.Name -contains 'DKIMSelectorDetails') {
+        $hasEvidence = $profile.PSObject.Properties['Evidence']
+        if ($hasEvidence -and $profile.Evidence -and $profile.Evidence.PSObject.Properties['DKIMSelectorDetails']) {
             $selectorDetails = $profile.Evidence.DKIMSelectorDetails
         }
         foreach ($check in $checks) {

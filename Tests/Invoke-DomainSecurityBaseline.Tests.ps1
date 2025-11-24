@@ -623,6 +623,66 @@ Describe 'Get-DSADomainEvidence' {
             $evidence.Records.DKIMSelectorDetails | Where-Object { $_.Found -eq $false } | Should -BeNullOrEmpty
         }
     }
+
+    It 'maps DNS TTLs from DomainDetective analyses' {
+        InModuleScope DomainSecurityAuditor {
+            Mock -CommandName Write-DSALog -MockWith { }
+            Mock -CommandName Get-Module -MockWith { $null }
+            Mock -CommandName Import-Module -MockWith { }
+            Mock -CommandName Test-DDDomainOverallHealth -MockWith {
+                [pscustomobject]@{
+                    Raw = [pscustomobject]@{
+                        Summary       = [pscustomobject]@{ HasMxRecord = $true; HasSpfRecord = $true; HasDmarcRecord = $true }
+                        MXAnalysis     = [pscustomobject]@{ MxRecords = @('mx1.example'); HasNullMx = $false; MinMxTtl = 7200 }
+                        SpfAnalysis    = [pscustomobject]@{
+                            SpfRecord       = 'v=spf1 -all'
+                            SpfRecords      = @('v=spf1 -all')
+                            DnsLookupsCount = 1
+                            AllMechanism    = '-all'
+                            HasPtrType      = $false
+                            DnsRecordTtl    = 3600
+                        }
+                        DKIMAnalysis   = [pscustomobject]@{
+                            AnalysisResults = @{
+                                's1' = [pscustomobject]@{ KeyLength = 2048; IsValid = $true; Ttl = 600 }
+                                's2' = [pscustomobject]@{ KeyLength = 1024; IsValid = $true; Ttl = 1200 }
+                            }
+                        }
+                        DmarcAnalysis  = [pscustomobject]@{
+                            DmarcRecord  = 'v=DMARC1; p=reject'
+                            Policy       = 'reject'
+                            MailtoRua    = @('mailto:rua@example.com')
+                            HttpRua      = @()
+                            MailtoRuf    = @()
+                            HttpRuf      = @()
+                            DnsRecordTtl = 4500
+                        }
+                        MTASTSAnalysis = [pscustomobject]@{ DnsRecordPresent = $true; PolicyValid = $true; Mode = 'enforce'; DnsRecordTtl = 86400 }
+                        TLSRPTAnalysis = [pscustomobject]@{ TlsRptRecordExists = $true; MailtoRua = @('mailto:tls@example.com'); HttpRua = @(); DnsRecordTtl = 43200 }
+                        DnsTtlAnalysis = [pscustomobject]@{
+                            AuthoritativeMxTtls         = @(18000)
+                            AuthoritativeSpfTxtTtls     = @(4000)
+                            AuthoritativeDmarcTxtTtls   = @(5000)
+                            AuthoritativeMtastsTxtTtls  = @(90000)
+                            AuthoritativeTlsRptTxtTtls  = @(91000)
+                            AuthoritativeDkimTxtTtls    = @{
+                                's1._domainkey.example.com' = @(7200)
+                                's2._domainkey.example.com' = @(6400)
+                            }
+                        }
+                    }
+                }
+            }
+
+            $evidence = Get-DSADomainEvidence -Domain 'example.com'
+            $evidence.Records.MXMinimumTtl | Should -Be 18000
+            $evidence.Records.SPFTtl | Should -Be 4000
+            $evidence.Records.DKIMMinimumTtl | Should -Be 6400
+            $evidence.Records.DMARCTtl | Should -Be 5000
+            $evidence.Records.MTASTSTtl | Should -Be 90000
+            $evidence.Records.TLSRPTTtl | Should -Be 91000
+        }
+    }
 }
 
 Describe 'Baseline profile helpers' {

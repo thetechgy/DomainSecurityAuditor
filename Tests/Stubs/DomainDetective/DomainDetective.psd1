@@ -5,7 +5,7 @@
     Author            = 'DomainSecurityAuditor Test Stub'
     CompanyName       = 'DomainSecurityAuditor'
     PowerShellVersion = '7.0'
-    FunctionsToExport = @('Invoke-DomainDetective')
+    FunctionsToExport = @('Invoke-DomainDetective', 'Test-DDDomainOverallHealth')
     PrivateData       = @{
         PSData = @{
             Tags       = @('Stub', 'Testing')
