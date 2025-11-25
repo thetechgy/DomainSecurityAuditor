@@ -450,8 +450,7 @@ function Get-DSAReportStyles {
 
     --color-focus: #2563eb;
     --color-focus-light: #ffffff;
-    --color-header-start: #363671;
-    --color-header-end: #1f2a44;
+    --color-header: #1e293b;
     --color-recommendation-bg: #f0f9ff;
     --color-recommendation-border: #0284c7;
     --color-recommendation-label: #0c4a6e;
@@ -491,7 +490,7 @@ body {
     padding: 20px;
 }
 .header {
-    background: linear-gradient(135deg, var(--color-header-start) 0%, var(--color-header-end) 100%);
+    background: var(--color-header);
     color: white;
     padding: 32px;
     border-radius: 12px;
