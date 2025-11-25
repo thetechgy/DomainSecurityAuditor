@@ -450,7 +450,7 @@ function Get-DSAReportStyles {
 
     --color-focus: #2563eb;
     --color-focus-light: #ffffff;
-    --color-header: #3f3f46;
+    --color-header: #44403c;
     --color-recommendation-bg: #f0f9ff;
     --color-recommendation-border: #0284c7;
     --color-recommendation-label: #0c4a6e;
