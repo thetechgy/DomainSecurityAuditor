@@ -428,9 +428,9 @@ function Get-DSAReportStyles {
     --color-border: #e5e7eb;
     --color-border-light: #f3f4f6;
 
-    /* PASS - Deep Blue (colorblind-friendly) */
-    --color-pass: #0369a1;
-    --color-pass-bg: #e0f2fe;
+    /* PASS - Forest Green (colorblind-friendly) */
+    --color-pass: #059669;
+    --color-pass-bg: #d1fae5;
     --color-pass-text: #064e3b;
 
     /* FAIL - Vibrant Vermillion (colorblind-friendly) */
