@@ -76,6 +76,9 @@ function Publish-DSAHtmlReport {
     $projectHtml = '<a href="https://github.com/thetechgy/DomainSecurityAuditor" target="_blank" rel="noopener">DomainSecurityAuditor on GitHub</a>'
     $null = $builder.AppendLine(("      <p class=""footer-secondary"">{0}</p>" -f $projectHtml))
     $null = $builder.AppendLine('    </footer>')
+    $null = $builder.AppendLine('    <div class="back-to-top-wrapper">')
+    $null = $builder.AppendLine('      <a class="back-to-top" href="#main-content" aria-label="Back to the top of the report">↑ Back to top</a>')
+    $null = $builder.AppendLine('    </div>')
 
     $null = $builder.AppendLine('  </div>')
     $null = $builder.AppendLine('  <script>')
@@ -127,6 +130,10 @@ function Add-DSADomainSections {
         [Parameter(Mandatory = $true)][System.Text.StringBuilder]$Builder,
         [Parameter(Mandatory = $true)][pscustomobject[]]$Profiles
     )
+
+    $null = $Builder.AppendLine('    <div class="section-controls" role="group" aria-label="Protocol section controls">')
+    $null = $Builder.AppendLine('      <button type="button" class="section-toggle" id="toggle-all-sections" aria-pressed="false">Expand all sections</button>')
+    $null = $Builder.AppendLine('    </div>')
 
     foreach ($profile in $Profiles) {
         $statusClass = Get-DSAStatusClassName -Status $profile.OverallStatus
@@ -497,6 +504,51 @@ body {
     font-size: 0.95rem;
     font-weight: 600;
 }
+.section-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    margin: 0 0 14px;
+}
+.section-toggle {
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text-strong);
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+.section-toggle:hover { background: var(--color-border-light); transform: translateY(-1px); box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.section-toggle:active { transform: translateY(0); }
+.section-toggle[aria-pressed="true"] {
+    background: var(--color-info-bg);
+    color: var(--color-info-text);
+    border-color: var(--color-info);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+.back-to-top-wrapper {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 16px;
+}
+.back-to-top {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    color: var(--color-info-text);
+    font-weight: 700;
+    text-decoration: none;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+.back-to-top:hover { background: var(--color-border-light); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
 .card {
     background: var(--color-surface);
     padding: 24px;
@@ -782,6 +834,9 @@ body {
 @media (max-width: 640px) {
     .domain-title { flex-direction: column; align-items: flex-start; gap: 10px; }
     .summary-cards { grid-template-columns: 1fr; }
+    .section-controls { flex-direction: column; align-items: flex-start; }
+    .section-toggle { width: 100%; text-align: center; }
+    .back-to-top-wrapper { justify-content: center; }
     .test-title-row { flex-direction: column; align-items: flex-start; gap: 6px; }
     .protocol-header { padding: 16px; }
 }
@@ -797,6 +852,18 @@ body {
 function Get-DSAReportScript {
 @"
 const protocolSections = document.querySelectorAll('.protocol-section');
+const toggleAllSectionsButton = document.getElementById('toggle-all-sections');
+
+const isSectionVisible = (section) => {
+    if (!section) {
+        return false;
+    }
+    const domain = section.closest('.domain-results');
+    const domainVisible = !domain || domain.style.display !== 'none';
+    return domainVisible && section.style.display !== 'none';
+};
+
+const getVisibleSections = () => Array.from(protocolSections).filter((section) => isSectionVisible(section));
 
 const setSectionExpanded = (section, header, details, expanded) => {
     section.classList.toggle('expanded', expanded);
@@ -807,6 +874,34 @@ const setSectionExpanded = (section, header, details, expanded) => {
     if (header) {
         header.setAttribute('aria-expanded', expanded ? 'true' : 'false');
     }
+};
+
+const updateToggleAllLabel = () => {
+    if (!toggleAllSectionsButton) {
+        return;
+    }
+    const visibleSections = getVisibleSections();
+    const allExpanded = visibleSections.length > 0 && visibleSections.every((section) => section.classList.contains('expanded'));
+    toggleAllSectionsButton.textContent = allExpanded ? 'Collapse all sections' : 'Expand all sections';
+    toggleAllSectionsButton.setAttribute('aria-pressed', allExpanded ? 'true' : 'false');
+};
+
+const setAllSectionsExpanded = (expanded) => {
+    protocolSections.forEach((section) => {
+        if (!isSectionVisible(section)) {
+            return;
+        }
+        const header = section.querySelector('.protocol-header');
+        const details = section.querySelector('.protocol-details');
+        if (!header || !details) {
+            return;
+        }
+        setSectionExpanded(section, header, details, expanded);
+        if (!expanded) {
+            delete section.dataset.filterExpanded;
+        }
+    });
+    updateToggleAllLabel();
 };
 
 protocolSections.forEach((section) => {
@@ -820,6 +915,7 @@ protocolSections.forEach((section) => {
     const toggleSection = () => {
         const expanded = !section.classList.contains('expanded');
         setSectionExpanded(section, header, details, expanded);
+        updateToggleAllLabel();
     };
 
     header.addEventListener('click', toggleSection);
@@ -830,6 +926,14 @@ protocolSections.forEach((section) => {
         }
     });
 });
+
+if (toggleAllSectionsButton) {
+    toggleAllSectionsButton.addEventListener('click', () => {
+        const visibleSections = getVisibleSections();
+        const shouldExpand = visibleSections.some((section) => !section.classList.contains('expanded'));
+        setAllSectionsExpanded(shouldExpand);
+    });
+}
 
 const filterCards = document.querySelectorAll('.summary-cards .card[data-filter]');
 const domainSections = document.querySelectorAll('.domain-results');
@@ -900,6 +1004,7 @@ const applyDomainFilter = (filters) => {
 
         domain.style.display = (matchAll || domainHasMatch) ? '' : 'none';
     });
+    updateToggleAllLabel();
 };
 
 filterCards.forEach(card => {

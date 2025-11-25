@@ -50,6 +50,66 @@
             margin-bottom: 30px;
         }
 
+        .report-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            margin: 0 0 16px;
+        }
+
+        .action-button {
+            padding: 8px 12px;
+            background: white;
+            color: #1e3a8a;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+        }
+
+        .action-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            background: #f3f4f6;
+        }
+
+        .action-button[aria-pressed="true"] {
+            background: #e0e7ff;
+            color: #1e3a8a;
+            border-color: #c7d2fe;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+        }
+
+        .back-to-top-wrapper {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 16px;
+        }
+
+        .back-to-top {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            color: #1e3a8a;
+            font-weight: 700;
+            text-decoration: none;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .back-to-top:hover {
+            background: #f3f4f6;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
         .card {
             background: white;
             padding: 25px;
@@ -417,6 +477,11 @@
             </div>
         </div>
 
+        <!-- Report Controls -->
+        <div class="report-actions">
+            <button type="button" class="action-button" id="toggle-all-sections" aria-pressed="false">Expand all sections</button>
+        </div>
+
         <!-- Domain Results -->
         <div class="domain-results">
             <div class="domain-header">
@@ -767,33 +832,85 @@
                 Test data gathered: September 4, 2025 | Report generated: September 4, 2025, 2:30 PM EDT
             </p>
         </div>
+
+        <div class="back-to-top-wrapper">
+            <a class="back-to-top" href="#main-content" aria-label="Back to the top of the report">↑ Back to top</a>
+        </div>
     </div>
 
     <script>
-        function toggleSection(sectionId) {
+        const setSectionState = (sectionId, expanded) => {
             const details = document.getElementById(sectionId);
             const chevron = document.getElementById('chevron-' + sectionId);
-            
-            if (details.classList.contains('expanded')) {
-                details.classList.remove('expanded');
-                chevron.classList.remove('expanded');
-            } else {
-                details.classList.add('expanded');
-                chevron.classList.add('expanded');
+            if (!details) {
+                return;
             }
+            details.classList.toggle('expanded', expanded);
+            if (chevron) {
+                chevron.classList.toggle('expanded', expanded);
+            }
+        };
+
+        const syncGlobalToggle = () => {
+            const toggleButton = document.getElementById('toggle-all-sections');
+            if (!toggleButton) {
+                return;
+            }
+            const sections = Array.from(document.querySelectorAll('.protocol-details'));
+            const allExpanded = sections.length > 0 && sections.every(section => section.classList.contains('expanded'));
+            toggleButton.textContent = allExpanded ? 'Collapse all sections' : 'Expand all sections';
+            toggleButton.setAttribute('aria-pressed', allExpanded ? 'true' : 'false');
+        };
+
+        function toggleSection(sectionId) {
+            const details = document.getElementById(sectionId);
+            if (!details) {
+                return;
+            }
+            const shouldExpand = !details.classList.contains('expanded');
+            setSectionState(sectionId, shouldExpand);
+            syncGlobalToggle();
         }
 
-        // Auto-expand failed sections
-        document.addEventListener('DOMContentLoaded', function() {
-            // Auto-expand any section with failed tests
+        const setAllSections = (expanded) => {
+            document.querySelectorAll('.protocol-details').forEach(section => {
+                if (!section.id) {
+                    return;
+                }
+                setSectionState(section.id, expanded);
+            });
+            syncGlobalToggle();
+        };
+
+        const initializeFailedSections = () => {
             const failedSections = document.querySelectorAll('.protocol-status .status-badge.failed');
             failedSections.forEach(function(badge) {
                 const protocolHeader = badge.closest('.protocol-header');
-                if (protocolHeader) {
-                    const sectionId = protocolHeader.getAttribute('onclick').match(/'([^']+)'/)[1];
-                    toggleSection(sectionId);
+                if (!protocolHeader) {
+                    return;
+                }
+                const onclickValue = protocolHeader.getAttribute('onclick');
+                if (!onclickValue) {
+                    return;
+                }
+                const match = onclickValue.match(/'([^']+)'/);
+                if (match && match[1]) {
+                    setSectionState(match[1], true);
                 }
             });
+        };
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const toggleAllButton = document.getElementById('toggle-all-sections');
+            initializeFailedSections();
+            if (toggleAllButton) {
+                toggleAllButton.addEventListener('click', function() {
+                    const sections = Array.from(document.querySelectorAll('.protocol-details'));
+                    const allExpanded = sections.length > 0 && sections.every(section => section.classList.contains('expanded'));
+                    setAllSections(!allExpanded);
+                });
+            }
+            syncGlobalToggle();
         });
     </script>
 </body>
