@@ -667,9 +667,9 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
-.domain-status.passed { background-color: var(--color-pass-bg); color: var(--color-pass-text); border: 2px solid var(--color-pass); }
-.domain-status.failed { background-color: var(--color-fail-bg); color: var(--color-fail-text); border: 2px solid var(--color-fail); }
-.domain-status.warning { background-color: var(--color-warn-bg); color: var(--color-warn-text); border: 2px solid var(--color-warn); }
+.domain-status.passed { background-color: var(--color-pass-bg); color: var(--color-pass); border: 2px solid var(--color-pass); }
+.domain-status.failed { background-color: var(--color-fail-bg); color: var(--color-fail); border: 2px solid var(--color-fail); }
+.domain-status.warning { background-color: var(--color-warn-bg); color: var(--color-warn); border: 2px solid var(--color-warn); }
 .protocol-section {
     border-bottom: 1px solid var(--color-border);
     position: relative;
@@ -733,21 +733,21 @@ body {
 }
 .status-badge.passed {
     background-color: var(--color-pass-bg);
-    color: var(--color-pass-text);
+    color: var(--color-pass);
     border-bottom: 2px solid var(--color-pass);
     background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
     background-size: 8px 8px;
 }
 .status-badge.failed {
     background-color: var(--color-fail-bg);
-    color: var(--color-fail-text);
+    color: var(--color-fail);
     border-bottom: 2px solid var(--color-fail);
     background-image: radial-gradient(circle, rgba(255, 255, 255, 0.2) 1px, transparent 1px);
     background-size: 6px 6px;
 }
 .status-badge.warning {
     background-color: var(--color-warn-bg);
-    color: var(--color-warn-text);
+    color: var(--color-warn);
     border-bottom: 2px solid var(--color-warn);
     background-image: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(255, 255, 255, 0.15) 4px, rgba(255, 255, 255, 0.15) 8px);
 }
@@ -811,21 +811,21 @@ body {
 }
 .status-pill.passed {
     background-color: var(--color-pass-bg);
-    color: var(--color-pass-text);
+    color: var(--color-pass);
     border-bottom: 2px solid var(--color-pass);
     background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
     background-size: 8px 8px;
 }
 .status-pill.failed {
     background-color: var(--color-fail-bg);
-    color: var(--color-fail-text);
+    color: var(--color-fail);
     border-bottom: 2px solid var(--color-fail);
     background-image: radial-gradient(circle, rgba(255, 255, 255, 0.2) 1px, transparent 1px);
     background-size: 6px 6px;
 }
 .status-pill.warning {
     background-color: var(--color-warn-bg);
-    color: var(--color-warn-text);
+    color: var(--color-warn);
     border-bottom: 2px solid var(--color-warn);
     background-image: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(255, 255, 255, 0.15) 4px, rgba(255, 255, 255, 0.15) 8px);
 }
