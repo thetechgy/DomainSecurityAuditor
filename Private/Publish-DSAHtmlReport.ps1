@@ -438,15 +438,15 @@ function Get-DSAReportStyles {
     --color-fail-bg: #fee2e2;
     --color-fail-text: #7f1d1d;
 
-    /* WARNING - Rich Amber (colorblind-friendly) */
-    --color-warn: #d97706;
-    --color-warn-bg: #fef3c7;
-    --color-warn-text: #78350f;
+    /* WARNING - Bright Yellow (colorblind-friendly) */
+    --color-warn: #eab308;
+    --color-warn-bg: #fef9c3;
+    --color-warn-text: #713f12;
 
-    /* INFO - Purple (colorblind-friendly) */
-    --color-info: #7c3aed;
-    --color-info-bg: #f3e8ff;
-    --color-info-text: #5b21b6;
+    /* INFO - Bright Blue (colorblind-friendly) */
+    --color-info: #3b82f6;
+    --color-info-bg: #dbeafe;
+    --color-info-text: #1e40af;
 
     --color-focus: #2563eb;
     --color-focus-light: #ffffff;
