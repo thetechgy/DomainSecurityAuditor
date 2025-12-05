@@ -34,8 +34,12 @@ $script:DefaultOutputRoot = Join-Path -Path $script:ModuleRoot -ChildPath 'Outpu
 #region PrivateHelpers
 $privatePath = Join-Path -Path $script:ModuleRoot -ChildPath 'Private'
 if (Test-Path -Path $privatePath) {
-    Get-ChildItem -Path $privatePath -Filter '*.ps1' -File | Sort-Object -Property Name | ForEach-Object {
-        . $_.FullName
+    $privateFiles = @(Get-ChildItem -Path $privatePath -Filter '*.ps1' -File | Sort-Object -Property Name)
+    $valueHelpers = @($privateFiles | Where-Object { $_.BaseName -eq 'DSA.ValueHelpers' })
+    $remaining = @($privateFiles | Where-Object { $_.BaseName -ne 'DSA.ValueHelpers' })
+
+    foreach ($file in $valueHelpers + $remaining) {
+        . $file.FullName
     }
 }
 #endregion PrivateHelpers

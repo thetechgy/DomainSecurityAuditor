@@ -471,46 +471,49 @@ Describe 'Get-DSADomainEvidence' {
             Mock -CommandName Write-DSALog -MockWith { }
             Mock -CommandName Get-Module -MockWith { $null }
             Mock -CommandName Import-Module -MockWith { }
-            Mock -CommandName Test-DDDomainOverallHealth -MockWith {
+            Mock -CommandName Invoke-DSADomainDetectiveHealth -ModuleName DomainSecurityAuditor -MockWith {
                 [pscustomobject]@{
-                    Raw = [pscustomobject]@{
-                        Summary       = [pscustomobject]@{ HasMxRecord = $true; HasSpfRecord = $true; HasDmarcRecord = $true }
-                        MXAnalysis     = [pscustomobject]@{ MxRecords = @('mx1.example'); HasNullMx = $false }
-                        SpfAnalysis    = [pscustomobject]@{
-                            SpfRecord        = 'v=spf1 -all'
-                            SpfRecords       = @('v=spf1 -all')
-                            DnsLookupsCount  = 0
-                            AllMechanism     = '-all'
-                            HasPtrType       = $false
-                            IncludeRecords   = @()
-                            UnknownMechanisms = @()
-                        }
-                        DKIMAnalysis   = [pscustomobject]@{
-                            AnalysisResults = @{
-                                'selector1' = [pscustomobject]@{ KeyLength = 2048; Ttl = 3600; IsValid = $true }
+                    Result = [pscustomobject]@{
+                        Raw = [pscustomobject]@{
+                            Summary       = [pscustomobject]@{ HasMxRecord = $true; HasSpfRecord = $true; HasDmarcRecord = $true }
+                            MXAnalysis     = [pscustomobject]@{ MxRecords = @('mx1.example'); HasNullMx = $false }
+                            SpfAnalysis    = [pscustomobject]@{
+                                SpfRecord        = 'v=spf1 -all'
+                                SpfRecords       = @('v=spf1 -all')
+                                DnsLookupsCount  = 0
+                                AllMechanism     = '-all'
+                                HasPtrType       = $false
+                                IncludeRecords   = @()
+                                UnknownMechanisms = @()
+                            }
+                            DKIMAnalysis   = [pscustomobject]@{
+                                AnalysisResults = @{
+                                    'selector1' = [pscustomobject]@{ KeyLength = 2048; Ttl = 3600; IsValid = $true }
+                                }
+                            }
+                            DmarcAnalysis  = [pscustomobject]@{
+                                DmarcRecord = 'v=DMARC1; p=reject'
+                                Policy      = 'reject'
+                                MailtoRua   = @()
+                                HttpRua     = @()
+                                MailtoRuf   = @()
+                                HttpRuf     = @()
+                            }
+                            MTASTSAnalysis = [pscustomobject]@{ DnsRecordPresent = $true; PolicyValid = $true; Mode = 'enforce'; MaxAge = 86400 }
+                            TLSRPTAnalysis = [pscustomobject]@{
+                                TlsRptRecordExists = $true
+                                MailtoRua          = @()
+                                HttpRua            = @()
                             }
                         }
-                        DmarcAnalysis  = [pscustomobject]@{
-                            DmarcRecord = 'v=DMARC1; p=reject'
-                            Policy      = 'reject'
-                            MailtoRua   = @()
-                            HttpRua     = @()
-                            MailtoRuf   = @()
-                            HttpRuf     = @()
-                        }
-                        MTASTSAnalysis = [pscustomobject]@{ DnsRecordPresent = $true; PolicyValid = $true; Mode = 'enforce'; MaxAge = 86400 }
-                        TLSRPTAnalysis = [pscustomobject]@{
-                            TlsRptRecordExists = $true
-                            MailtoRua          = @()
-                            HttpRua            = @()
-                        }
                     }
+                    Warnings = @()
                 }
-            } -ParameterFilter { $DNSEndpoint -eq 'udp://9.9.9.9:53' }
+            } -ParameterFilter { $Parameters['DnsEndpoint'] -eq 'udp://9.9.9.9:53' }
 
             $evidence = Get-DSADomainEvidence -Domain 'example.com' -DNSEndpoint 'udp://9.9.9.9:53'
             $evidence | Should -Not -BeNullOrEmpty
-            Assert-MockCalled -CommandName Test-DDDomainOverallHealth -Times 1 -ParameterFilter { $DNSEndpoint -eq 'udp://9.9.9.9:53' -and $HealthCheckType -contains 'SPF' }
+            Assert-MockCalled -CommandName Invoke-DSADomainDetectiveHealth -Times 1 -ParameterFilter { $Parameters['DnsEndpoint'] -eq 'udp://9.9.9.9:53' -and $Parameters['HealthCheckType'] -contains 'SPF' }
         }
     }
 
@@ -519,45 +522,48 @@ Describe 'Get-DSADomainEvidence' {
             Mock -CommandName Write-DSALog -MockWith { }
             Mock -CommandName Get-Module -MockWith { $null }
             Mock -CommandName Import-Module -MockWith { }
-            Mock -CommandName Test-DDDomainOverallHealth -MockWith {
+            Mock -CommandName Invoke-DSADomainDetectiveHealth -ModuleName DomainSecurityAuditor -MockWith {
                 [pscustomobject]@{
-                    Raw = [pscustomobject]@{
-                        Summary       = [pscustomobject]@{
-                            HasMxRecord    = $true
-                            HasSpfRecord   = $true
-                            HasDmarcRecord = $true
-                        }
-                        MXAnalysis     = [pscustomobject]@{ MxRecords = @('mx1.example'); HasNullMx = $false }
-                        SpfAnalysis    = [pscustomobject]@{
-                            SpfRecord        = 'v=spf1 -all'
-                            SpfRecords       = @('v=spf1 -all')
-                            DnsLookupsCount  = 1
-                            AllMechanism     = '-all'
-                            HasPtrType       = $false
-                            IncludeRecords   = @()
-                            UnknownMechanisms = @()
-                        }
-                        DKIMAnalysis   = [pscustomobject]@{
-                            AnalysisResults = @{
-                                'selector1' = [pscustomobject]@{ KeyLength = 2048; Ttl = 3600; IsValid = $true }
-                                'selector2' = [pscustomobject]@{ KeyLength = 768; Ttl = 7200; IsValid = $false }
+                    Result = [pscustomobject]@{
+                        Raw = [pscustomobject]@{
+                            Summary       = [pscustomobject]@{
+                                HasMxRecord    = $true
+                                HasSpfRecord   = $true
+                                HasDmarcRecord = $true
+                            }
+                            MXAnalysis     = [pscustomobject]@{ MxRecords = @('mx1.example'); HasNullMx = $false }
+                            SpfAnalysis    = [pscustomobject]@{
+                                SpfRecord        = 'v=spf1 -all'
+                                SpfRecords       = @('v=spf1 -all')
+                                DnsLookupsCount  = 1
+                                AllMechanism     = '-all'
+                                HasPtrType       = $false
+                                IncludeRecords   = @()
+                                UnknownMechanisms = @()
+                            }
+                            DKIMAnalysis   = [pscustomobject]@{
+                                AnalysisResults = @{
+                                    'selector1' = [pscustomobject]@{ KeyLength = 2048; Ttl = 3600; IsValid = $true }
+                                    'selector2' = [pscustomobject]@{ KeyLength = 768; Ttl = 7200; IsValid = $false }
+                                }
+                            }
+                            DmarcAnalysis  = [pscustomobject]@{
+                                DmarcRecord = 'v=DMARC1; p=reject'
+                                Policy      = 'reject'
+                                MailtoRua   = @('mailto:rua@example.com')
+                                HttpRua     = @()
+                                MailtoRuf   = @()
+                                HttpRuf     = @()
+                            }
+                            MTASTSAnalysis = [pscustomobject]@{ DnsRecordPresent = $true; PolicyValid = $true; Mode = 'enforce'; MaxAge = 86400 }
+                            TLSRPTAnalysis = [pscustomobject]@{
+                                TlsRptRecordExists = $true
+                                MailtoRua          = @('mailto:tls@example.com')
+                                HttpRua            = @()
                             }
                         }
-                        DmarcAnalysis  = [pscustomobject]@{
-                            DmarcRecord = 'v=DMARC1; p=reject'
-                            Policy      = 'reject'
-                            MailtoRua   = @('mailto:rua@example.com')
-                            HttpRua     = @()
-                            MailtoRuf   = @()
-                            HttpRuf     = @()
-                        }
-                        MTASTSAnalysis = [pscustomobject]@{ DnsRecordPresent = $true; PolicyValid = $true; Mode = 'enforce'; MaxAge = 86400 }
-                        TLSRPTAnalysis = [pscustomobject]@{
-                            TlsRptRecordExists = $true
-                            MailtoRua          = @('mailto:tls@example.com')
-                            HttpRua            = @()
-                        }
                     }
+                    Warnings = @()
                 }
             }
 
@@ -581,40 +587,43 @@ Describe 'Get-DSADomainEvidence' {
             Mock -CommandName Write-DSALog -MockWith { }
             Mock -CommandName Get-Module -MockWith { $null }
             Mock -CommandName Import-Module -MockWith { }
-            Mock -CommandName Test-DDDomainOverallHealth -MockWith {
+            Mock -CommandName Invoke-DSADomainDetectiveHealth -ModuleName DomainSecurityAuditor -MockWith {
                 [pscustomobject]@{
-                    Raw = [pscustomobject]@{
-                        Summary       = [pscustomobject]@{ HasMxRecord = $true; HasSpfRecord = $true; HasDmarcRecord = $true }
-                        MXAnalysis     = [pscustomobject]@{ MxRecords = @('mx1.example'); HasNullMx = $false }
-                        SpfAnalysis    = [pscustomobject]@{
-                            SpfRecord        = 'v=spf1 -all'
-                            SpfRecords       = @('v=spf1 -all')
-                            DnsLookupsCount  = 1
-                            AllMechanism     = '-all'
-                            HasPtrType       = $false
-                            IncludeRecords   = @()
-                            UnknownMechanisms = @()
-                        }
-                        DKIMAnalysis   = [pscustomobject]@{
-                            AnalysisResults = @{
-                                'selector1' = [pscustomobject]@{ KeyLength = 2048; Ttl = 3600; IsValid = $true }
+                    Result = [pscustomobject]@{
+                        Raw = [pscustomobject]@{
+                            Summary       = [pscustomobject]@{ HasMxRecord = $true; HasSpfRecord = $true; HasDmarcRecord = $true }
+                            MXAnalysis     = [pscustomobject]@{ MxRecords = @('mx1.example'); HasNullMx = $false }
+                            SpfAnalysis    = [pscustomobject]@{
+                                SpfRecord        = 'v=spf1 -all'
+                                SpfRecords       = @('v=spf1 -all')
+                                DnsLookupsCount  = 1
+                                AllMechanism     = '-all'
+                                HasPtrType       = $false
+                                IncludeRecords   = @()
+                                UnknownMechanisms = @()
+                            }
+                            DKIMAnalysis   = [pscustomobject]@{
+                                AnalysisResults = @{
+                                    'selector1' = [pscustomobject]@{ KeyLength = 2048; Ttl = 3600; IsValid = $true }
+                                }
+                            }
+                            DmarcAnalysis  = [pscustomobject]@{
+                                DmarcRecord = 'v=DMARC1; p=reject'
+                                Policy      = 'reject'
+                                MailtoRua   = @('mailto:rua@example.com')
+                                HttpRua     = @()
+                                MailtoRuf   = @()
+                                HttpRuf     = @()
+                            }
+                            MTASTSAnalysis = [pscustomobject]@{ DnsRecordPresent = $true; PolicyValid = $true; Mode = 'enforce'; MaxAge = 86400 }
+                            TLSRPTAnalysis = [pscustomobject]@{
+                                TlsRptRecordExists = $true
+                                MailtoRua          = @('mailto:tls@example.com')
+                                HttpRua            = @()
                             }
                         }
-                        DmarcAnalysis  = [pscustomobject]@{
-                            DmarcRecord = 'v=DMARC1; p=reject'
-                            Policy      = 'reject'
-                            MailtoRua   = @('mailto:rua@example.com')
-                            HttpRua     = @()
-                            MailtoRuf   = @()
-                            HttpRuf     = @()
-                        }
-                        MTASTSAnalysis = [pscustomobject]@{ DnsRecordPresent = $true; PolicyValid = $true; Mode = 'enforce'; MaxAge = 86400 }
-                        TLSRPTAnalysis = [pscustomobject]@{
-                            TlsRptRecordExists = $true
-                            MailtoRua          = @('mailto:tls@example.com')
-                            HttpRua            = @()
-                        }
                     }
+                    Warnings = @()
                 }
             }
 

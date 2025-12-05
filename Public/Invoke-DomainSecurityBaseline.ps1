@@ -141,23 +141,12 @@ Resources:
     }
 
     end {
-        $transcriptStarted = $false
+        $context = $null
         $logFile = $null
 
         try {
-            #region PathResolution
-            $resolvedLogRoot = Resolve-DSAPath -Path $LogRoot -EnsureExists
-            $resolvedOutputRoot = Resolve-DSAPath -Path $OutputRoot -EnsureExists
-            Invoke-DSALogRetention -LogDirectory $resolvedLogRoot -RetentionCount $RetentionCount
-            #endregion PathResolution
-
-            $runDate = Get-Date
-            $timestamp = $runDate.ToString('yyyyMMdd_HHmmss')
-            $logFile = Join-Path -Path $resolvedLogRoot -ChildPath "${timestamp}_DomainSecurityAuditor.log"
-            $transcriptFile = Join-Path -Path $resolvedLogRoot -ChildPath "${timestamp}_Transcript.log"
-
-            Start-Transcript -Path $transcriptFile -Append
-            $transcriptStarted = $true
+            $context = New-DSARunContext -OutputRoot $OutputRoot -LogRoot $LogRoot -RetentionCount $RetentionCount
+            $logFile = $context.LogFile
 
             $parameterSummary = $PSBoundParameters.GetEnumerator() | ForEach-Object {
                 $value = if ($_.Value -is [System.Array]) { $_.Value -join ';' } else { $_.Value }
@@ -166,65 +155,21 @@ Resources:
             Write-DSALog -Message 'Starting Domain Security Baseline invocation.' -LogFile $logFile
             Write-DSALog -Message ("Effective parameters: {0}" -f ($parameterSummary -join ', ')) -LogFile $logFile -Level 'DEBUG'
 
+            $inputSplat = @{
+                CollectedDomains              = $collectedDomains
+                DomainMetadata                = $domainMetadata
+                DirectDomainSet               = $directDomainSet
+                DefaultClassificationOverride = $defaultClassificationOverride
+                GlobalDkimSelectors           = $globalDkimSelectors
+                ResolvedDnsEndpoint           = $resolvedDnsEndpoint
+                LogFile                       = $logFile
+            }
             if ($PSBoundParameters.ContainsKey('InputFile')) {
-                $resolvedInput = Resolve-DSAPath -Path $InputFile -PathType 'File'
-                $importedCount = 0
-                [array]$inputRecords = @()
-                try {
-                    $inputRecords = @(Import-Csv -Path $resolvedInput -ErrorAction Stop)
-                } catch {
-                    Write-DSALog -Message "CSV import failed for '$resolvedInput': $($_.Exception.Message). Attempting line-based fallback." -LogFile $logFile -Level 'WARN'
-                    $inputRecords = @()
-                }
-                foreach ($record in $inputRecords) {
-                    if (-not $record) {
-                        continue
-                    }
-                    if ($record.PSObject.Properties.Name -contains 'Domain' -and -not [string]::IsNullOrWhiteSpace($record.Domain)) {
-                        $domainValue = $record.Domain.Trim()
-                        $record.Domain = $domainValue
-                        if ($record.PSObject.Properties.Name -contains 'Classification' -and -not [string]::IsNullOrWhiteSpace($record.Classification)) {
-                            $sourceDescription = "CSV row for '$domainValue'"
-                            $record.Classification = Resolve-DSAClassificationOverride -Value $record.Classification -SourceDescription $sourceDescription
-                            $record | Add-Member -NotePropertyName 'ClassificationSource' -NotePropertyValue 'CSV' -Force
-                        }
-
-                        $dkimSelectorsFromCsv = @()
-                        $dkimSelectorProperty = $record.PSObject.Properties | Where-Object { $_.Name -in @('DkimSelectors', 'DKIMSelectors') } | Select-Object -First 1
-                        if ($dkimSelectorProperty) {
-                            $rawSelectors = $dkimSelectorProperty.Value
-                            if ($rawSelectors -is [System.Collections.IEnumerable] -and -not ($rawSelectors -is [string])) {
-                                $dkimSelectorsFromCsv = @($rawSelectors | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-                            } else {
-                                $selectorString = "$rawSelectors"
-                                $dkimSelectorsFromCsv = @($selectorString -split '[,;]' | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-                            }
-                        }
-                        if ($dkimSelectorsFromCsv) {
-                            $record | Add-Member -NotePropertyName 'DkimSelectors' -NotePropertyValue $dkimSelectorsFromCsv -Force
-                        }
-
-                        $null = $collectedDomains.Add($domainValue)
-                        $domainMetadata[$domainValue] = $record
-                        $importedCount++
-                    }
-                }
-
-                if ($importedCount -eq 0) {
-                    $lines = Get-Content -Path $resolvedInput -Encoding UTF8 | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-                    foreach ($line in $lines) {
-                        $null = $collectedDomains.Add($line.Trim())
-                    }
-                    Write-DSALog -Message "Loaded domains from '$resolvedInput' as newline-delimited text." -LogFile $logFile
-                } else {
-                    Write-DSALog -Message "Loaded $importedCount domain(s) from '$resolvedInput' (CSV)." -LogFile $logFile
-                }
+                $inputSplat.InputFile = $InputFile
             }
 
-            $targetDomains = @($collectedDomains | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
-            if (-not $targetDomains) {
-                throw 'No domains were supplied. Provide -Domain or -InputFile.'
-            }
+            $inputState = Get-DSADomainInputState @inputSplat
+            $targetDomains = $inputState.TargetDomains
 
             if ($SkipDependencies) {
                 Write-DSALog -Message 'Dependency verification skipped for modules: DomainDetective, Pester, PSScriptAnalyzer.' -LogFile $logFile -Level 'WARN'
@@ -250,106 +195,19 @@ Resources:
 
             foreach ($domainName in $targetDomains) {
                 $currentIndex++
-                if ($ShowProgress) {
-                    $progressSplat = @{
-                        Activity        = 'Domain Security Baseline'
-                        Status          = "Processing $domainName (${currentIndex}/$domainCount)"
-                        PercentComplete = [int](($currentIndex / [math]::Max($domainCount, 1)) * 100)
-                    }
-                    Write-Progress @progressSplat
-                }
-
-                $classificationOverride = $null
-                $classificationSource = $null
-                $metadataRecord = $null
-                if ($domainMetadata.ContainsKey($domainName)) {
-                    $metadataRecord = $domainMetadata[$domainName]
-                    if ($metadataRecord -and $metadataRecord.PSObject.Properties.Name -contains 'Classification') {
-                        $classificationCandidate = $metadataRecord.Classification
-                        if (-not [string]::IsNullOrWhiteSpace($classificationCandidate)) {
-                            $classificationOverride = $classificationCandidate.Trim()
-                        }
-                    }
-                    if ($metadataRecord -and $metadataRecord.PSObject.Properties.Name -contains 'ClassificationSource') {
-                        $classificationSource = $metadataRecord.ClassificationSource
-                    }
-                }
-                elseif ($defaultClassificationOverride -and $directDomainSet.Contains($domainName)) {
-                    $classificationOverride = $defaultClassificationOverride
-                    $classificationSource = 'Parameter'
-                }
-
-                if ($classificationOverride) {
-                    $sourceText = switch ($classificationSource) {
-                        'CSV' { 'CSV metadata' }
-                        'Parameter' { 'command parameter' }
-                        default { 'metadata' }
-                    }
-                    Write-DSALog -Message ("Classification override '{0}' detected for '{1}' from {2}." -f $classificationOverride, $domainName, $sourceText) -LogFile $logFile -Level 'INFO'
-                }
-
-                $effectiveDkimSelectors = $null
-                if ($metadataRecord -and $metadataRecord.PSObject.Properties.Name -contains 'DkimSelectors') {
-                    $effectiveDkimSelectors = @($metadataRecord.DkimSelectors | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-                }
-                if (-not $effectiveDkimSelectors -and $globalDkimSelectors) {
-                    $effectiveDkimSelectors = $globalDkimSelectors
-                }
-
-                Write-DSALog -Message "Collecting evidence for '$domainName'." -LogFile $logFile -Level 'DEBUG'
-
-                $evidenceParams = @{
-                    Domain  = $domainName
-                    LogFile = $logFile
-                }
-                if ($effectiveDkimSelectors) {
-                    $evidenceParams.DkimSelector = $effectiveDkimSelectors
-                    Write-DSALog -Message ("Using custom DKIM selectors for '{0}': {1}" -f $domainName, ($effectiveDkimSelectors -join ', ')) -LogFile $logFile -Level 'DEBUG'
-                } else {
-                    Write-DSALog -Message ("Using DomainDetective default DKIM selectors for '{0}'." -f $domainName) -LogFile $logFile -Level 'DEBUG'
-                }
-
-                if (-not [string]::IsNullOrWhiteSpace($resolvedDnsEndpoint)) {
-                    $evidenceParams.DNSEndpoint = $resolvedDnsEndpoint
-                    Write-DSALog -Message ("Using DNS endpoint '{0}' for '{1}'." -f $resolvedDnsEndpoint, $domainName) -LogFile $logFile -Level 'DEBUG'
-                }
-
-                $evidence = Get-DSADomainEvidence @evidenceParams
-                $profile = Invoke-DSABaselineTest -DomainEvidence $evidence -BaselineDefinition $baselineProfiles -ClassificationOverride $classificationOverride
-
-                # Apply per-selector DKIM status aggregation so overall/status counts reflect selector outcomes
-                if ($profile.Checks -and $evidence.PSObject.Properties.Name -contains 'Records' -and $evidence.Records.PSObject.Properties.Name -contains 'DKIMSelectorDetails') {
-                    $dkimSelectors = $evidence.Records.DKIMSelectorDetails
-                    $adjustedChecks = [System.Collections.Generic.List[object]]::new()
-                    foreach ($check in $profile.Checks) {
-                        if ($check.Area -eq 'DKIM' -and $dkimSelectors) {
-                            $effectiveStatus = Get-DSADkimEffectiveStatus -Check $check -Selectors $dkimSelectors
-                            $clone = $check.PSObject.Copy()
-                            $clone | Add-Member -NotePropertyName 'Status' -NotePropertyValue $effectiveStatus -Force
-                            $null = $adjustedChecks.Add($clone)
-                        } else {
-                            $null = $adjustedChecks.Add($check)
-                        }
-                    }
-                    $profile.Checks = $adjustedChecks.ToArray()
-                    $profile.OverallStatus = Get-DSAOverallStatus -Checks $profile.Checks
-                }
-
-                $profileWithMetadata = [pscustomobject]@{
-                    Domain                 = $profile.Domain
-                    Classification         = $profile.Classification
-                    OriginalClassification = $profile.OriginalClassification
-                    ClassificationOverride = $profile.ClassificationOverride
-                    OverallStatus          = $profile.OverallStatus
-                    Checks                 = $profile.Checks
-                    Evidence               = $evidence.Records
-                    OutputPath             = $resolvedOutputRoot
-                    Timestamp              = (Get-Date)
-                    ReportPath             = $null
-                }
-
-                Write-DSALog -Message ("Completed baseline for '{0}' with status '{1}'." -f $domainName, $profile.OverallStatus) -LogFile $logFile
-                $null = $results.Add($profileWithMetadata)
+                $runResult = Invoke-DSADomainRun -DomainName $domainName `
+                    -DomainMetadata $inputState.DomainMetadata `
+                    -DirectDomainSet $inputState.DirectDomainSet `
+                    -DefaultClassificationOverride $inputState.DefaultClassificationOverride `
+                    -GlobalDkimSelectors $inputState.GlobalDkimSelectors `
+                    -ResolvedDnsEndpoint $inputState.ResolvedDnsEndpoint `
+                    -BaselineProfiles $baselineProfiles `
+                    -OutputRoot $context.OutputRoot `
+                    -LogFile $logFile `
+                    -CurrentIndex $currentIndex `
+                    -TotalCount $domainCount `
+                    -ShowProgress:$ShowProgress
+                $null = $results.Add($runResult)
             }
 
             if ($ShowProgress) {
@@ -359,7 +217,7 @@ Resources:
             Write-DSALog -Message "Processed $domainCount domain(s)." -LogFile $logFile
 
             $resultArray = $results.ToArray()
-            $reportPath = Publish-DSAHtmlReport -Profiles $resultArray -OutputRoot $resolvedOutputRoot -GeneratedOn $runDate -BaselineName $loadedBaseline.Name -BaselineVersion $loadedBaseline.Version -LogFile $logFile
+            $reportPath = Publish-DSAHtmlReport -Profiles $resultArray -OutputRoot $context.OutputRoot -GeneratedOn $context.RunDate -BaselineName $loadedBaseline.Name -BaselineVersion $loadedBaseline.Version -LogFile $logFile
             foreach ($item in $resultArray) {
                 $item | Add-Member -NotePropertyName 'ReportPath' -NotePropertyValue $reportPath -Force
             }
@@ -372,26 +230,7 @@ Resources:
                 return $resultArray
             }
 
-            $statusCounts = @{
-                Pass    = 0
-                Fail    = 0
-                Warning = 0
-            }
-            foreach ($profile in $resultArray) {
-                foreach ($check in ($profile.Checks | Where-Object { $_ })) {
-                    switch ($check.Status) {
-                        'Pass' { $statusCounts.Pass++ }
-                        'Fail' { $statusCounts.Fail++ }
-                        'Warning' { $statusCounts.Warning++ }
-                    }
-                }
-            }
-            Write-Host ''
-            Write-Host "Baselines complete ($domainCount domain$(if ($domainCount -ne 1) { 's' }))"
-            Write-Host "  Pass:    $($statusCounts.Pass)" -ForegroundColor Green
-            Write-Host "  Warning: $($statusCounts.Warning)" -ForegroundColor Yellow
-            Write-Host "  Fail:    $($statusCounts.Fail)" -ForegroundColor Red
-            Write-Host "Report: $reportPath"
+            Write-DSABaselineConsoleSummary -Profiles $resultArray -ReportPath $reportPath
             return
         } catch {
             if ($logFile) {
@@ -399,7 +238,7 @@ Resources:
             }
             throw
         } finally {
-            if ($transcriptStarted) {
+            if ($context -and $context.TranscriptStarted) {
                 Stop-Transcript | Out-Null
             }
         }
