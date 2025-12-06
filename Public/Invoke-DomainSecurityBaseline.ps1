@@ -235,7 +235,7 @@ Resources:
             throw
         } finally {
             if ($context -and $context.TranscriptStarted) {
-                Stop-Transcript | Out-Null
+                $null = Stop-Transcript
             }
         }
     }

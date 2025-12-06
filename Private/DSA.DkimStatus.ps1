@@ -22,12 +22,12 @@ function Get-DSADkimSelectorStatus {
             return $(if ($found) { 'Pass' } else { 'Fail' })
         }
         'DKIMKeyStrength' {
-            $min = if ($Check.PSObject.Properties.Name -contains 'ExpectedValue' -and $Check.ExpectedValue) { $Check.ExpectedValue } else { 1024 }
+            $min = if ($Check.PSObject.Properties.Name -contains 'ExpectedValue' -and $Check.ExpectedValue) { $Check.ExpectedValue } else { $script:DSAMinDkimKeyLength }
             $passesKey = ($keyLength -as [int]) -ge $min -and -not $weakKey
             return $(if ($found -and $isValid -and $passesKey) { 'Pass' } else { 'Fail' })
         }
         'DKIMSelectorHealth' {
-            $min = 1024
+            $min = $script:DSAMinDkimKeyLength
             $passesKey = ($keyLength -as [int]) -ge $min -and -not $weakKey
             return $(if ($found -and $isValid -and $passesKey) { 'Pass' } else { 'Fail' })
         }

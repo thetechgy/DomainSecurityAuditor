@@ -74,7 +74,7 @@ function Get-DSAKnownReferenceLink {
     $trimmed = $Reference.Trim()
 
     if (-not $script:DSAKnownReferenceLinks -or ($script:DSAKnownReferenceLinks -is [hashtable] -and $script:DSAKnownReferenceLinks.Count -eq 0)) {
-        $referenceFile = Join-Path -Path $script:ModuleRoot -ChildPath 'Configs/ReferenceLinks.psd1'
+        $referenceFile = Join-Path -Path $script:ConfigRoot -ChildPath 'ReferenceLinks.psd1'
         if (Test-Path -Path $referenceFile) {
             $script:DSAKnownReferenceLinks = Import-PowerShellDataFile -Path $referenceFile
         } else {

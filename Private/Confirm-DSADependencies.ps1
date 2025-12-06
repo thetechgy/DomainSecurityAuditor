@@ -36,7 +36,7 @@ function Import-DSADomainDetectiveModule {
 
     try {
         if (-not (Get-Module -Name DomainDetective -ErrorAction SilentlyContinue)) {
-            Import-Module -Name DomainDetective -ErrorAction Stop | Out-Null
+            $null = Import-Module -Name DomainDetective -ErrorAction Stop
         }
         $script:DSADomainDetectiveLoaded = $true
     } catch {

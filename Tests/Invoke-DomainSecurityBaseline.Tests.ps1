@@ -80,6 +80,11 @@ AfterAll {
 }
 
 Describe 'Invoke-DomainSecurityBaseline' {
+    AfterEach {
+        InModuleScope DomainSecurityAuditor {
+            Reset-DSAModuleState
+        }
+    }
     It 'is exported by the module' {
         $command = Get-Command -Name Invoke-DomainSecurityBaseline -Module DomainSecurityAuditor -ErrorAction Stop
         $command | Should -Not -BeNullOrEmpty
@@ -145,7 +150,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
             InModuleScope DomainSecurityAuditor {
                 Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence }
 
-                Invoke-DomainSecurityBaseline -Domain 'example.com' -SkipReportLaunch -PassThru | Out-Null
+                $null = Invoke-DomainSecurityBaseline -Domain 'example.com' -SkipReportLaunch -PassThru
 
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { -not $DkimSelector }
             }
@@ -155,7 +160,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
             InModuleScope DomainSecurityAuditor {
                 Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence -Domain $Domain }
 
-                Invoke-DomainSecurityBaseline -Domain 'example.com' -DkimSelector 'sel1','sel2' -SkipReportLaunch -PassThru | Out-Null
+                $null = Invoke-DomainSecurityBaseline -Domain 'example.com' -DkimSelector 'sel1','sel2' -SkipReportLaunch -PassThru
 
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { $DkimSelector -and $DkimSelector -contains 'sel1' -and $DkimSelector -contains 'sel2' }
             }
@@ -165,7 +170,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
             InModuleScope DomainSecurityAuditor {
                 Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence -Domain $Domain }
 
-                Invoke-DomainSecurityBaseline -Domain 'example.com' -DNSEndpoint 'udp://1.1.1.1:53' -SkipReportLaunch -PassThru | Out-Null
+                $null = Invoke-DomainSecurityBaseline -Domain 'example.com' -DNSEndpoint 'udp://1.1.1.1:53' -SkipReportLaunch -PassThru
 
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { $DNSEndpoint -eq 'udp://1.1.1.1:53' }
             }
@@ -182,7 +187,7 @@ example.com,alpha;beta
 contoso.com,
 "@ | Set-Content -Encoding UTF8 -Path $csvPath
 
-                Invoke-DomainSecurityBaseline -InputFile $csvPath -SkipReportLaunch -PassThru | Out-Null
+                $null = Invoke-DomainSecurityBaseline -InputFile $csvPath -SkipReportLaunch -PassThru
 
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { $Domain -eq 'example.com' -and $DkimSelector -and $DkimSelector -contains 'alpha' -and $DkimSelector -contains 'beta' }
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { $Domain -eq 'contoso.com' -and -not $DkimSelector }
@@ -200,7 +205,7 @@ example.com,"selector1,,selector2"
 contoso.com,;alpha;;beta;
 "@ | Set-Content -Encoding UTF8 -Path $csvPath
 
-                Invoke-DomainSecurityBaseline -InputFile $csvPath -SkipReportLaunch -PassThru | Out-Null
+                $null = Invoke-DomainSecurityBaseline -InputFile $csvPath -SkipReportLaunch -PassThru
 
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { $Domain -eq 'example.com' -and $DkimSelector -contains 'selector1' -and $DkimSelector -contains 'selector2' }
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { $Domain -eq 'contoso.com' -and $DkimSelector -contains 'alpha' -and $DkimSelector -contains 'beta' }
@@ -325,7 +330,7 @@ contoso.com,;alpha;;beta;
             InModuleScope DomainSecurityAuditor {
                 Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence }
 
-                Invoke-DomainSecurityBaseline -Domain 'example.com' -SkipReportLaunch -PassThru | Out-Null
+                $null = Invoke-DomainSecurityBaseline -Domain 'example.com' -SkipReportLaunch -PassThru
                 Assert-MockCalled -CommandName Open-DSAReport -Times 0 -Scope It
             }
         }
@@ -476,6 +481,11 @@ invalid.example,Unknown
 }
 
 Describe 'Get-DSADomainEvidence' {
+    AfterEach {
+        InModuleScope DomainSecurityAuditor {
+            Reset-DSAModuleState
+        }
+    }
     It 'forwards DNSEndpoint to DomainDetective cmdlets and maps evidence' {
         InModuleScope DomainSecurityAuditor {
             Mock -CommandName Write-DSALog -MockWith { }
@@ -675,6 +685,11 @@ Describe 'Get-DSADomainEvidence' {
 }
 
 Describe 'Baseline profile helpers' {
+    AfterEach {
+        InModuleScope DomainSecurityAuditor {
+            Reset-DSAModuleState
+        }
+    }
     It 'lists built-in profiles' {
         InModuleScope DomainSecurityAuditor {
             $profiles = Get-DSABaselineProfile

@@ -31,13 +31,13 @@ function Test-DSABaselineProfile {
         }
     }
 
-    $profiles = Get-DSABaselinePropertyValue -InputObject $definition -Name 'Profiles'
+    $profiles = Get-DSAPropertyValue -InputObject $definition -PropertyName 'Profiles'
     if (-not $profiles) {
         $null = $errors.Add('Profiles collection is missing.')
     } else {
         foreach ($profileKey in $profiles.Keys) {
             $profile = $profiles[$profileKey]
-            $checks = Get-DSABaselinePropertyValue -InputObject $profile -Name 'Checks'
+            $checks = Get-DSAPropertyValue -InputObject $profile -PropertyName 'Checks'
             if (-not $checks) {
                 $null = $errors.Add("Profile '$profileKey' does not define any checks.")
                 continue
@@ -45,7 +45,7 @@ function Test-DSABaselineProfile {
 
             $checkIds = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
             foreach ($check in @($checks)) {
-                $checkId = Get-DSABaselinePropertyValue -InputObject $check -Name 'Id'
+                $checkId = Get-DSAPropertyValue -InputObject $check -PropertyName 'Id'
                 $checkLabel = if (-not [string]::IsNullOrWhiteSpace($checkId)) { $checkId } else { '<missing Id>' }
 
                 if (-not [string]::IsNullOrWhiteSpace($checkId)) {
@@ -55,13 +55,13 @@ function Test-DSABaselineProfile {
                 }
 
                 foreach ($required in @('Id', 'Condition', 'Target', 'Area', 'Severity')) {
-                    if (-not (Get-DSABaselinePropertyValue -InputObject $check -Name $required)) {
+                    if (-not (Get-DSAPropertyValue -InputObject $check -PropertyName $required)) {
                         $null = $errors.Add("Check '$checkLabel' in profile '$profileKey' is missing required property '$required'.")
                     }
                 }
 
-                $condition = Get-DSABaselinePropertyValue -InputObject $check -Name 'Condition'
-                $expectedValue = Get-DSABaselinePropertyValue -InputObject $check -Name 'ExpectedValue'
+                $condition = Get-DSAPropertyValue -InputObject $check -PropertyName 'Condition'
+                $expectedValue = Get-DSAPropertyValue -InputObject $check -PropertyName 'ExpectedValue'
                 if ($condition) {
                     $validation = Test-DSAConditionExpectedValue -Condition $condition -ExpectedValue $expectedValue
                     if (-not $validation.IsValid) {

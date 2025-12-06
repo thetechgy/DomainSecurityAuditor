@@ -151,37 +151,3 @@ function Test-DSABaselineCondition {
 
     return & $definition.Evaluate $Value $ExpectedValue
 }
-
-function Get-DSABaselinePropertyValue {
-<#
-.SYNOPSIS
-    Retrieves a property value from a hashtable or PSCustomObject.
-.DESCRIPTION
-    Safely extracts a named property from either a hashtable or PSCustomObject,
-    returning null if the property doesn't exist or input is null.
-#>
-    [CmdletBinding()]
-    param (
-        $InputObject,
-
-        [Parameter(Mandatory = $true)]
-        [string]$Name
-    )
-
-    if ($null -eq $InputObject) {
-        return $null
-    }
-
-    if ($InputObject -is [hashtable]) {
-        if ($InputObject.ContainsKey($Name)) {
-            return $InputObject[$Name]
-        }
-        return $null
-    }
-
-    if ($InputObject.PSObject -and $InputObject.PSObject.Properties.Name -contains $Name) {
-        return $InputObject.$Name
-    }
-
-    return $null
-}

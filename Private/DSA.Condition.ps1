@@ -182,8 +182,8 @@ function Get-DSAConditionDefinitions {
 
         & $addDefinition 'BetweenInclusive' {
             param ($ExpectedValue)
-            $min = Get-DSABaselinePropertyValue -InputObject $ExpectedValue -Name 'Min'
-            $max = Get-DSABaselinePropertyValue -InputObject $ExpectedValue -Name 'Max'
+            $min = Get-DSAPropertyValue -InputObject $ExpectedValue -PropertyName 'Min'
+            $max = Get-DSAPropertyValue -InputObject $ExpectedValue -PropertyName 'Max'
             $isValid = ($null -ne $ExpectedValue) -and ($null -ne $min -or $null -ne $max)
             [pscustomobject]@{
                 IsValid = $isValid
@@ -205,8 +205,8 @@ function Get-DSAConditionDefinitions {
                 return $false
             }
 
-            $min = Get-DSABaselinePropertyValue -InputObject $ExpectedValue -Name 'Min'
-            $max = Get-DSABaselinePropertyValue -InputObject $ExpectedValue -Name 'Max'
+            $min = Get-DSAPropertyValue -InputObject $ExpectedValue -PropertyName 'Min'
+            $max = Get-DSAPropertyValue -InputObject $ExpectedValue -PropertyName 'Max'
             if ($null -ne $min -and $numericValue -lt (ConvertTo-DSADouble -Value $min)) {
                 return $false
             }

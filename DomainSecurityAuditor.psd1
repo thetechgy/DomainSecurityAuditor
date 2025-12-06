@@ -22,7 +22,11 @@
     CmdletsToExport   = @()
     VariablesToExport = @()
     AliasesToExport   = @()
-    FileList          = @('DomainSecurityAuditor.psm1', 'DomainSecurityAuditor.psd1')
+    FileList          = @(
+        'DomainSecurityAuditor.psm1',
+        'DomainSecurityAuditor.psd1',
+        'Configs/ReferenceLinks.psd1'
+    )
     PrivateData       = @{
         PSData = @{
             Tags         = @('Domain', 'Security', 'Compliance', 'Pester', 'Reporting')

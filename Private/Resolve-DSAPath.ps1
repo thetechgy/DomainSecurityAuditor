@@ -39,7 +39,7 @@ function Resolve-DSAPath {
         throw "Unable to resolve path '$Path'."
     }
 
-    # Limit path length to leave headroom for child items within the 260-character Windows maximum
+    # Windows MAX_PATH is 260 characters; reserve headroom for child items (reports, transcripts) created under this path.
     $maxPathLength = 220
     if ($expandedPath.Length -gt $maxPathLength) {
         throw "Resolved path '$expandedPath' exceeds the $maxPathLength-character limit."

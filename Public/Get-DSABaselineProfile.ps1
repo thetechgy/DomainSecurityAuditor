@@ -21,7 +21,7 @@ function Get-DSABaselineProfile {
         [string]$Name
     )
 
-    $configRoot = Join-Path -Path $script:ModuleRoot -ChildPath 'Configs'
+    $configRoot = $script:ConfigRoot
     if (-not (Test-Path -Path $configRoot)) {
         return @()
     }

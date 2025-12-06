@@ -9,6 +9,11 @@ BeforeAll {
 }
 
 Describe 'Publish-DSAHtmlReport' {
+    AfterEach {
+        InModuleScope DomainSecurityAuditor {
+            Reset-DSAModuleState
+        }
+    }
     It 'renders expected header and footer metadata' {
         InModuleScope DomainSecurityAuditor {
             $profile = [pscustomobject]@{
@@ -74,6 +79,25 @@ Describe 'Publish-DSAHtmlReport' {
             $content | Should -Match 'selector2'
             $content | Should -Match 'missing'
             $content | Should -Match 'Key: 2048'
+        }
+    }
+
+    It 'handles profiles with no checks' {
+        InModuleScope DomainSecurityAuditor {
+            $profile = [pscustomobject]@{
+                Domain                 = 'example.com'
+                Classification         = 'Default'
+                OriginalClassification = 'SendingOnly'
+                ClassificationOverride = $null
+                OverallStatus          = 'Pass'
+                Checks                 = @()
+                Timestamp              = (Get-Date)
+                Evidence               = [pscustomobject]@{}
+            }
+
+            $summary = Get-DSAReportSummary -Profiles $profile
+            $summary.TotalChecks | Should -Be 0
+            $summary.DomainCount | Should -Be 1
         }
     }
 }

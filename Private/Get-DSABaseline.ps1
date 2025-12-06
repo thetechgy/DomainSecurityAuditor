@@ -20,7 +20,7 @@ function Get-DSABaseline {
         $resolvedProfile = Resolve-DSAPath -Path $ProfilePath -PathType 'File'
     } else {
         $profileFileName = "Baseline.$ProfileName.psd1"
-        $defaultProfile = Join-Path -Path $script:ModuleRoot -ChildPath "Configs/$profileFileName"
+        $defaultProfile = Join-Path -Path $script:ConfigRoot -ChildPath $profileFileName
         if (-not (Test-Path -Path $defaultProfile)) {
             throw "Baseline profile '$ProfileName' not found at '$defaultProfile'."
         }
@@ -29,14 +29,14 @@ function Get-DSABaseline {
     }
 
     $definition = Import-DSABaselineConfig -Path $resolvedProfile
-    $profiles = Get-DSABaselinePropertyValue -InputObject $definition -Name 'Profiles'
+    $profiles = Get-DSAPropertyValue -InputObject $definition -PropertyName 'Profiles'
     if (-not $profiles) {
         throw "Baseline profile '$resolvedProfile' is missing the 'Profiles' collection."
     }
 
     return @{
-        Name     = Get-DSABaselinePropertyValue -InputObject $definition -Name 'Name'
-        Version  = Get-DSABaselinePropertyValue -InputObject $definition -Name 'Version'
+        Name     = Get-DSAPropertyValue -InputObject $definition -PropertyName 'Name'
+        Version  = Get-DSAPropertyValue -InputObject $definition -PropertyName 'Version'
         Profiles = $profiles
     }
 }

@@ -25,7 +25,7 @@ function New-DSARunContext {
 
     $transcriptStarted = $false
     try {
-        Start-Transcript -Path $transcriptFile -Append | Out-Null
+        $null = Start-Transcript -Path $transcriptFile -Append
         $transcriptStarted = $true
     } catch {
         $transcriptStarted = $false
@@ -69,6 +69,31 @@ function Get-DSADomainInputState {
         [string]$LogFile
     )
 
+    function Get-DSADkimSelectorsFromRecord {
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory = $true)]
+            $Record
+        )
+
+        $dkimSelectorProperty = $Record.PSObject.Properties | Where-Object { $_.Name -in @('DkimSelectors', 'DKIMSelectors') } | Select-Object -First 1
+        if (-not $dkimSelectorProperty) {
+            return @()
+        }
+
+        $rawSelectors = $dkimSelectorProperty.Value
+        if ($rawSelectors -is [System.Collections.IEnumerable] -and -not ($rawSelectors -is [string])) {
+            return @($rawSelectors | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        }
+
+        $selectorString = "$rawSelectors".Trim()
+        if ([string]::IsNullOrWhiteSpace($selectorString)) {
+            return @()
+        }
+
+        return @($selectorString -split '[,;]' | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    }
+
     if ($PSBoundParameters.ContainsKey('InputFile')) {
         $resolvedInput = Resolve-DSAPath -Path $InputFile -PathType 'File'
         $importedCount = 0
@@ -95,17 +120,7 @@ function Get-DSADomainInputState {
                     $record | Add-Member -NotePropertyName 'ClassificationSource' -NotePropertyValue 'CSV' -Force
                 }
 
-                $dkimSelectorsFromCsv = @()
-                $dkimSelectorProperty = $record.PSObject.Properties | Where-Object { $_.Name -in @('DkimSelectors', 'DKIMSelectors') } | Select-Object -First 1
-                if ($dkimSelectorProperty) {
-                    $rawSelectors = $dkimSelectorProperty.Value
-                    if ($rawSelectors -is [System.Collections.IEnumerable] -and -not ($rawSelectors -is [string])) {
-                        $dkimSelectorsFromCsv = @($rawSelectors | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-                    } else {
-                        $selectorString = "$rawSelectors"
-                        $dkimSelectorsFromCsv = @($selectorString -split '[,;]' | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-                    }
-                }
+                $dkimSelectorsFromCsv = Get-DSADkimSelectorsFromRecord -Record $record
                 if ($dkimSelectorsFromCsv) {
                     $record | Add-Member -NotePropertyName 'DkimSelectors' -NotePropertyValue $dkimSelectorsFromCsv -Force
                 }

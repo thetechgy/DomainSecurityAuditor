@@ -29,7 +29,7 @@ function Get-DSADomainEvidence {
         } catch {
             $dnsEndpointObject = $DNSEndpoint
             if ($LogFile) {
-                Write-DSALog -Message ("Using DNS endpoint override '{0}' (fallback to string)." -f $DNSEndpoint) -LogFile $LogFile -Level 'WARN'
+                Write-DSALog -Message ("DNS endpoint '{0}' is not a known DnsClientX.DnsEndpoint value; passing as string." -f $DNSEndpoint) -LogFile $LogFile -Level 'WARN'
             }
         }
     }
@@ -42,27 +42,64 @@ function Get-DSADomainEvidence {
         $commonParams['DnsEndpoint'] = $dnsEndpointObject
     }
 
+    $errors = [System.Collections.Generic.List[string]]::new()
+
     try {
         $spf = Test-DDEmailSpfRecord @commonParams
-        $dkimParams = $commonParams.Clone()
-        if ($PSBoundParameters.ContainsKey('DkimSelector')) {
-            $dkimParams['Selectors'] = $DkimSelector
-        }
-        $dkim = Test-DDEmailDkimRecord @dkimParams
-        $dmarc = Test-DDEmailDmarcRecord @commonParams
-        $mx = Test-DDDnsMxRecord @commonParams
-        $tlsRpt = Test-DDEmailTlsRptRecord @commonParams
-        $classification = Test-DDMailDomainClassification @commonParams
+    } catch {
+        $null = $errors.Add("SPF lookup failed for '$Domain': $($_.Exception.Message)")
+    }
 
+    $dkimParams = $commonParams.Clone()
+    if ($PSBoundParameters.ContainsKey('DkimSelector')) {
+        $dkimParams['Selectors'] = $DkimSelector
+    }
+    try {
+        $dkim = Test-DDEmailDkimRecord @dkimParams
+    } catch {
+        $null = $errors.Add("DKIM lookup failed for '$Domain': $($_.Exception.Message)")
+    }
+
+    try {
+        $dmarc = Test-DDEmailDmarcRecord @commonParams
+    } catch {
+        $null = $errors.Add("DMARC lookup failed for '$Domain': $($_.Exception.Message)")
+    }
+
+    try {
+        $mx = Test-DDDnsMxRecord @commonParams
+    } catch {
+        $null = $errors.Add("MX lookup failed for '$Domain': $($_.Exception.Message)")
+    }
+
+    try {
+        $tlsRpt = Test-DDEmailTlsRptRecord @commonParams
+    } catch {
+        $null = $errors.Add("TLS-RPT lookup failed for '$Domain': $($_.Exception.Message)")
+    }
+
+    try {
+        $classification = Test-DDMailDomainClassification @commonParams
+    } catch {
+        $null = $errors.Add("Classification lookup failed for '$Domain': $($_.Exception.Message)")
+    }
+
+    $mtastsHealth = $null
+    try {
         $mtastsParams = $commonParams.Clone()
         $mtastsParams['HealthCheckType'] = @('MTASTS')
         $mtastsHealth = Test-DDDomainOverallHealth @mtastsParams
     } catch {
-        $message = "DomainDetective evidence collection failed for '$Domain': $($_.Exception.Message)"
+        $null = $errors.Add("MTA-STS lookup failed for '$Domain': $($_.Exception.Message)")
+    }
+
+    if ($errors.Count -gt 0) {
         if ($LogFile) {
-            Write-DSALog -Message $message -LogFile $LogFile -Level 'ERROR'
+            foreach ($err in $errors) {
+                Write-DSALog -Message $err -LogFile $LogFile -Level 'WARN'
+            }
         }
-        throw $message
+        throw "DomainDetective evidence collection failed for '$Domain': $($errors -join '; ')"
     }
 
     $spfRaw = $spf.Raw
@@ -88,7 +125,7 @@ function Get-DSADomainEvidence {
             -not $_.ValidPublicKey -or
             -not $_.ValidRsaKeyLength -or
             $_.WeakKey -or
-            (($_.KeyLength -as [int]) -lt 1024)
+            (($_.KeyLength -as [int]) -lt $script:DSAMinDkimKeyLength)
         }
     ).Count
     $dkimTtls = @($dkimFound | ForEach-Object { $_.DnsRecordTtl } | Where-Object { $_ })
