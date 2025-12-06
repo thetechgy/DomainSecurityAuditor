@@ -62,23 +62,6 @@ function ConvertTo-DSADouble {
     return $null
 }
 
-function ConvertTo-DSAInt {
-    param (
-        $Value
-    )
-
-    if ($null -eq $Value) {
-        return $null
-    }
-
-    $parsed = 0
-    if ([int]::TryParse($Value.ToString(), [ref]$parsed)) {
-        return $parsed
-    }
-
-    return $null
-}
-
 function Format-DSAActualValue {
     [CmdletBinding()]
     param (
