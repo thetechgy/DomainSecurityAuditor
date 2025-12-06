@@ -1,21 +1,10 @@
 function Get-DSADomainEvidence {
 <#
 .SYNOPSIS
-    Collects domain security evidence using DomainDetective.
+    Collects domain security evidence using DomainDetective per-protocol cmdlets.
 .DESCRIPTION
-    Invokes DomainDetective health checks to gather SPF, DMARC, DKIM, MX, MTA-STS, and TLS-RPT
-    evidence for a domain. Returns a structured object containing all collected records for
-    baseline evaluation.
-.PARAMETER Domain
-    The domain name to analyze.
-.PARAMETER LogFile
-    Optional path to a log file for recording errors and diagnostic messages.
-.PARAMETER DkimSelector
-    Optional DKIM selector names to verify. If omitted, DomainDetective's default selectors are used.
-.PARAMETER DNSEndpoint
-    Optional DNS endpoint (e.g., a resolver IP/port) forwarded to DomainDetective. Defaults to DomainDetective's system resolver when omitted.
-.OUTPUTS
-    PSCustomObject with Domain, Classification, and Records properties.
+    Invokes DomainDetective SPF, DKIM, DMARC, MX, TLS-RPT, MTA-STS, and classification checks,
+    returning a normalized object for baseline evaluation without custom parsing/flattening.
 #>
     [CmdletBinding()]
     param (
@@ -43,355 +32,122 @@ function Get-DSADomainEvidence {
         throw $message
     }
 
-    $resolvedDkimSelectors = @()
-    if ($PSBoundParameters.ContainsKey('DkimSelector')) {
-        $resolvedDkimSelectors = @($DkimSelector | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-    }
-
-    $resolvedDnsEndpoint = $null
-    if ($PSBoundParameters.ContainsKey('DNSEndpoint')) {
-        $resolvedDnsEndpoint = "$DNSEndpoint".Trim()
-        if (-not [string]::IsNullOrWhiteSpace($resolvedDnsEndpoint) -and $LogFile) {
-            Write-DSALog -Message ("Using DNS endpoint override '{0}' for '{1}'." -f $resolvedDnsEndpoint, $Domain) -LogFile $LogFile -Level 'DEBUG'
+    $dnsEndpointObject = $null
+    if ($PSBoundParameters.ContainsKey('DNSEndpoint') -and -not [string]::IsNullOrWhiteSpace($DNSEndpoint)) {
+        try {
+            $dnsEndpointObject = [DnsClientX.DnsEndpoint]::$DNSEndpoint
+        } catch {
+            $dnsEndpointObject = $DNSEndpoint
+            if ($LogFile) {
+                Write-DSALog -Message ("Using DNS endpoint override '{0}' (fallback to string)." -f $DNSEndpoint) -LogFile $LogFile -Level 'WARN'
+            }
         }
     }
 
-    $healthCheckTypes = [System.Collections.Generic.List[string]]::new()
-    foreach ($type in @('SPF', 'DMARC', 'DKIM', 'MX', 'MTASTS', 'TLSRPT')) {
-        $null = $healthCheckTypes.Add($type)
+    $commonParams = @{
+        DomainName  = $Domain
+        ErrorAction = 'Stop'
+    }
+    if ($dnsEndpointObject) {
+        $commonParams['DnsEndpoint'] = $dnsEndpointObject
     }
 
     try {
-        $baseParams = @{
-            DomainName        = $Domain
-            HealthCheckType   = $healthCheckTypes.ToArray()
-            ErrorAction       = 'Stop'
-            WarningAction     = 'SilentlyContinue'
-            InformationAction = 'SilentlyContinue'
+        $spf = Test-DDEmailSpfRecord @commonParams
+        $dkimParams = $commonParams.Clone()
+        if ($PSBoundParameters.ContainsKey('DkimSelector')) {
+            $dkimParams['Selectors'] = $DkimSelector
         }
+        $dkim = Test-DDEmailDkimRecord @dkimParams
+        $dmarc = Test-DDEmailDmarcRecord @commonParams
+        $mx = Test-DDDnsMxRecord @commonParams
+        $tlsRpt = Test-DDEmailTlsRptRecord @commonParams
+        $classification = Test-DDMailDomainClassification @commonParams
 
-        if (-not [string]::IsNullOrWhiteSpace($resolvedDnsEndpoint)) {
-            $baseParams['DnsEndpoint'] = $resolvedDnsEndpoint
-        }
-
-        $overallResponse = Invoke-DSADomainDetectiveHealth -Parameters $baseParams
-        $overall = $overallResponse.Result
-        if ($LogFile -and $overallResponse.Warnings) {
-            foreach ($warning in $overallResponse.Warnings) {
-                if (-not [string]::IsNullOrWhiteSpace($warning)) {
-                    Write-DSALog -Message ("DomainDetective warning: {0}" -f $warning) -LogFile $LogFile -Level 'WARN'
-                }
-            }
-        }
+        $mtastsParams = $commonParams.Clone()
+        $mtastsParams['HealthCheckType'] = @('MTASTS')
+        $mtastsHealth = Test-DDDomainOverallHealth @mtastsParams
     } catch {
-        $message = "DomainDetective health check failed for '$Domain': $($_.Exception.Message)"
+        $message = "DomainDetective evidence collection failed for '$Domain': $($_.Exception.Message)"
         if ($LogFile) {
             Write-DSALog -Message $message -LogFile $LogFile -Level 'ERROR'
         }
         throw $message
     }
 
-    $raw = $overall.Raw
-    $baseDkimMap = ConvertTo-DSADkimAnalysisMap -Analysis $raw.DKIMAnalysis
-    $defaultSelectors = @($baseDkimMap.Keys | Where-Object { Test-DSADkimSelectorName -Value $_ })
-    if ($LogFile) {
-        $selectorSummary = if ($defaultSelectors) { $defaultSelectors -join ', ' } else { '(none)' }
-        Write-DSALog -Message ("DKIM selectors from DomainDetective: {0}" -f $selectorSummary) -LogFile $LogFile -Level 'DEBUG'
-    }
+    $spfRaw = $spf.Raw
+    $spfRecord = $spf.SpfRecord
+    $spfRecords = $spfRaw.SpfRecords
+    $spfCount = if ($spfRecords) { @($spfRecords).Count } elseif ($spfRecord) { 1 } else { 0 }
+    $spfUnsafe = @($spf.UnknownMechanisms)
+    if ($spfRaw.HasPtrType) { $spfUnsafe += 'ptr' }
 
-    # If custom selectors were provided, call DomainDetective again for missing ones and merge the results.
-    $customMissing = @()
-    if ($resolvedDkimSelectors -and $resolvedDkimSelectors.Count -gt 0) {
-        $customSelectorSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-        foreach ($sel in $resolvedDkimSelectors) {
-            if (-not [string]::IsNullOrWhiteSpace($sel) -and (Test-DSADkimSelectorName -Value $sel)) {
-                $null = $customSelectorSet.Add($sel.Trim())
-            }
-        }
-
-        $customMissing = @($customSelectorSet | Where-Object { $_ -notin $defaultSelectors })
-        if ($customMissing -and $customMissing.Count -gt 0) {
-            if ($LogFile) {
-                Write-DSALog -Message ("Requesting additional DKIM selectors via DomainDetective: {0}" -f ($customMissing -join ', ')) -LogFile $LogFile -Level 'DEBUG'
-            }
-            try {
-                $dkimOnlyParams = $baseParams.Clone()
-                $dkimOnlyParams['HealthCheckType'] = @('DKIM')
-                $dkimOnlyParams['DkimSelectors'] = $customMissing
-                $customResponse = Invoke-DSADomainDetectiveHealth -Parameters $dkimOnlyParams
-                if ($LogFile -and $customResponse.Warnings) {
-                    foreach ($warning in $customResponse.Warnings) {
-                        if (-not [string]::IsNullOrWhiteSpace($warning)) {
-                            Write-DSALog -Message ("DomainDetective warning: {0}" -f $warning) -LogFile $LogFile -Level 'WARN'
-                        }
-                    }
-                }
-
-                $customMap = ConvertTo-DSADkimAnalysisMap -Analysis $customResponse.Result.Raw.DKIMAnalysis
-                if (-not $raw.DKIMAnalysis) {
-                    $raw | Add-Member -NotePropertyName 'DKIMAnalysis' -NotePropertyValue ([pscustomobject]@{}) -Force
-                }
-                if (-not $raw.DKIMAnalysis.AnalysisResults) {
-                    $raw.DKIMAnalysis | Add-Member -NotePropertyName 'AnalysisResults' -NotePropertyValue (@{}) -Force
-                }
-
-                foreach ($entry in $customMap.GetEnumerator()) {
-                    $raw.DKIMAnalysis.AnalysisResults[$entry.Key] = $entry.Value
-                }
-            } catch {
-                if ($LogFile) {
-                    Write-DSALog -Message ("DomainDetective DKIM selector-specific check failed: $($_.Exception.Message)") -LogFile $LogFile -Level 'WARN'
-                }
-            }
+    $dkimList = @($dkim | Where-Object { $_ })
+    $dkimFound = @($dkimList | Where-Object { $_.DkimRecordExists })
+    $dkimSelectors = @($dkimFound | ForEach-Object { $_.Selector })
+    $dkimMinKey = $null
+    if ($dkimFound) {
+        $keyValues = @($dkimFound | ForEach-Object { $_.KeyLength } | Where-Object { $_ })
+        if ($keyValues) {
+            $dkimMinKey = ($keyValues | Measure-Object -Minimum).Minimum
         }
     }
-
-    $summary = $raw.Summary
-    $classification = Get-DSAClassificationFromSummary -Summary $summary
-
-    $dkimSelectorsFound = @()
-    $usingCustomSelectors = ($resolvedDkimSelectors.Count -gt 0)
-    $missingSelectors = @()
-    $dkimDetails = @()
-    $dkimSelectorsPresent = @()
-
-    try {
-        $dkimSelectorsFound = @(Get-DSADkimSelectorNames -Analysis $raw.DKIMAnalysis)
-        if ($LogFile) {
-            $foundSummary = if ($dkimSelectorsFound) { $dkimSelectorsFound -join ', ' } else { '(none)' }
-            Write-DSALog -Message ("DKIM selectors discovered after merge: {0}" -f $foundSummary) -LogFile $LogFile -Level 'DEBUG'
+    $dkimWeakCount = @(
+        $dkimList | Where-Object {
+            -not $_.DkimRecordExists -or
+            -not $_.ValidPublicKey -or
+            -not $_.ValidRsaKeyLength -or
+            $_.WeakKey -or
+            (($_.KeyLength -as [int]) -lt 1024)
         }
+    ).Count
+    $dkimTtls = @($dkimFound | ForEach-Object { $_.DnsRecordTtl } | Where-Object { $_ })
+    $dkimMinTtl = if ($dkimTtls) { ($dkimTtls | Measure-Object -Minimum).Minimum } else { $null }
 
-        $customSelectorSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-        foreach ($sel in $resolvedDkimSelectors) {
-            if (-not [string]::IsNullOrWhiteSpace($sel) -and (Test-DSADkimSelectorName -Value $sel)) {
-                $null = $customSelectorSet.Add($sel.Trim())
-            }
-        }
-
-        $dkimSelectorsToEvaluate = @($dkimSelectorsFound + $resolvedDkimSelectors) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and (Test-DSADkimSelectorName -Value $_) } | Sort-Object -Unique
-
-        if ($usingCustomSelectors) {
-            $missingSelectors = @($dkimSelectorsToEvaluate | Where-Object { ($_ -notin $dkimSelectorsFound) -and $customSelectorSet.Contains($_) })
-            if ($missingSelectors -and $LogFile) {
-                Write-DSALog -Message ("DKIM selector(s) not found in DNS: {0}" -f ($missingSelectors -join ', ')) -LogFile $LogFile -Level 'WARN'
-            }
-        }
-
-        $dkimDetails = @(Get-DSADkimSelectorDetails -Analysis $raw.DKIMAnalysis -Selectors $dkimSelectorsToEvaluate -IncludeMissing:$usingCustomSelectors -MissingSelectors $missingSelectors)
-        $dkimSelectorsPresent = @($dkimDetails | Where-Object { $_.Found } | ForEach-Object { $_.Name })
-    } catch {
-        if ($LogFile) {
-            Write-DSALog -Message ("Failed to process DKIM selector details: $($_.Exception.Message)") -LogFile $LogFile -Level 'WARN'
-        }
-        $dkimSelectorsFound = @()
-        $dkimDetails = @()
-        $dkimSelectorsPresent = @()
-        $missingSelectors = @()
-    }
+    $dmarcRaw = $dmarc.Raw
+    $mtastsAnalysis = $mtastsHealth.Raw.MTASTSAnalysis
 
     $records = [pscustomobject]@{
-        MX                    = @(Get-DSAMxHosts -Analysis $raw.MXAnalysis)
-        MXRecordCount         = Get-DSAAnalysisProperty -Analysis $raw.MXAnalysis -PropertyName 'MxRecords' -AsCount
-        MXHasNull             = Get-DSAAnalysisProperty -Analysis $raw.MXAnalysis -PropertyName 'HasNullMx'
-        MXMinimumTtl          = $null
+        MX                    = $mx.MxRecords
+        MXRecordCount         = @($mx.MxRecords).Count
+        MXHasNull             = $mx.HasNullMx
+        MXMinimumTtl          = $mx.MxRecordTtl
 
-        SPFRecord             = Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'SpfRecord'
-        SPFRecords            = @(Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'SpfRecords')
-        SPFRecordCount        = Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'SpfRecords' -AsCount
-        SPFLookupCount        = Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'DnsLookupsCount'
-        SPFTerminalMechanism  = Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'AllMechanism'
-        SPFHasPtrMechanism    = [bool](Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'HasPtrType')
-        SPFRecordLength       = Get-DSASpfRecordLength -Analysis $raw.SpfAnalysis
-        SPFTtl                = $null
-        SPFIncludes           = @(Get-DSASpfProperty -Analysis $raw.SpfAnalysis -Property 'IncludeRecords')
+        SPFRecord             = $spfRecord
+        SPFRecords            = $spfRecords
+        SPFRecordCount        = $spfCount
+        SPFLookupCount        = $spf.DnsLookupsCount
+        SPFTerminalMechanism  = $spfRaw.AllMechanism
+        SPFHasPtrMechanism    = [bool]$spfRaw.HasPtrType
+        SPFRecordLength       = if ($spfRecord) { $spfRecord.Length } else { 0 }
+        SPFTtl                = $spf.DnsRecordTtl
+        SPFIncludes           = $spfRaw.IncludeRecords
         SPFWildcardRecord     = $null
         SPFWildcardConfigured = $false
-        SPFUnsafeMechanisms   = @(Get-DSASpfUnsafeMechanisms -Analysis $raw.SpfAnalysis)
+        SPFUnsafeMechanisms   = $spfUnsafe
 
-        DKIMSelectors         = $dkimSelectorsPresent
-        DKIMSelectorDetails   = $dkimDetails
-        DKIMMinKeyLength      = Get-DSADkimMinimumKeyLength -Analysis $dkimDetails
-        DKIMWeakSelectors     = Get-DSADkimWeakSelectorCount -Analysis $dkimDetails
-        DKIMMinimumTtl        = $null
+        DKIMSelectors         = $dkimSelectors
+        DKIMSelectorDetails   = $dkimList
+        DKIMMinKeyLength      = $dkimMinKey
+        DKIMWeakSelectors     = $dkimWeakCount
+        DKIMMinimumTtl        = $dkimMinTtl
 
-        DMARCRecord           = Get-DSADmarcProperty -Analysis $raw.DmarcAnalysis -Property 'DmarcRecord'
-        DMARCPolicy           = Get-DSADmarcProperty -Analysis $raw.DmarcAnalysis -Property 'Policy'
-        DMARCRuaAddresses     = @(Get-DSADmarcAddresses -Analysis $raw.DmarcAnalysis -PropertyNames @('MailtoRua', 'HttpRua'))
-        DMARCRufAddresses     = @(Get-DSADmarcAddresses -Analysis $raw.DmarcAnalysis -PropertyNames @('MailtoRuf', 'HttpRuf'))
-        DMARCTtl              = $null
+        DMARCRecord           = $dmarc.DmarcRecord
+        DMARCPolicy           = $dmarc.Policy
+        DMARCRuaAddresses     = @($dmarc.MailtoRua + $dmarc.HttpRua)
+        DMARCRufAddresses     = @($dmarc.MailtoRuf + $dmarc.HttpRuf)
+        DMARCTtl              = $dmarc.DnsRecordTtl
 
-        MTASTSRecordPresent   = [bool](Get-DSAAnalysisProperty -Analysis $raw.MTASTSAnalysis -PropertyName 'DnsRecordPresent')
-        MTASTSPolicyValid     = [bool](Get-DSAAnalysisProperty -Analysis $raw.MTASTSAnalysis -PropertyName 'PolicyValid')
-        MTASTSMode            = Get-DSAAnalysisProperty -Analysis $raw.MTASTSAnalysis -PropertyName 'Mode'
-        MTASTSTtl             = Get-DSAAnalysisProperty -Analysis $raw.MTASTSAnalysis -PropertyName 'MaxAge'
+        MTASTSRecordPresent   = [bool]$mtastsAnalysis.DnsRecordPresent
+        MTASTSPolicyValid     = [bool]$mtastsAnalysis.PolicyValid
+        MTASTSMode            = $mtastsAnalysis.Mode
+        MTASTSTtl             = $mtastsAnalysis.DnsRecordTtl
 
-        TLSRPTRecordPresent   = [bool](Get-DSAAnalysisProperty -Analysis $raw.TLSRPTAnalysis -PropertyName 'TlsRptRecordExists')
-        TLSRPTAddresses       = @(Get-DSATlsRptAddresses -Analysis $raw.TLSRPTAnalysis)
-        TLSRPTTtl             = $null
+        TLSRPTRecordPresent   = [bool]$tlsRpt.TlsRptRecordExists
+        TLSRPTAddresses       = @($tlsRpt.MailtoRua + $tlsRpt.HttpRua)
+        TLSRPTTtl             = $tlsRpt.DnsRecordTtl
     }
 
     Write-Verbose -Message "Collected DomainDetective evidence for '$Domain'."
-    return New-DSADomainEvidenceObject -Domain $Domain -Classification $classification -Records $records
-}
-
-function Get-DSAAnalysisProperty {
-    param (
-        [Parameter()]
-        $Analysis,
-
-        [Parameter(Mandatory = $true)]
-        [string]$PropertyName,
-
-        [switch]$AsCount
-    )
-
-    if (-not $Analysis) {
-        if ($AsCount) { return 0 }
-        return $null
-    }
-
-    $value = $Analysis.$PropertyName
-    if ($AsCount) {
-        if ($value -is [System.Collections.IEnumerable] -and -not ($value -is [string])) {
-            return @($value).Count
-        }
-        return 0
-    }
-
-    return $value
-}
-
-function Get-DSASpfProperty {
-    param (
-        $Analysis,
-        [string]$Property,
-        [switch]$AsCount
-    )
-
-    if (-not $Analysis) {
-        if ($AsCount) { return 0 }
-        return $null
-    }
-
-    $value = $Analysis.$Property
-    if ($AsCount) {
-        if ($value -is [System.Collections.IEnumerable] -and -not ($value -is [string])) {
-            return @($value).Count
-        }
-        return 0
-    }
-
-    return $value
-}
-
-function Get-DSASpfRecordLength {
-    param (
-        $Analysis
-    )
-
-    $record = Get-DSASpfProperty -Analysis $Analysis -Property 'SpfRecord'
-    if ($record) {
-        return $record.Length
-    }
-
-    return 0
-}
-
-function Get-DSASpfUnsafeMechanisms {
-    param (
-        $Analysis
-    )
-
-    $unsafe = [System.Collections.Generic.List[string]]::new()
-    if (-not $Analysis) {
-        return $unsafe
-    }
-
-    if ($Analysis.HasPtrType) {
-        $null = $unsafe.Add('ptr')
-    }
-    if ($Analysis.UnknownMechanisms) {
-        foreach ($entry in $Analysis.UnknownMechanisms) {
-            if (-not [string]::IsNullOrWhiteSpace($entry)) {
-                $null = $unsafe.Add($entry)
-            }
-        }
-    }
-
-    return $unsafe
-}
-
-function Get-DSADmarcProperty {
-    param (
-        $Analysis,
-        [string]$Property
-    )
-
-    if (-not $Analysis) {
-        return $null
-    }
-
-    return $Analysis.$Property
-}
-
-function Get-DSADmarcAddresses {
-    param (
-        $Analysis,
-        [string[]]$PropertyNames
-    )
-
-    if (-not $Analysis) {
-        return @()
-    }
-
-    $addresses = [System.Collections.Generic.List[string]]::new()
-    foreach ($name in $PropertyNames) {
-        $value = $Analysis.$name
-        if ($value -is [System.Collections.IEnumerable] -and -not ($value -is [string])) {
-            foreach ($entry in $value) {
-                if (-not [string]::IsNullOrWhiteSpace($entry)) {
-                    $null = $addresses.Add($entry)
-                }
-            }
-        }
-    }
-
-    return $addresses
-}
-
-function Get-DSAMxHosts {
-    param (
-        $Analysis
-    )
-
-    if (-not $Analysis -or -not $Analysis.MxRecords) {
-        return @()
-    }
-
-    return $Analysis.MxRecords
-}
-
-function Get-DSATlsRptAddresses {
-    param (
-        $Analysis
-    )
-
-    if (-not $Analysis) {
-        return @()
-    }
-
-    $addresses = [System.Collections.Generic.List[string]]::new()
-    foreach ($property in @('MailtoRua', 'HttpRua')) {
-        $value = $Analysis.$property
-        if ($value -is [System.Collections.IEnumerable] -and -not ($value -is [string])) {
-            foreach ($entry in $value) {
-                if (-not [string]::IsNullOrWhiteSpace($entry)) {
-                    $null = $addresses.Add($entry)
-                }
-            }
-        }
-    }
-
-    return $addresses
+    return New-DSADomainEvidenceObject -Domain $Domain -Classification $classification.Classification -Records $records
 }

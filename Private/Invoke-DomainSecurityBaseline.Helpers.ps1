@@ -28,8 +28,8 @@ function New-DSARunContext {
         Start-Transcript -Path $transcriptFile -Append
         $transcriptStarted = $true
     } catch {
+        $transcriptStarted = $false
         Write-DSALog -Message ("Failed to start transcript: {0}" -f $_.Exception.Message) -LogFile $logFile -Level 'WARN'
-        throw
     }
 
     return [pscustomobject]@{
