@@ -1,5 +1,5 @@
-function Write-DSALog {
-<#
+﻿function Write-DSALog {
+    <#
 .SYNOPSIS
     Writes a timestamped log entry to a file.
 .DESCRIPTION
@@ -40,9 +40,11 @@ function Write-DSALog {
         if ($PSBoundParameters.ContainsKey('Verbose') -or $VerbosePreference -ne 'SilentlyContinue') {
             Write-Verbose -Message $entry
         }
-    } catch {
+    }
+    catch {
         $errorMessage = "Failed to write log entry to '$LogFile': $($_.Exception.Message)"
         Write-Warning -Message $errorMessage
         throw
     }
 }
+

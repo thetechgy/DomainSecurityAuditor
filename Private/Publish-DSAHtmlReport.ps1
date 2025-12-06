@@ -1,3 +1,21 @@
+﻿<#
+.SYNOPSIS
+    Render compliance profiles into an HTML report.
+.DESCRIPTION
+    Builds an accessible HTML report with summary cards, per-domain sections, and DKIM selector breakdowns, then saves to the output directory.
+.PARAMETER Profiles
+    Compliance profiles to render.
+.PARAMETER OutputRoot
+    Root directory where the report will be written.
+.PARAMETER GeneratedOn
+    Timestamp used for metadata and filename.
+.PARAMETER BaselineName
+    Name of the baseline used during evaluation.
+.PARAMETER BaselineVersion
+    Version of the baseline used during evaluation.
+.PARAMETER LogFile
+    Optional log file path for write notifications.
+#>
 function Publish-DSAHtmlReport {
     [CmdletBinding()]
     param (
@@ -85,6 +103,16 @@ function Publish-DSAHtmlReport {
     return $reportPath
 }
 
+<#
+.SYNOPSIS
+    Append summary cards to the report builder.
+.DESCRIPTION
+    Writes status-based summary cards and filter controls into the HTML builder using the supplied summary object.
+.PARAMETER Builder
+    StringBuilder that accumulates HTML output.
+.PARAMETER Summary
+    Summary object from Get-DSAReportSummary.
+#>
 function Add-DSASummaryCards {
     param (
         [Parameter(Mandatory = $true)][System.Text.StringBuilder]$Builder,
@@ -116,6 +144,16 @@ function Add-DSASummaryCards {
     $null = $Builder.AppendLine('    </section>')
 }
 
+<#
+.SYNOPSIS
+    Append per-domain result sections to the report.
+.DESCRIPTION
+    Iterates profiles, grouping checks by protocol area and adding interactive sections with status metadata.
+.PARAMETER Builder
+    StringBuilder that accumulates HTML output.
+.PARAMETER Profiles
+    Compliance profiles to render.
+#>
 function Add-DSADomainSections {
     param (
         [Parameter(Mandatory = $true)][System.Text.StringBuilder]$Builder,
@@ -179,6 +217,20 @@ function Add-DSADomainSections {
     }
 }
 
+<#
+.SYNOPSIS
+    Render a protocol-specific section for a domain.
+.DESCRIPTION
+    Builds the expandable section for a protocol area, including aggregated status and individual test results.
+.PARAMETER Builder
+    StringBuilder for HTML output.
+.PARAMETER Group
+    Grouped set of checks for the protocol area.
+.PARAMETER DomainSlug
+    Sanitized domain identifier used in element ids.
+.PARAMETER Profile
+    Compliance profile for the domain.
+#>
 function Add-DSAProtocolSection {
     param (
         [Parameter(Mandatory = $true)][System.Text.StringBuilder]$Builder,
@@ -231,6 +283,18 @@ function Add-DSAProtocolSection {
     $null = $Builder.AppendLine('      </div>')
 }
 
+<#
+.SYNOPSIS
+    Render a single test result card.
+.DESCRIPTION
+    Writes the test header, expectation, observed values, remediation, references, and DKIM selector breakdowns when applicable.
+.PARAMETER Builder
+    StringBuilder for HTML output.
+.PARAMETER Check
+    Baseline check result to render.
+.PARAMETER Selectors
+    Optional DKIM selector details for DKIM check enrichment.
+#>
 function Add-DSATestResult {
     param (
         [Parameter(Mandatory = $true)][System.Text.StringBuilder]$Builder,
@@ -247,18 +311,19 @@ function Add-DSATestResult {
     $statusIcon = Get-DSAStatusIcon -Status $effectiveStatus
     $filterStatus = Get-DSAFilterStatus -Status $effectiveStatus
     $detailItems = [System.Collections.Generic.List[object]]::new()
-    $suppressActual = ($Check.Area -eq 'DKIM' -and $Check.Id -in @('DKIMKeyStrength','DKIMTtl'))
+    $suppressActual = ($Check.Area -eq 'DKIM' -and $Check.Id -in @('DKIMKeyStrength', 'DKIMTtl'))
     if (-not $suppressActual -and $Check.PSObject.Properties.Name -contains 'Actual' -and ($Check.Actual -ne $null)) {
         $valueHtml = ConvertTo-DSAValueHtml -Value $Check.Actual
         $null = $detailItems.Add([pscustomobject]@{
-                Label = 'Observed Value'
-                Value = $valueHtml
+                Label  = 'Observed Value'
+                Value  = $valueHtml
                 IsHtml = $true
             })
-    } elseif ($suppressActual) {
+    }
+    elseif ($suppressActual) {
         $null = $detailItems.Add([pscustomobject]@{
-                Label = 'Observed Value'
-                Value = 'See selector details below'
+                Label  = 'Observed Value'
+                Value  = 'See selector details below'
                 IsHtml = $false
             })
     }
@@ -332,6 +397,14 @@ function Add-DSATestResult {
     $null = $Builder.AppendLine('          </div>')
 }
 
+<#
+.SYNOPSIS
+    Compute aggregate report statistics.
+.DESCRIPTION
+    Summarizes pass/fail/warning counts across domains and checks, producing card metadata for the report header.
+.PARAMETER Profiles
+    Compliance profiles to summarize.
+#>
 function Get-DSAReportSummary {
     [CmdletBinding()]
     param (
@@ -389,6 +462,18 @@ function Get-DSAReportSummary {
 }
 
 
+<#
+.SYNOPSIS
+    Render DKIM selector breakdown cards for a DKIM check.
+.DESCRIPTION
+    Emits per-selector status, key length/TTL metadata, and not-found markers to provide detail within the DKIM section.
+.PARAMETER Builder
+    StringBuilder for HTML output.
+.PARAMETER Selectors
+    DKIM selector objects returned from evidence collection.
+.PARAMETER Check
+    DKIM check driving status evaluation.
+#>
 function Add-DSADkimSelectorBreakdown {
     param (
         [Parameter(Mandatory = $true)][System.Text.StringBuilder]$Builder,
@@ -408,9 +493,11 @@ function Add-DSADkimSelectorBreakdown {
     foreach ($selector in $selectorList) {
         $found = if ($selector.PSObject.Properties.Name -contains 'Found') {
             [bool]$selector.Found
-        } elseif ($selector.PSObject.Properties.Name -contains 'DkimRecordExists') {
+        }
+        elseif ($selector.PSObject.Properties.Name -contains 'DkimRecordExists') {
             [bool]$selector.DkimRecordExists
-        } else {
+        }
+        else {
             $true
         }
         $keyLengthValue = if ($selector.KeyLength) { $selector.KeyLength } else { 'Unknown' }
@@ -441,3 +528,4 @@ function Add-DSADkimSelectorBreakdown {
     $null = $Builder.AppendLine('                  </div>')
     $null = $Builder.AppendLine('                </div>')
 }
+

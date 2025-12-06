@@ -1,3 +1,15 @@
+﻿<#
+.SYNOPSIS
+    Check for required modules and optionally attempt installation.
+.DESCRIPTION
+    Verifies module availability, tries to install missing modules when requested, and returns compliance details with missing list.
+.PARAMETER Name
+    Module names to validate.
+.PARAMETER AttemptInstallation
+    Attempt to install missing modules using Install-Module.
+.PARAMETER LogFile
+    Path to the log file for warnings and install results.
+#>
 function Test-DSADependency {
     [CmdletBinding()]
     param (
@@ -25,7 +37,8 @@ function Test-DSADependency {
             if ($LogFile) {
                 Write-DSALog -Message 'Install-Module not available; cannot remediate missing dependencies automatically.' -LogFile $LogFile -Level 'WARN'
             }
-        } else {
+        }
+        else {
             foreach ($module in @($missingModules.ToArray())) {
                 try {
                     $splat = @{
@@ -42,7 +55,8 @@ function Test-DSADependency {
                             Write-DSALog -Message "Installed dependency '$module'." -LogFile $LogFile
                         }
                     }
-                } catch {
+                }
+                catch {
                     if ($LogFile) {
                         Write-DSALog -Message "Failed to install dependency '$module': $($_.Exception.Message)" -LogFile $LogFile -Level 'WARN'
                     }
@@ -56,3 +70,4 @@ function Test-DSADependency {
         IsCompliant    = ($missingModules.Count -eq 0)
     }
 }
+

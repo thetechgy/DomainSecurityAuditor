@@ -1,5 +1,5 @@
-function Import-DSABaselineConfig {
-<#
+﻿function Import-DSABaselineConfig {
+    <#
 .SYNOPSIS
     Imports a baseline configuration from a .psd1 file.
 .DESCRIPTION
@@ -20,3 +20,4 @@ function Import-DSABaselineConfig {
 
     return Import-PowerShellDataFile -Path $resolvedPath -ErrorAction Stop
 }
+

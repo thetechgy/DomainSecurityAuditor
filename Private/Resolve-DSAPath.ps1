@@ -1,3 +1,15 @@
+﻿<#
+.SYNOPSIS
+    Resolve and optionally create module paths with validation.
+.DESCRIPTION
+    Normalizes paths, enforces type constraints, creates directories/files when requested, and guards against overly long paths.
+.PARAMETER Path
+    Path to resolve.
+.PARAMETER PathType
+    Expected item type: Directory or File.
+.PARAMETER EnsureExists
+    Create the path if it does not already exist.
+#>
 function Resolve-DSAPath {
     [CmdletBinding()]
     param (
@@ -25,7 +37,8 @@ function Resolve-DSAPath {
         if (-not (Test-Path -Path $expandedPath)) {
             if ($itemType -eq 'Directory') {
                 $null = New-Item -ItemType Directory -Path $expandedPath -Force
-            } else {
+            }
+            else {
                 $directory = Split-Path -Path $expandedPath -Parent
                 if (-not (Test-Path -Path $directory)) {
                     $null = New-Item -ItemType Directory -Path $directory -Force
@@ -47,3 +60,4 @@ function Resolve-DSAPath {
 
     return $expandedPath
 }
+

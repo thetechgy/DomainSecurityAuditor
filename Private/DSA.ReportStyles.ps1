@@ -1,5 +1,11 @@
+﻿<#
+.SYNOPSIS
+    Provide CSS styles for the HTML compliance report.
+.DESCRIPTION
+    Returns the report stylesheet as a here-string, defining colors, layout, and interactive affordances.
+#>
 function Get-DSAReportStyles {
-@"
+    @"
 :root {
     --color-bg: #f5f7fa;
     --color-surface: #ffffff;
@@ -589,3 +595,4 @@ body {
 }
 "@
 }
+

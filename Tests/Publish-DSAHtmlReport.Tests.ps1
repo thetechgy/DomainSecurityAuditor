@@ -1,4 +1,4 @@
-BeforeAll {
+﻿BeforeAll {
     $stubModuleRoot = Join-Path -Path $PSScriptRoot -ChildPath 'Stubs'
     if (Test-Path -Path $stubModuleRoot) {
         $env:PSModulePath = "{0}{1}{2}" -f $stubModuleRoot, [System.IO.Path]::PathSeparator, $env:PSModulePath
@@ -49,15 +49,15 @@ Describe 'Publish-DSAHtmlReport' {
                 OverallStatus          = 'Pass'
                 Checks                 = @(
                     [pscustomobject]@{
-                        Id          = 'DKIMKeyStrength'
-                        Area        = 'DKIM'
-                        Status      = 'Pass'
-                        Severity    = 'High'
-                        Enforcement = 'Required'
-                        Expectation = 'Ensure DKIM selectors are strong.'
-                        Actual      = 'selector1, selector2, missing'
-                        Remediation = ''
-                        References  = @()
+                        Id            = 'DKIMKeyStrength'
+                        Area          = 'DKIM'
+                        Status        = 'Pass'
+                        Severity      = 'High'
+                        Enforcement   = 'Required'
+                        Expectation   = 'Ensure DKIM selectors are strong.'
+                        Actual        = 'selector1, selector2, missing'
+                        Remediation   = ''
+                        References    = @()
                         ExpectedValue = 1024
                     }
                 )
@@ -109,3 +109,4 @@ Describe 'Resolve-DSAClassificationOverride' {
         }
     }
 }
+

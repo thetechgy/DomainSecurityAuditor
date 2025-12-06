@@ -1,5 +1,5 @@
-function Get-DSADomainEvidence {
-<#
+﻿function Get-DSADomainEvidence {
+    <#
 .SYNOPSIS
     Collects domain security evidence using DomainDetective per-protocol cmdlets.
 .DESCRIPTION
@@ -26,7 +26,8 @@ function Get-DSADomainEvidence {
     if ($PSBoundParameters.ContainsKey('DNSEndpoint') -and -not [string]::IsNullOrWhiteSpace($DNSEndpoint)) {
         try {
             $dnsEndpointObject = [DnsClientX.DnsEndpoint]::$DNSEndpoint
-        } catch {
+        }
+        catch {
             $dnsEndpointObject = $DNSEndpoint
             if ($LogFile) {
                 Write-DSALog -Message ("DNS endpoint '{0}' is not a known DnsClientX.DnsEndpoint value; passing as string." -f $DNSEndpoint) -LogFile $LogFile -Level 'WARN'
@@ -46,7 +47,8 @@ function Get-DSADomainEvidence {
 
     try {
         $spf = Test-DDEmailSpfRecord @commonParams
-    } catch {
+    }
+    catch {
         $null = $errors.Add("SPF lookup failed for '$Domain': $($_.Exception.Message)")
     }
 
@@ -56,31 +58,36 @@ function Get-DSADomainEvidence {
     }
     try {
         $dkim = Test-DDEmailDkimRecord @dkimParams
-    } catch {
+    }
+    catch {
         $null = $errors.Add("DKIM lookup failed for '$Domain': $($_.Exception.Message)")
     }
 
     try {
         $dmarc = Test-DDEmailDmarcRecord @commonParams
-    } catch {
+    }
+    catch {
         $null = $errors.Add("DMARC lookup failed for '$Domain': $($_.Exception.Message)")
     }
 
     try {
         $mx = Test-DDDnsMxRecord @commonParams
-    } catch {
+    }
+    catch {
         $null = $errors.Add("MX lookup failed for '$Domain': $($_.Exception.Message)")
     }
 
     try {
         $tlsRpt = Test-DDEmailTlsRptRecord @commonParams
-    } catch {
+    }
+    catch {
         $null = $errors.Add("TLS-RPT lookup failed for '$Domain': $($_.Exception.Message)")
     }
 
     try {
         $classification = Test-DDMailDomainClassification @commonParams
-    } catch {
+    }
+    catch {
         $null = $errors.Add("Classification lookup failed for '$Domain': $($_.Exception.Message)")
     }
 
@@ -89,7 +96,8 @@ function Get-DSADomainEvidence {
         $mtastsParams = $commonParams.Clone()
         $mtastsParams['HealthCheckType'] = @('MTASTS')
         $mtastsHealth = Test-DDDomainOverallHealth @mtastsParams
-    } catch {
+    }
+    catch {
         $null = $errors.Add("MTA-STS lookup failed for '$Domain': $($_.Exception.Message)")
     }
 
@@ -183,3 +191,4 @@ function Get-DSADomainEvidence {
     Write-Verbose -Message "Collected DomainDetective evidence for '$Domain'."
     return New-DSADomainEvidenceObject -Domain $Domain -Classification $classification.Classification -Records $records
 }
+

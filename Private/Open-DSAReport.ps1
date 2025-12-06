@@ -1,5 +1,5 @@
-function Open-DSAReport {
-<#
+﻿function Open-DSAReport {
+    <#
 .SYNOPSIS
     Opens a generated report file in the default viewer.
 .DESCRIPTION
@@ -21,17 +21,21 @@ function Open-DSAReport {
     try {
         $null = Start-Process -FilePath $resolved -ErrorAction Stop
         $opened = $true
-    } catch {
+    }
+    catch {
         try {
             if ($IsWindows) {
                 $null = Start-Process -FilePath 'explorer.exe' -ArgumentList "`"$resolved`"" -ErrorAction Stop
-            } elseif ($IsMacOS) {
+            }
+            elseif ($IsMacOS) {
                 $null = Start-Process -FilePath 'open' -ArgumentList "`"$resolved`"" -ErrorAction Stop
-            } else {
+            }
+            else {
                 $null = Start-Process -FilePath 'xdg-open' -ArgumentList "`"$resolved`"" -ErrorAction Stop
             }
             $opened = $true
-        } catch {
+        }
+        catch {
             if ($LogFile) {
                 Write-DSALog -Message "Failed to launch report viewer: $($_.Exception.Message)" -LogFile $LogFile -Level 'WARN'
             }
@@ -42,3 +46,4 @@ function Open-DSAReport {
         Write-DSALog -Message "Opened compliance report '$resolved'." -LogFile $LogFile -Level 'INFO'
     }
 }
+

@@ -1,5 +1,5 @@
-function Invoke-DSABaselineTest {
-<#
+﻿function Invoke-DSABaselineTest {
+    <#
 .SYNOPSIS
     Evaluates domain evidence against baseline check definitions.
 .DESCRIPTION
@@ -33,7 +33,8 @@ function Invoke-DSABaselineTest {
 
     $effectiveClassification = if (-not [string]::IsNullOrWhiteSpace($ClassificationOverride)) {
         $ClassificationOverride
-    } else {
+    }
+    else {
         $DomainEvidence.Classification
     }
 
@@ -55,7 +56,8 @@ function Invoke-DSABaselineTest {
             if ($check.ContainsKey('ExpectedValue')) {
                 $expectedValue = $check.ExpectedValue
             }
-        } elseif ($check.PSObject -and $check.PSObject.Properties.Name -contains 'ExpectedValue') {
+        }
+        elseif ($check.PSObject -and $check.PSObject.Properties.Name -contains 'ExpectedValue') {
             $expectedValue = $check.ExpectedValue
         }
 
@@ -63,24 +65,26 @@ function Invoke-DSABaselineTest {
         $conditionMet = Test-DSABaselineCondition -Condition $check.Condition -Value $value -ExpectedValue $expectedValue
         $status = if ($conditionMet) {
             'Pass'
-        } elseif (($check.Enforcement ?? 'Required') -ieq 'Required') {
+        }
+        elseif (($check.Enforcement ?? 'Required') -ieq 'Required') {
             'Fail'
-        } else {
+        }
+        else {
             'Warning'
         }
 
         $actualValue = Format-DSAActualValue -Value $value
         $result = [pscustomobject]@{
-            Id          = $check.Id
-            Area        = $check.Area
-            Status      = $status
-            Severity    = $check.Severity
-            Enforcement = $check.Enforcement
-            Expectation = $check.Expectation
+            Id            = $check.Id
+            Area          = $check.Area
+            Status        = $status
+            Severity      = $check.Severity
+            Enforcement   = $check.Enforcement
+            Expectation   = $check.Expectation
             ExpectedValue = $expectedValue
-            Actual      = $actualValue
-            Remediation = $check.Remediation
-            References  = $check.References
+            Actual        = $actualValue
+            Remediation   = $check.Remediation
+            References    = $check.References
         }
 
         $null = $checkResults.Add($result)
@@ -103,6 +107,16 @@ function Invoke-DSABaselineTest {
     }
 }
 
+<#
+.SYNOPSIS
+    Resolve a nested property path from domain evidence.
+.DESCRIPTION
+    Traverses dot-delimited path segments on the evidence object, returning null when any segment is missing.
+.PARAMETER DomainEvidence
+    Domain evidence object produced by Get-DSADomainEvidence.
+.PARAMETER Path
+    Dot-delimited property path to extract.
+#>
 function Get-DSAEvidenceValue {
     [CmdletBinding()]
     param (
@@ -123,7 +137,8 @@ function Get-DSAEvidenceValue {
 
         if ($current.PSObject.Properties.Name -contains $segment) {
             $current = $current.$segment
-        } else {
+        }
+        else {
             return $null
         }
     }
@@ -131,6 +146,18 @@ function Get-DSAEvidenceValue {
     return $current
 }
 
+<#
+.SYNOPSIS
+    Evaluate a baseline condition against an observed value.
+.DESCRIPTION
+    Fetches the condition definition and executes its evaluation scriptblock using the observed and expected values.
+.PARAMETER Condition
+    Baseline condition name.
+.PARAMETER Value
+    Observed value to test.
+.PARAMETER ExpectedValue
+    Expected value payload for the condition.
+#>
 function Test-DSABaselineCondition {
     [CmdletBinding()]
     param (
@@ -151,3 +178,4 @@ function Test-DSABaselineCondition {
 
     return & $definition.Evaluate $Value $ExpectedValue
 }
+

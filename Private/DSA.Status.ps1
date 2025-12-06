@@ -1,3 +1,11 @@
+﻿<#
+.SYNOPSIS
+    Calculate status distribution for a collection of baseline checks.
+.DESCRIPTION
+    Tallies pass, warning, and fail counts along with total checks and DKIM-specific totals.
+.PARAMETER Checks
+    Collection of check result objects.
+#>
 function Get-DSAStatusCounts {
     [CmdletBinding()]
     param (
@@ -38,6 +46,14 @@ function Get-DSAStatusCounts {
     }
 }
 
+<#
+.SYNOPSIS
+    Derive an overall status from individual check results.
+.DESCRIPTION
+    Returns Fail when any check fails, Warning when any warn remains, or Pass otherwise. Special handling keeps all-DKIM sets consistent.
+.PARAMETER Checks
+    Collection of check result objects.
+#>
 function Get-DSAOverallStatus {
     [CmdletBinding()]
     param (
@@ -56,3 +72,4 @@ function Get-DSAOverallStatus {
     if ($counts.Warning -gt 0) { return 'Warning' }
     return 'Pass'
 }
+

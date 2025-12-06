@@ -1,3 +1,9 @@
+﻿<#
+.SYNOPSIS
+    Initialize and return baseline condition definitions.
+.DESCRIPTION
+    Builds a script-scoped dictionary of supported baseline conditions with validation and evaluation logic, caching for reuse.
+#>
 function Get-DSAConditionDefinitions {
     $existing = Get-Variable -Name DSAConditionDefinitions -Scope Script -ErrorAction SilentlyContinue
     if (-not $existing -or -not $script:DSAConditionDefinitions) {
@@ -89,7 +95,8 @@ function Get-DSAConditionDefinitions {
                             return $false
                         }
                     }
-                } elseif (([string]$Value) -like "*$expected*") {
+                }
+                elseif (([string]$Value) -like "*$expected*") {
                     return $false
                 }
             }
@@ -269,6 +276,14 @@ function Get-DSAConditionDefinitions {
     return $script:DSAConditionDefinitions
 }
 
+<#
+.SYNOPSIS
+    Retrieve a baseline condition definition by name.
+.DESCRIPTION
+    Returns the cached condition definition from Get-DSAConditionDefinitions or null when unsupported.
+.PARAMETER Name
+    Condition name to resolve.
+#>
 function Get-DSAConditionDefinition {
     [CmdletBinding()]
     param (
@@ -285,6 +300,16 @@ function Get-DSAConditionDefinition {
     return $null
 }
 
+<#
+.SYNOPSIS
+    Validate the ExpectedValue payload for a condition.
+.DESCRIPTION
+    Ensures the supplied ExpectedValue meets the schema requirements of the referenced condition and returns validation metadata.
+.PARAMETER Condition
+    Condition name whose ExpectedValue is being validated.
+.PARAMETER ExpectedValue
+    Value to validate against the condition.
+#>
 function Test-DSAConditionExpectedValue {
     [CmdletBinding()]
     param (
@@ -321,3 +346,4 @@ function Test-DSAConditionExpectedValue {
         Message = $(if ($isValid) { $null } else { "has an invalid ExpectedValue for condition '$Condition'." })
     }
 }
+

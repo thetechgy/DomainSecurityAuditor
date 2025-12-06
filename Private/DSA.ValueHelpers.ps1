@@ -1,3 +1,11 @@
+﻿<#
+.SYNOPSIS
+    Determine whether a value should be treated as populated.
+.DESCRIPTION
+    Returns true when the value is non-null and, for strings or enumerables, non-empty.
+.PARAMETER Value
+    The value to evaluate.
+#>
 function Test-DSAHasValue {
     [CmdletBinding()]
     param (
@@ -20,6 +28,14 @@ function Test-DSAHasValue {
     return $true
 }
 
+<#
+.SYNOPSIS
+    Normalize input into an array for baseline comparisons.
+.DESCRIPTION
+    Converts null to an empty array and wraps single items in an array while preserving existing enumerables.
+.PARAMETER Value
+    Input value to normalize.
+#>
 function ConvertTo-DSABaselineArray {
     param (
         $Value
@@ -37,7 +53,7 @@ function ConvertTo-DSABaselineArray {
 }
 
 function ConvertTo-DSADouble {
-<#
+    <#
 .SYNOPSIS
     Converts a value to a double using culture-invariant parsing.
 .DESCRIPTION
@@ -62,6 +78,14 @@ function ConvertTo-DSADouble {
     return $null
 }
 
+<#
+.SYNOPSIS
+    Format observed values for display in reports and logs.
+.DESCRIPTION
+    Returns 'None' for null/empty values, joins enumerables with commas, or converts scalars to string.
+.PARAMETER Value
+    Value to format.
+#>
 function Format-DSAActualValue {
     [CmdletBinding()]
     param (
@@ -82,3 +106,4 @@ function Format-DSAActualValue {
 
     return $Value.ToString()
 }
+

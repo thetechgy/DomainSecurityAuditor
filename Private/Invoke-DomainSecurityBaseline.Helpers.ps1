@@ -1,3 +1,15 @@
+﻿<#
+.SYNOPSIS
+    Create a run context with log/output paths and transcript metadata.
+.DESCRIPTION
+    Resolves output/log directories, enforces retention, starts a transcript, and returns contextual data for the baseline run.
+.PARAMETER OutputRoot
+    Target root directory for generated artifacts.
+.PARAMETER LogRoot
+    Target root directory for logs and transcripts.
+.PARAMETER RetentionCount
+    Maximum number of log files to keep before pruning oldest entries.
+#>
 function New-DSARunContext {
     [CmdletBinding()]
     param (
@@ -27,7 +39,8 @@ function New-DSARunContext {
     try {
         $null = Start-Transcript -Path $transcriptFile -Append
         $transcriptStarted = $true
-    } catch {
+    }
+    catch {
         $transcriptStarted = $false
         Write-DSALog -Message ("Failed to start transcript: {0}" -f $_.Exception.Message) -LogFile $logFile -Level 'WARN'
     }
@@ -43,6 +56,28 @@ function New-DSARunContext {
     }
 }
 
+<#
+.SYNOPSIS
+    Build the effective domain input state for a baseline run.
+.DESCRIPTION
+    Aggregates domains from parameters or files, normalizes metadata (classification, DKIM selectors), and enforces presence of at least one target domain.
+.PARAMETER CollectedDomains
+    Domains supplied directly through parameters or accumulated from file input.
+.PARAMETER DomainMetadata
+    Per-domain metadata such as classification overrides or DKIM selectors.
+.PARAMETER DirectDomainSet
+    Set of domains explicitly provided via parameters (used for override precedence).
+.PARAMETER InputFile
+    Optional path to a CSV or newline-delimited text file containing domains.
+.PARAMETER DefaultClassificationOverride
+    Classification override applied to directly supplied domains when provided.
+.PARAMETER GlobalDkimSelectors
+    DKIM selectors to apply when domain-specific selectors are absent.
+.PARAMETER ResolvedDnsEndpoint
+    Custom DNS endpoint string passed through to DomainDetective.
+.PARAMETER LogFile
+    Path to the run log for diagnostic entries.
+#>
 function Get-DSADomainInputState {
     [CmdletBinding()]
     param (
@@ -100,7 +135,8 @@ function Get-DSADomainInputState {
         [array]$inputRecords = @()
         try {
             $inputRecords = @(Import-Csv -Path $resolvedInput -ErrorAction Stop)
-        } catch {
+        }
+        catch {
             if ($LogFile) {
                 Write-DSALog -Message "CSV import failed for '$resolvedInput': $($_.Exception.Message). Attempting line-based fallback." -LogFile $LogFile -Level 'WARN'
             }
@@ -139,7 +175,8 @@ function Get-DSADomainInputState {
             if ($LogFile) {
                 Write-DSALog -Message "Loaded domains from '$resolvedInput' as newline-delimited text." -LogFile $LogFile
             }
-        } else {
+        }
+        else {
             if ($LogFile) {
                 Write-DSALog -Message "Loaded $importedCount domain(s) from '$resolvedInput' (CSV)." -LogFile $LogFile
             }
@@ -152,15 +189,35 @@ function Get-DSADomainInputState {
     }
 
     return [pscustomobject]@{
-        TargetDomains               = $targetDomains
-        DomainMetadata              = $DomainMetadata
-        DirectDomainSet             = $DirectDomainSet
+        TargetDomains                 = $targetDomains
+        DomainMetadata                = $DomainMetadata
+        DirectDomainSet               = $DirectDomainSet
         DefaultClassificationOverride = $DefaultClassificationOverride
-        GlobalDkimSelectors         = $GlobalDkimSelectors
-        ResolvedDnsEndpoint         = $ResolvedDnsEndpoint
+        GlobalDkimSelectors           = $GlobalDkimSelectors
+        ResolvedDnsEndpoint           = $ResolvedDnsEndpoint
     }
 }
 
+<#
+.SYNOPSIS
+    Resolve per-domain execution context prior to evidence collection.
+.DESCRIPTION
+    Determines effective classification, DKIM selectors, and DNS endpoint for a domain using metadata, defaults, and overrides.
+.PARAMETER DomainName
+    The domain being processed.
+.PARAMETER DomainMetadata
+    Metadata hash keyed by domain name with optional classification or selector overrides.
+.PARAMETER DirectDomainSet
+    Set of domains provided directly via parameters.
+.PARAMETER DefaultClassificationOverride
+    Classification override applied to directly supplied domains.
+.PARAMETER GlobalDkimSelectors
+    DKIM selectors applied when per-domain selectors are not supplied.
+.PARAMETER ResolvedDnsEndpoint
+    DNS endpoint string to forward to DomainDetective.
+.PARAMETER LogFile
+    Path to the log file for informational messages.
+#>
 function Resolve-DSADomainContext {
     [CmdletBinding()]
     param (
@@ -229,7 +286,8 @@ function Resolve-DSADomainContext {
     if ($LogFile) {
         if ($dkimSelectors) {
             Write-DSALog -Message ("Using custom DKIM selectors for '{0}': {1}" -f $DomainName, ($dkimSelectors -join ', ')) -LogFile $LogFile -Level 'DEBUG'
-        } else {
+        }
+        else {
             Write-DSALog -Message ("Using DomainDetective default DKIM selectors for '{0}'." -f $DomainName) -LogFile $LogFile -Level 'DEBUG'
         }
     }
@@ -246,6 +304,36 @@ function Resolve-DSADomainContext {
     }
 }
 
+<#
+.SYNOPSIS
+    Execute the baseline workflow for a single domain.
+.DESCRIPTION
+    Resolves domain context, collects evidence, evaluates against baseline profiles, and returns a compliance profile with metadata.
+.PARAMETER DomainName
+    Domain to process.
+.PARAMETER DomainMetadata
+    Hash table of domain metadata loaded from inputs.
+.PARAMETER DirectDomainSet
+    Set of domains provided directly via parameters.
+.PARAMETER DefaultClassificationOverride
+    Classification override applied to directly provided domains when present.
+.PARAMETER GlobalDkimSelectors
+    DKIM selectors to use when none are supplied per domain.
+.PARAMETER ResolvedDnsEndpoint
+    DNS endpoint string forwarded to DomainDetective.
+.PARAMETER BaselineProfiles
+    Baseline profile definitions keyed by classification.
+.PARAMETER OutputRoot
+    Output root for generated artifacts.
+.PARAMETER LogFile
+    Path to the log file for progress and debug messages.
+.PARAMETER CurrentIndex
+    Current domain position within the batch.
+.PARAMETER TotalCount
+    Total number of domains in the batch.
+.PARAMETER ShowProgress
+    Controls Write-Progress output.
+#>
 function Invoke-DSADomainRun {
     [CmdletBinding()]
     param (
@@ -332,6 +420,16 @@ function Invoke-DSADomainRun {
     return $profileWithMetadata
 }
 
+<#
+.SYNOPSIS
+    Emit a console summary of baseline results.
+.DESCRIPTION
+    Computes aggregated pass/warning/fail counts across processed domains and writes a short summary to the information stream.
+.PARAMETER Profiles
+    Compliance profiles produced by Invoke-DSADomainRun.
+.PARAMETER ReportPath
+    Path to the generated HTML report.
+#>
 function Write-DSABaselineConsoleSummary {
     [CmdletBinding()]
     param (
@@ -362,10 +460,11 @@ function Write-DSABaselineConsoleSummary {
     }
 
     $domainCount = ($Profiles | Measure-Object).Count
-    Write-Host ''
-    Write-Host "Baselines complete ($domainCount domain$(if ($domainCount -ne 1) { 's' }))"
-    Write-Host "  Pass:    $($statusCounts.Pass)" -ForegroundColor Green
-    Write-Host "  Warning: $($statusCounts.Warning)" -ForegroundColor Yellow
-    Write-Host "  Fail:    $($statusCounts.Fail)" -ForegroundColor Red
-    Write-Host "Report: $ReportPath"
+    Write-Information -MessageData ''
+    Write-Information -MessageData ("Baselines complete ({0} domain{1})" -f $domainCount, $(if ($domainCount -ne 1) { 's' } else { '' }))
+    Write-Information -MessageData ("  Pass:    {0}" -f $statusCounts.Pass)
+    Write-Information -MessageData ("  Warning: {0}" -f $statusCounts.Warning)
+    Write-Information -MessageData ("  Fail:    {0}" -f $statusCounts.Fail)
+    Write-Information -MessageData ("Report: {0}" -f $ReportPath)
 }
+

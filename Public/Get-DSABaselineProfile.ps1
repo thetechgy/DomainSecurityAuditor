@@ -1,5 +1,5 @@
-function Get-DSABaselineProfile {
-<#
+﻿function Get-DSABaselineProfile {
+    <#
 .SYNOPSIS
     Lists built-in baseline profiles available to the Domain Security Auditor module.
 .DESCRIPTION
@@ -36,3 +36,4 @@ function Get-DSABaselineProfile {
         }
     }
 }
+

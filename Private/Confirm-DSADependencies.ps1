@@ -1,3 +1,15 @@
+﻿<#
+.SYNOPSIS
+    Validate required modules and optionally install missing dependencies.
+.DESCRIPTION
+    Uses Test-DSADependency to verify required modules are available, attempts installation when requested, and throws when unmet.
+.PARAMETER Name
+    Names of modules to validate.
+.PARAMETER AttemptInstallation
+    Attempt to install missing modules via Install-Module.
+.PARAMETER LogFile
+    Path to the log file for diagnostic messages.
+#>
 function Confirm-DSADependencies {
     [CmdletBinding()]
     param (
@@ -20,6 +32,14 @@ function Confirm-DSADependencies {
     }
 }
 
+<#
+.SYNOPSIS
+    Ensure the DomainDetective module is imported once per session.
+.DESCRIPTION
+    Imports DomainDetective when not already loaded and caches state to avoid redundant imports, logging failures when provided a log path.
+.PARAMETER LogFile
+    Path to the log file for error reporting.
+#>
 function Import-DSADomainDetectiveModule {
     [CmdletBinding()]
     param (
@@ -39,7 +59,8 @@ function Import-DSADomainDetectiveModule {
             $null = Import-Module -Name DomainDetective -ErrorAction Stop
         }
         $script:DSADomainDetectiveLoaded = $true
-    } catch {
+    }
+    catch {
         $message = "DomainDetective module import failed: $($_.Exception.Message)"
         if ($LogFile) {
             Write-DSALog -Message $message -LogFile $LogFile -Level 'ERROR'
@@ -47,3 +68,4 @@ function Import-DSADomainDetectiveModule {
         throw $message
     }
 }
+

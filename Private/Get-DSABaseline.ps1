@@ -1,5 +1,5 @@
-function Get-DSABaseline {
-<#
+﻿function Get-DSABaseline {
+    <#
 .SYNOPSIS
     Loads baseline profile definitions from a configuration file.
 .DESCRIPTION
@@ -18,7 +18,8 @@ function Get-DSABaseline {
 
     if ($PSBoundParameters.ContainsKey('ProfilePath')) {
         $resolvedProfile = Resolve-DSAPath -Path $ProfilePath -PathType 'File'
-    } else {
+    }
+    else {
         $profileFileName = "Baseline.$ProfileName.psd1"
         $defaultProfile = Join-Path -Path $script:ConfigRoot -ChildPath $profileFileName
         if (-not (Test-Path -Path $defaultProfile)) {
@@ -40,3 +41,4 @@ function Get-DSABaseline {
         Profiles = $profiles
     }
 }
+

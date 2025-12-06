@@ -1,5 +1,5 @@
-function New-DSABaselineProfile {
-<#
+﻿function New-DSABaselineProfile {
+    <#
 .SYNOPSIS
     Creates a new baseline profile file based on an existing built-in profile.
 .DESCRIPTION
@@ -49,3 +49,4 @@ function New-DSABaselineProfile {
 
     return $targetPath
 }
+

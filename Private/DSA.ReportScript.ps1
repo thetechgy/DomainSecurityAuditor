@@ -1,5 +1,11 @@
+﻿<#
+.SYNOPSIS
+    Provide client-side script for the HTML report.
+.DESCRIPTION
+    Returns JavaScript that powers expand/collapse controls, status filtering, and keyboard accessibility for the report UI.
+#>
 function Get-DSAReportScript {
-@"
+    @"
 const protocolSections = document.querySelectorAll('.protocol-section');
 const toggleAllSectionsButton = document.getElementById('toggle-all-sections');
 
@@ -208,3 +214,4 @@ if (defaultFilter) {
 }
 "@
 }
+

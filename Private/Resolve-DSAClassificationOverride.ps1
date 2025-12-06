@@ -1,5 +1,5 @@
-function Resolve-DSAClassificationOverride {
-<#
+﻿function Resolve-DSAClassificationOverride {
+    <#
 .SYNOPSIS
     Validates and normalizes user-supplied classification overrides.
 .DESCRIPTION
@@ -19,7 +19,8 @@ function Resolve-DSAClassificationOverride {
     $allowed = [string]::Join(', ', $validValues)
     $sourceNote = if (-not [string]::IsNullOrWhiteSpace($SourceDescription)) {
         " ($SourceDescription)"
-    } else {
+    }
+    else {
         ''
     }
 
@@ -37,8 +38,16 @@ function Resolve-DSAClassificationOverride {
     throw "Classification override '$normalized'$sourceNote is invalid. Allowed values: $allowed."
 }
 
-function Get-DSAClassificationKey {
 <#
+.SYNOPSIS
+    Normalize a classification string to its canonical key.
+.DESCRIPTION
+    Strips non-letters and returns the standard baseline classification key when recognized.
+.PARAMETER Classification
+    Classification value to normalize.
+#>
+function Get-DSAClassificationKey {
+    <#
 .SYNOPSIS
     Normalizes a classification string to its canonical key form.
 .DESCRIPTION
@@ -63,3 +72,4 @@ function Get-DSAClassificationKey {
         default { return $Classification }
     }
 }
+

@@ -1,4 +1,4 @@
-BeforeAll {
+﻿BeforeAll {
     $stubModuleRoot = Join-Path -Path $PSScriptRoot -ChildPath 'Stubs'
     if (Test-Path -Path $stubModuleRoot) {
         $env:PSModulePath = "{0}{1}{2}" -f $stubModuleRoot, [System.IO.Path]::PathSeparator, $env:PSModulePath
@@ -9,69 +9,69 @@ BeforeAll {
 
     # Define test helper in global scope for InModuleScope access
     function global:New-TestEvidence {
-    param (
-        [string]$Domain = 'example.com',
-        [string]$Classification = 'SendingAndReceiving',
-        [ScriptBlock]$Adjust
-    )
-
-    $records = [pscustomobject]@{
-        MX                    = @('mx1.example.com')
-        MXRecordCount         = 1
-        MXHasNull             = $false
-        MXMinimumTtl          = 3600
-        SPFRecord             = 'v=spf1 include:_spf.example.com -all'
-        SPFRecords            = @('v=spf1 include:_spf.example.com -all')
-        SPFRecordCount        = 1
-        SPFLookupCount        = 2
-        SPFTerminalMechanism  = '-all'
-        SPFHasPtrMechanism    = $false
-        SPFRecordLength       = 40
-        SPFTtl                = 3600
-        SPFIncludes           = @('_spf.example.com')
-        SPFWildcardRecord     = 'v=spf1 -all'
-        SPFWildcardConfigured = $true
-        SPFUnsafeMechanisms   = @()
-        DKIMSelectors         = @('selector1')
-        DKIMSelectorDetails   = @(
-            [pscustomobject]@{
-                Selector         = 'selector1'
-                DkimRecordExists = $true
-                KeyLength        = 2048
-                ValidPublicKey   = $true
-                ValidRsaKeyLength = $true
-                WeakKey          = $false
-                DnsRecordTtl     = 3600
-            }
+        param (
+            [string]$Domain = 'example.com',
+            [string]$Classification = 'SendingAndReceiving',
+            [ScriptBlock]$Adjust
         )
-        DKIMMinKeyLength      = 2048
-        DKIMWeakSelectors     = 0
-        DKIMMinimumTtl        = 3600
-        DMARCRecord           = 'v=DMARC1; p=reject; rua=mailto:dmarc@example.com'
-        DMARCPolicy           = 'reject'
-        DMARCRuaAddresses     = @('dmarc@example.com')
-        DMARCRufAddresses     = @()
-        DMARCTtl              = 3600
-        MTASTSRecordPresent   = $true
-        MTASTSPolicyValid     = $true
-        MTASTSMode            = 'enforce'
-        MTASTSTtl             = 86400
-        TLSRPTRecordPresent   = $true
-        TLSRPTAddresses       = @('tls@example.com')
-        TLSRPTTtl             = 86400
-    }
 
-    $evidence = [pscustomobject]@{
-        Domain         = $Domain
-        Classification = $Classification
-        Records        = $records
-    }
+        $records = [pscustomobject]@{
+            MX                    = @('mx1.example.com')
+            MXRecordCount         = 1
+            MXHasNull             = $false
+            MXMinimumTtl          = 3600
+            SPFRecord             = 'v=spf1 include:_spf.example.com -all'
+            SPFRecords            = @('v=spf1 include:_spf.example.com -all')
+            SPFRecordCount        = 1
+            SPFLookupCount        = 2
+            SPFTerminalMechanism  = '-all'
+            SPFHasPtrMechanism    = $false
+            SPFRecordLength       = 40
+            SPFTtl                = 3600
+            SPFIncludes           = @('_spf.example.com')
+            SPFWildcardRecord     = 'v=spf1 -all'
+            SPFWildcardConfigured = $true
+            SPFUnsafeMechanisms   = @()
+            DKIMSelectors         = @('selector1')
+            DKIMSelectorDetails   = @(
+                [pscustomobject]@{
+                    Selector          = 'selector1'
+                    DkimRecordExists  = $true
+                    KeyLength         = 2048
+                    ValidPublicKey    = $true
+                    ValidRsaKeyLength = $true
+                    WeakKey           = $false
+                    DnsRecordTtl      = 3600
+                }
+            )
+            DKIMMinKeyLength      = 2048
+            DKIMWeakSelectors     = 0
+            DKIMMinimumTtl        = 3600
+            DMARCRecord           = 'v=DMARC1; p=reject; rua=mailto:dmarc@example.com'
+            DMARCPolicy           = 'reject'
+            DMARCRuaAddresses     = @('dmarc@example.com')
+            DMARCRufAddresses     = @()
+            DMARCTtl              = 3600
+            MTASTSRecordPresent   = $true
+            MTASTSPolicyValid     = $true
+            MTASTSMode            = 'enforce'
+            MTASTSTtl             = 86400
+            TLSRPTRecordPresent   = $true
+            TLSRPTAddresses       = @('tls@example.com')
+            TLSRPTTtl             = 86400
+        }
 
-    if ($Adjust) {
-        & $Adjust -ArgumentList $evidence
-    }
+        $evidence = [pscustomobject]@{
+            Domain         = $Domain
+            Classification = $Classification
+            Records        = $records
+        }
 
-    return $evidence
+        if ($Adjust) {
+            & $Adjust -ArgumentList $evidence
+        }
+
+        return $evidence
     }
 }
 
@@ -160,7 +160,7 @@ Describe 'Invoke-DomainSecurityBaseline' {
             InModuleScope DomainSecurityAuditor {
                 Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence -Domain $Domain }
 
-                $null = Invoke-DomainSecurityBaseline -Domain 'example.com' -DkimSelector 'sel1','sel2' -SkipReportLaunch -PassThru
+                $null = Invoke-DomainSecurityBaseline -Domain 'example.com' -DkimSelector 'sel1', 'sel2' -SkipReportLaunch -PassThru
 
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 1 -ParameterFilter { $DkimSelector -and $DkimSelector -contains 'sel1' -and $DkimSelector -contains 'sel2' }
             }
@@ -342,7 +342,7 @@ contoso.com,;alpha;;beta;
                 $queue.Enqueue((New-TestEvidence -Domain 'example.com'))
                 Mock -CommandName Get-DSADomainEvidence -MockWith { $queue.Dequeue() }
 
-                $result = Invoke-DomainSecurityBaseline -Domain 'contoso.com','example.com' -SkipReportLaunch -PassThru
+                $result = Invoke-DomainSecurityBaseline -Domain 'contoso.com', 'example.com' -SkipReportLaunch -PassThru
                 $result.Count | Should -Be 2
                 ($result | Select-Object -ExpandProperty Domain) | Should -Contain 'example.com'
                 Assert-MockCalled -CommandName Get-DSADomainEvidence -Times 2 -Scope It
@@ -353,7 +353,7 @@ contoso.com,;alpha;;beta;
         It 'accepts domains from input files' {
             InModuleScope DomainSecurityAuditor {
                 $csvPath = Join-Path -Path $TestDrive -ChildPath 'domains.csv'
-@'
+                @'
 Domain
 alpha.example
 beta.example
@@ -374,7 +374,7 @@ beta.example
         It 'falls back to newline-delimited lists when CSV headers are absent' {
             InModuleScope DomainSecurityAuditor {
                 $txtPath = Join-Path -Path $TestDrive -ChildPath 'domains.txt'
-@'
+                @'
 gamma.example
 delta.example
 '@ | Set-Content -Path $txtPath
@@ -394,7 +394,7 @@ delta.example
         It 'honors classification overrides sourced from CSV metadata' {
             InModuleScope DomainSecurityAuditor {
                 $csvPath = Join-Path -Path $TestDrive -ChildPath 'domains-with-metadata.csv'
-@'
+                @'
 Domain,Classification
 override.example,SendingOnly
 '@ | Set-Content -Path $csvPath
@@ -456,7 +456,7 @@ override.example,SendingOnly
         It 'errors when CSV classification overrides contain unsupported values' {
             InModuleScope DomainSecurityAuditor {
                 $csvPath = Join-Path -Path $TestDrive -ChildPath 'domains-invalid-metadata.csv'
-@'
+                @'
 Domain,Classification
 invalid.example,Unknown
 '@ | Set-Content -Path $csvPath
@@ -496,11 +496,11 @@ Describe 'Get-DSADomainEvidence' {
             $script:capturedMtastsEndpoint = $null
 
             $spfResult = [pscustomobject]@{
-                SpfRecord       = 'v=spf1 -all'
-                DnsLookupsCount = 0
-                DnsRecordTtl    = 3600
+                SpfRecord         = 'v=spf1 -all'
+                DnsLookupsCount   = 0
+                DnsRecordTtl      = 3600
                 UnknownMechanisms = @()
-                Raw             = [pscustomobject]@{
+                Raw               = [pscustomobject]@{
                     SpfRecords        = @('v=spf1 -all')
                     AllMechanism      = '-all'
                     HasPtrType        = $false
@@ -530,21 +530,21 @@ Describe 'Get-DSADomainEvidence' {
             function Test-DDEmailDmarcRecord {
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{
-                    DmarcRecord = 'v=DMARC1; p=reject'
-                    Policy      = 'reject'
-                    MailtoRua   = @()
-                    HttpRua     = @()
-                    MailtoRuf   = @()
-                    HttpRuf     = @()
+                    DmarcRecord  = 'v=DMARC1; p=reject'
+                    Policy       = 'reject'
+                    MailtoRua    = @()
+                    HttpRua      = @()
+                    MailtoRuf    = @()
+                    HttpRuf      = @()
                     DnsRecordTtl = 400
-                    Raw         = [pscustomobject]@{}
+                    Raw          = [pscustomobject]@{}
                 }
             }
             function Test-DDDnsMxRecord {
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{
-                    MxRecords  = @('mx1.example')
-                    HasNullMx  = $false
+                    MxRecords   = @('mx1.example')
+                    HasNullMx   = $false
                     MxRecordTtl = 1200
                 }
             }
@@ -597,12 +597,12 @@ Describe 'Get-DSADomainEvidence' {
             function Test-DDEmailSpfRecord {
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{
-                    SpfRecord                = 'v=spf1 -all'
-                    DnsLookupsCount          = 0
-                    DnsRecordTtl             = 300
+                    SpfRecord                 = 'v=spf1 -all'
+                    DnsLookupsCount           = 0
+                    DnsRecordTtl              = 300
                     AuthoritativeDnsRecordTtl = 1200
-                    UnknownMechanisms        = @()
-                    Raw                      = [pscustomobject]@{
+                    UnknownMechanisms         = @()
+                    Raw                       = [pscustomobject]@{
                         SpfRecords        = @('v=spf1 -all')
                         AllMechanism      = '-all'
                         HasPtrType        = $false
@@ -615,13 +615,13 @@ Describe 'Get-DSADomainEvidence' {
                 param($DomainName, $Selectors, $DnsEndpoint)
                 return @(
                     [pscustomobject]@{
-                        Selector                 = 'selector1'
-                        DkimRecordExists         = $true
-                        KeyLength                = 2048
-                        WeakKey                  = $false
-                        ValidPublicKey           = $true
-                        ValidRsaKeyLength        = $true
-                        DnsRecordTtl             = 350
+                        Selector                  = 'selector1'
+                        DkimRecordExists          = $true
+                        KeyLength                 = 2048
+                        WeakKey                   = $false
+                        ValidPublicKey            = $true
+                        ValidRsaKeyLength         = $true
+                        DnsRecordTtl              = 350
                         AuthoritativeDnsRecordTtl = 700
                     }
                 )
@@ -629,33 +629,33 @@ Describe 'Get-DSADomainEvidence' {
             function Test-DDEmailDmarcRecord {
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{
-                    DmarcRecord              = 'v=DMARC1; p=reject'
-                    Policy                   = 'reject'
-                    MailtoRua                = @()
-                    HttpRua                  = @()
-                    MailtoRuf                = @()
-                    HttpRuf                  = @()
-                    DnsRecordTtl             = 200
+                    DmarcRecord               = 'v=DMARC1; p=reject'
+                    Policy                    = 'reject'
+                    MailtoRua                 = @()
+                    HttpRua                   = @()
+                    MailtoRuf                 = @()
+                    HttpRuf                   = @()
+                    DnsRecordTtl              = 200
                     AuthoritativeDnsRecordTtl = 900
-                    Raw                      = [pscustomobject]@{}
+                    Raw                       = [pscustomobject]@{}
                 }
             }
             function Test-DDDnsMxRecord {
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{
-                    MxRecords                = @('mx1.example')
-                    HasNullMx                = $false
-                    MxRecordTtl              = 150
+                    MxRecords                 = @('mx1.example')
+                    HasNullMx                 = $false
+                    MxRecordTtl               = 150
                     AuthoritativeDnsRecordTtl = 400
                 }
             }
             function Test-DDEmailTlsRptRecord {
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{
-                    TlsRptRecordExists       = $true
-                    MailtoRua                = @('mailto:tls@example.com')
-                    HttpRua                  = @()
-                    DnsRecordTtl             = 250
+                    TlsRptRecordExists        = $true
+                    MailtoRua                 = @('mailto:tls@example.com')
+                    HttpRua                   = @()
+                    DnsRecordTtl              = 250
                     AuthoritativeDnsRecordTtl = 500
                 }
             }
@@ -668,10 +668,10 @@ Describe 'Get-DSADomainEvidence' {
                 return [pscustomobject]@{
                     Raw = [pscustomobject]@{
                         MTASTSAnalysis = [pscustomobject]@{
-                            DnsRecordPresent        = $true
-                            PolicyValid             = $true
-                            Mode                    = 'enforce'
-                            DnsRecordTtl            = 100
+                            DnsRecordPresent          = $true
+                            PolicyValid               = $true
+                            Mode                      = 'enforce'
+                            DnsRecordTtl              = 100
                             AuthoritativeDnsRecordTtl = 600
                         }
                     }
@@ -696,11 +696,11 @@ Describe 'Get-DSADomainEvidence' {
 
             $script:capturedSelectors = @()
             $spfResult = [pscustomobject]@{
-                SpfRecord       = 'v=spf1 include:_spf.example.com -all'
-                DnsLookupsCount = 2
-                DnsRecordTtl    = 300
+                SpfRecord         = 'v=spf1 include:_spf.example.com -all'
+                DnsLookupsCount   = 2
+                DnsRecordTtl      = 300
                 UnknownMechanisms = @()
-                Raw             = [pscustomobject]@{
+                Raw               = [pscustomobject]@{
                     SpfRecords        = @('v=spf1 include:_spf.example.com -all')
                     AllMechanism      = '-all'
                     HasPtrType        = $false
@@ -730,14 +730,14 @@ Describe 'Get-DSADomainEvidence' {
             function Test-DDEmailDmarcRecord {
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{
-                    DmarcRecord = 'v=DMARC1; p=quarantine'
-                    Policy      = 'quarantine'
-                    MailtoRua   = @('mailto:rua@example.com')
-                    HttpRua     = @()
-                    MailtoRuf   = @()
-                    HttpRuf     = @()
+                    DmarcRecord  = 'v=DMARC1; p=quarantine'
+                    Policy       = 'quarantine'
+                    MailtoRua    = @('mailto:rua@example.com')
+                    HttpRua      = @()
+                    MailtoRuf    = @()
+                    HttpRuf      = @()
                     DnsRecordTtl = 600
-                    Raw         = [pscustomobject]@{}
+                    Raw          = [pscustomobject]@{}
                 }
             }
             function Test-DDDnsMxRecord {
@@ -830,3 +830,4 @@ Describe 'Baseline profile helpers' {
         }
     }
 }
+

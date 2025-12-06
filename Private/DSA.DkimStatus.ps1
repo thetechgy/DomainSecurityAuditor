@@ -1,3 +1,13 @@
+﻿<#
+.SYNOPSIS
+    Determine DKIM selector status relative to a specific check.
+.DESCRIPTION
+    Evaluates selector health based on presence, key length, TTL, and validity for a given DKIM check Id.
+.PARAMETER Selector
+    Selector object containing DNS lookup results.
+.PARAMETER Check
+    Baseline check definition driving evaluation.
+#>
 function Get-DSADkimSelectorStatus {
     [CmdletBinding()]
     param (
@@ -8,10 +18,10 @@ function Get-DSADkimSelectorStatus {
         [pscustomobject]$Check
     )
 
-    $found = Get-DSAPropertyValue -InputObject $Selector -PropertyName @('DkimRecordExists','Found') -Default $true -As ([bool])
+    $found = Get-DSAPropertyValue -InputObject $Selector -PropertyName @('DkimRecordExists', 'Found') -Default $true -As ([bool])
     $keyLength = Get-DSAPropertyValue -InputObject $Selector -PropertyName @('KeyLength') -Default $null
     $ttl = Get-DSATtlValue -InputObject $Selector
-    $validPublicKey = Get-DSAPropertyValue -InputObject $Selector -PropertyName @('ValidPublicKey','IsValid') -Default $null
+    $validPublicKey = Get-DSAPropertyValue -InputObject $Selector -PropertyName @('ValidPublicKey', 'IsValid') -Default $null
     $validRsaKeyLength = Get-DSAPropertyValue -InputObject $Selector -PropertyName @('ValidRsaKeyLength') -Default $null
 
     $isValid = [bool]((($null -eq $validPublicKey) -or $validPublicKey) -and (($null -eq $validRsaKeyLength) -or $validRsaKeyLength))
@@ -48,6 +58,16 @@ function Get-DSADkimSelectorStatus {
     }
 }
 
+<#
+.SYNOPSIS
+    Compute effective DKIM check status considering selector breakdowns.
+.DESCRIPTION
+    Overrides the base check status with selector-level results when applicable to ensure failures/warnings propagate correctly.
+.PARAMETER Check
+    Baseline check result to adjust.
+.PARAMETER Selectors
+    Selector details associated with the domain evidence.
+#>
 function Get-DSADkimEffectiveStatus {
     [CmdletBinding()]
     param (
@@ -58,13 +78,15 @@ function Get-DSADkimEffectiveStatus {
     )
 
     $effectiveStatus = $Check.Status
-    if ($Selectors -and $Check.Area -eq 'DKIM' -and ($Check.Id -in @('DKIMKeyStrength','DKIMTtl','DKIMSelectorHealth','DKIMSelectorPresence'))) {
+    if ($Selectors -and $Check.Area -eq 'DKIM' -and ($Check.Id -in @('DKIMKeyStrength', 'DKIMTtl', 'DKIMSelectorHealth', 'DKIMSelectorPresence'))) {
         $selectorStatuses = @($Selectors | ForEach-Object { Get-DSADkimSelectorStatus -Selector $_ -Check $Check })
         if ($selectorStatuses -contains 'Fail') {
             $effectiveStatus = 'Fail'
-        } elseif ($selectorStatuses -contains 'Warning') {
+        }
+        elseif ($selectorStatuses -contains 'Warning') {
             $effectiveStatus = 'Warning'
-        } elseif ($selectorStatuses -contains 'Pass') {
+        }
+        elseif ($selectorStatuses -contains 'Pass') {
             $effectiveStatus = 'Pass'
         }
     }
@@ -72,6 +94,16 @@ function Get-DSADkimEffectiveStatus {
     return $effectiveStatus
 }
 
+<#
+.SYNOPSIS
+    Produce effective check results with DKIM selector awareness.
+.DESCRIPTION
+    Clones incoming checks and recalculates DKIM statuses based on selector details, returning a new array of results.
+.PARAMETER Checks
+    Baseline check results to process.
+.PARAMETER SelectorDetails
+    Optional DKIM selector detail collection to incorporate.
+#>
 function Get-DSAEffectiveChecks {
     [CmdletBinding()]
     param (
@@ -107,3 +139,4 @@ function Get-DSAEffectiveChecks {
 
     return $results.ToArray()
 }
+

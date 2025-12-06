@@ -1,3 +1,11 @@
+﻿<#
+.SYNOPSIS
+    Encode a value for safe HTML display.
+.DESCRIPTION
+    Converts values to strings and HTML-encodes them, returning an empty string when null.
+.PARAMETER Value
+    Value to encode.
+#>
 function ConvertTo-DSAHtml {
     param (
         $Value
@@ -11,6 +19,14 @@ function ConvertTo-DSAHtml {
     return [System.Net.WebUtility]::HtmlEncode($text)
 }
 
+<#
+.SYNOPSIS
+    Format a value with semantic HTML wrappers.
+.DESCRIPTION
+    Returns stylized spans for boolean and empty values, joins enumerables, and HTML-encodes other inputs.
+.PARAMETER Value
+    Value to format.
+#>
 function ConvertTo-DSAValueHtml {
     param (
         $Value
@@ -38,6 +54,14 @@ function ConvertTo-DSAValueHtml {
     return ConvertTo-DSAHtml -Value $Value
 }
 
+<#
+.SYNOPSIS
+    Convert a reference string to an HTML link when possible.
+.DESCRIPTION
+    Resolves known references or RFCs to URLs, falling back to plain text when no mapping exists.
+.PARAMETER Reference
+    Reference text to render.
+#>
 function ConvertTo-DSAReferenceHtml {
     param (
         [string]$Reference
@@ -62,6 +86,14 @@ function ConvertTo-DSAReferenceHtml {
     return ("<span class=""reference-link reference-link--static"">{0}</span>" -f $displayText)
 }
 
+<#
+.SYNOPSIS
+    Resolve a known reference label to a link.
+.DESCRIPTION
+    Loads cached reference mappings, handles RFC section linking, and returns the associated URL or null.
+.PARAMETER Reference
+    Reference label to resolve.
+#>
 function Get-DSAKnownReferenceLink {
     param (
         [string]$Reference
@@ -77,7 +109,8 @@ function Get-DSAKnownReferenceLink {
         $referenceFile = Join-Path -Path $script:ConfigRoot -ChildPath 'ReferenceLinks.psd1'
         if (Test-Path -Path $referenceFile) {
             $script:DSAKnownReferenceLinks = Import-PowerShellDataFile -Path $referenceFile
-        } else {
+        }
+        else {
             $script:DSAKnownReferenceLinks = @{}
         }
     }
@@ -100,6 +133,14 @@ function Get-DSAKnownReferenceLink {
     return $null
 }
 
+<#
+.SYNOPSIS
+    Map a status to its CSS class name.
+.DESCRIPTION
+    Normalizes pass/fail/warning statuses to class tokens used in the HTML report.
+.PARAMETER Status
+    Status text to normalize.
+#>
 function Get-DSAStatusClassName {
     param (
         [string]$Status
@@ -117,6 +158,14 @@ function Get-DSAStatusClassName {
     }
 }
 
+<#
+.SYNOPSIS
+    Map a status to a simple icon.
+.DESCRIPTION
+    Returns Unicode characters representing pass, fail, warning, or info for report display.
+.PARAMETER Status
+    Status text to normalize.
+#>
 function Get-DSAStatusIcon {
     param (
         [string]$Status
@@ -130,6 +179,14 @@ function Get-DSAStatusIcon {
     }
 }
 
+<#
+.SYNOPSIS
+    Normalize status values for filtering.
+.DESCRIPTION
+    Returns canonical filter tokens used to show/hide tests in the report.
+.PARAMETER Status
+    Status text to normalize.
+#>
 function Get-DSAFilterStatus {
     param (
         [string]$Status
@@ -146,3 +203,4 @@ function Get-DSAFilterStatus {
         default { return 'info' }
     }
 }
+

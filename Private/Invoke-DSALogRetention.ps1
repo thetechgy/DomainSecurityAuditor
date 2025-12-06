@@ -1,3 +1,13 @@
+﻿<#
+.SYNOPSIS
+    Prune old log files based on retention count.
+.DESCRIPTION
+    Maintains at most the specified number of .log files in a directory by deleting the oldest entries.
+.PARAMETER LogDirectory
+    Directory containing log files.
+.PARAMETER RetentionCount
+    Maximum number of log files to retain.
+#>
 function Invoke-DSALogRetention {
     [CmdletBinding()]
     param (
@@ -23,8 +33,10 @@ function Invoke-DSALogRetention {
     foreach ($log in $logsToRemove) {
         try {
             Remove-Item -Path $log.FullName -Force -ErrorAction Stop
-        } catch {
+        }
+        catch {
             Write-Warning -Message "Failed to remove log '$($log.Name)': $($_.Exception.Message)"
         }
     }
 }
+

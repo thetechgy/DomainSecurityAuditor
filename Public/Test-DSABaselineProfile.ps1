@@ -1,5 +1,5 @@
-function Test-DSABaselineProfile {
-<#
+﻿function Test-DSABaselineProfile {
+    <#
 .SYNOPSIS
     Validates that a baseline profile file is well-formed.
 .DESCRIPTION
@@ -22,7 +22,8 @@ function Test-DSABaselineProfile {
 
     try {
         $definition = Import-DSABaselineConfig -Path $resolvedPath
-    } catch {
+    }
+    catch {
         $null = $errors.Add($_.Exception.Message)
         return [pscustomobject]@{
             Path    = $resolvedPath
@@ -34,7 +35,8 @@ function Test-DSABaselineProfile {
     $profiles = Get-DSAPropertyValue -InputObject $definition -PropertyName 'Profiles'
     if (-not $profiles) {
         $null = $errors.Add('Profiles collection is missing.')
-    } else {
+    }
+    else {
         foreach ($profileKey in $profiles.Keys) {
             $profile = $profiles[$profileKey]
             $checks = Get-DSAPropertyValue -InputObject $profile -PropertyName 'Checks'
@@ -79,3 +81,4 @@ function Test-DSABaselineProfile {
         Errors  = $errors
     }
 }
+

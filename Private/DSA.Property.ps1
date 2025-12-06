@@ -1,3 +1,17 @@
+﻿<#
+.SYNOPSIS
+    Retrieve a property value from objects or hashtables with optional conversion.
+.DESCRIPTION
+    Iterates candidate property names on hashtables or PSObjects, returning a default or converted value when not present.
+.PARAMETER InputObject
+    Object or hashtable containing the property.
+.PARAMETER PropertyName
+    Property name(s) to attempt in order.
+.PARAMETER Default
+    Value returned when the property is absent.
+.PARAMETER As
+    Optional type to cast the value to before returning.
+#>
 function Get-DSAPropertyValue {
     [CmdletBinding()]
     param (
@@ -22,7 +36,8 @@ function Get-DSAPropertyValue {
                 $value = $InputObject[$name]
                 return (Convert-DSAPropertyValue -Value $value -As $As -Default $Default)
             }
-        } elseif ($InputObject.PSObject -and $InputObject.PSObject.Properties.Name -contains $name) {
+        }
+        elseif ($InputObject.PSObject -and $InputObject.PSObject.Properties.Name -contains $name) {
             $value = $InputObject.$name
             return (Convert-DSAPropertyValue -Value $value -As $As -Default $Default)
         }
@@ -31,6 +46,18 @@ function Get-DSAPropertyValue {
     return $Default
 }
 
+<#
+.SYNOPSIS
+    Convert a value to a specific type with a default fallback.
+.DESCRIPTION
+    Attempts to cast the supplied value to a requested type, returning a default when conversion yields null.
+.PARAMETER Value
+    Input value to convert.
+.PARAMETER As
+    Type to cast the value to.
+.PARAMETER Default
+    Fallback value when the cast fails or the input is null.
+#>
 function Convert-DSAPropertyValue {
     [CmdletBinding()]
     param (
@@ -47,6 +74,18 @@ function Convert-DSAPropertyValue {
     return $(if ($null -eq $result) { $Default } else { $result })
 }
 
+<#
+.SYNOPSIS
+    Extract a TTL value from common DNS-related property names.
+.DESCRIPTION
+    Searches candidate TTL property names on an object/hashtable and returns an integer value or default when absent.
+.PARAMETER InputObject
+    Object that may contain TTL properties.
+.PARAMETER PropertyName
+    Optional additional property names to search.
+.PARAMETER Default
+    Value to return when no TTL is found.
+#>
 function Get-DSATtlValue {
     [CmdletBinding()]
     param (
@@ -77,3 +116,4 @@ function Get-DSATtlValue {
 
     return Get-DSAPropertyValue -InputObject $InputObject -PropertyName $candidateNames -Default $Default -As ([int])
 }
+

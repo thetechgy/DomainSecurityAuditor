@@ -1,5 +1,5 @@
-function Invoke-DomainSecurityBaseline {
-<#
+﻿function Invoke-DomainSecurityBaseline {
+    <#
 .SYNOPSIS
     Execute the Domain Security Auditor baseline workflow for one or more domains.
 .DESCRIPTION
@@ -130,9 +130,9 @@ Resources:
                     $null = $directDomainSet.Add($trimmedDomain)
                     if ($defaultClassificationOverride) {
                         $domainMetadata[$trimmedDomain] = [pscustomobject]@{
-                            Domain                = $trimmedDomain
-                            Classification        = $defaultClassificationOverride
-                            ClassificationSource  = 'Parameter'
+                            Domain               = $trimmedDomain
+                            Classification       = $defaultClassificationOverride
+                            ClassificationSource = 'Parameter'
                         }
                     }
                 }
@@ -184,7 +184,8 @@ Resources:
             $showProgressEnabled = if ($PSBoundParameters.ContainsKey('ShowProgress')) { [bool]$ShowProgress } else { $true }
             if ($PSBoundParameters.ContainsKey('BaselineProfilePath')) {
                 $loadedBaseline = Get-DSABaseline -ProfilePath $BaselineProfilePath
-            } else {
+            }
+            else {
                 $loadedBaseline = Get-DSABaseline -ProfileName $Baseline
             }
             $baselineProfiles = $loadedBaseline.Profiles
@@ -228,15 +229,18 @@ Resources:
 
             Write-DSABaselineConsoleSummary -Profiles $resultArray -ReportPath $reportPath
             return
-        } catch {
+        }
+        catch {
             if ($logFile) {
                 Write-DSALog -Message "Unhandled error: $($_.Exception.Message)" -LogFile $logFile -Level 'ERROR'
             }
             throw
-        } finally {
+        }
+        finally {
             if ($context -and $context.TranscriptStarted) {
                 $null = Stop-Transcript
             }
         }
     }
 }
+
