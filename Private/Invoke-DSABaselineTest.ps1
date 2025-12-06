@@ -283,27 +283,49 @@ function Get-DSAOverallStatus {
         [System.Collections.IEnumerable]$Checks
     )
 
-    $statuses = @($Checks | ForEach-Object { $_.Status })
+    $statusCounts = @{
+        Fail    = 0
+        Warning = 0
+        Pass    = 0
+    }
+    $totalCount = 0
+    $dkimCount = 0
 
-    # If all checks belong to DKIM and all share the same status, honor that exact status to mirror per-selector breakdowns.
-    $dkimOnly = @($Checks | Where-Object { $_.Area -eq 'DKIM' })
-    if ($dkimOnly.Count -gt 0 -and $dkimOnly.Count -eq $Checks.Count) {
-        if ($statuses -and ($statuses | Where-Object { $_ -eq 'Fail' }).Count -eq $statuses.Count) {
+    foreach ($check in $Checks) {
+        if (-not $check) {
+            continue
+        }
+
+        $totalCount++
+        if ($check.Area -eq 'DKIM') {
+            $dkimCount++
+        }
+
+        switch ($check.Status) {
+            'Fail' { $statusCounts.Fail++ }
+            'Warning' { $statusCounts.Warning++ }
+            'Pass' { $statusCounts.Pass++ }
+        }
+    }
+
+    # If all checks belong to DKIM and share the same status, honor that exact status to mirror per-selector breakdowns.
+    if ($totalCount -gt 0 -and $dkimCount -eq $totalCount) {
+        if ($statusCounts.Fail -eq $totalCount) {
             return 'Fail'
         }
-        if ($statuses -and ($statuses | Where-Object { $_ -eq 'Warning' }).Count -eq $statuses.Count) {
+        if ($statusCounts.Warning -eq $totalCount) {
             return 'Warning'
         }
-        if ($statuses -and ($statuses | Where-Object { $_ -eq 'Pass' }).Count -eq $statuses.Count) {
+        if ($statusCounts.Pass -eq $totalCount) {
             return 'Pass'
         }
     }
 
-    if ($statuses -contains 'Fail') {
+    if ($statusCounts.Fail -gt 0) {
         return 'Fail'
     }
 
-    if ($statuses -contains 'Warning') {
+    if ($statusCounts.Warning -gt 0) {
         return 'Warning'
     }
 

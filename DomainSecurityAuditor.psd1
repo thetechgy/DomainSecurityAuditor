@@ -1,6 +1,6 @@
 @{
     RootModule        = 'DomainSecurityAuditor.psm1'
-    ModuleVersion     = '0.1.1'
+    ModuleVersion     = '0.1.2'
     GUID              = 'a5c3892b-1b29-4050-9dac-11a5d737da38'
     Author            = 'Travis McDade'
     CompanyName       = 'DomainSecurityAuditor'
@@ -29,6 +29,7 @@
             LicenseUri   = 'https://www.apache.org/licenses/LICENSE-2.0'
             ProjectUri   = 'https://github.com/thetechgy/DomainSecurityAuditor'
             ReleaseNotes = @'
+0.1.2 - 2025-11-21 - BREAKING: Default output now writes a summary; add -PassThru; capture DomainDetective warnings.
 0.1.1 - 2025-11-20 - Add CSV and CLI classification overrides with validation.
 0.1.0 - 2025-11-16 - Initial scaffolding of module structure and public entry point stub.
 '@

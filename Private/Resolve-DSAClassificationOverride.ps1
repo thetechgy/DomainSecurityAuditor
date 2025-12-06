@@ -63,31 +63,3 @@ function Get-DSAClassificationKey {
         default { return $Classification }
     }
 }
-
-function Get-DSAClassificationFromSummary {
-    param (
-        $Summary
-    )
-
-    if (-not $Summary) {
-        return 'Unknown'
-    }
-
-    $hasMx = [bool]$Summary.HasMxRecord
-    $hasSpf = [bool]$Summary.HasSpfRecord
-    $hasDmarc = [bool]$Summary.HasDmarcRecord
-
-    if ($hasMx -and ($hasSpf -or $hasDmarc)) {
-        return 'SendingAndReceiving'
-    }
-
-    if ($hasMx) {
-        return 'ReceivingOnly'
-    }
-
-    if ($hasSpf -or $hasDmarc) {
-        return 'SendingOnly'
-    }
-
-    return 'Parked'
-}

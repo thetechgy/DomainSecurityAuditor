@@ -30,13 +30,19 @@ function Write-DSALog {
     $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
     $entry = "{0} [{1}] {2}" -f $timestamp, $Level.ToUpperInvariant(), $Message
 
-    $logDirectory = Split-Path -Path $LogFile -Parent
-    if (-not (Test-Path -Path $logDirectory)) {
-        $null = New-Item -ItemType Directory -Path $logDirectory -Force
-    }
+    try {
+        $logDirectory = Split-Path -Path $LogFile -Parent
+        if (-not (Test-Path -Path $logDirectory)) {
+            $null = New-Item -ItemType Directory -Path $logDirectory -Force
+        }
 
-    Add-Content -Path $LogFile -Value $entry -Encoding UTF8
-    if ($PSBoundParameters.ContainsKey('Verbose') -or $VerbosePreference -ne 'SilentlyContinue') {
-        Write-Verbose -Message $entry
+        Add-Content -Path $LogFile -Value $entry -Encoding UTF8
+        if ($PSBoundParameters.ContainsKey('Verbose') -or $VerbosePreference -ne 'SilentlyContinue') {
+            Write-Verbose -Message $entry
+        }
+    } catch {
+        $errorMessage = "Failed to write log entry to '$LogFile': $($_.Exception.Message)"
+        Write-Warning -Message $errorMessage
+        throw
     }
 }

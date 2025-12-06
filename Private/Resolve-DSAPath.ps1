@@ -40,8 +40,9 @@ function Resolve-DSAPath {
     }
 
     # Limit path length to leave headroom for child items within the 260-character Windows maximum
-    if ($expandedPath.Length -gt 180) {
-        throw "Resolved path '$expandedPath' exceeds the 180-character limit."
+    $maxPathLength = 220
+    if ($expandedPath.Length -gt $maxPathLength) {
+        throw "Resolved path '$expandedPath' exceeds the $maxPathLength-character limit."
     }
 
     return $expandedPath

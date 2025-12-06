@@ -80,7 +80,7 @@ function Publish-DSAHtmlReport {
     $null = $builder.AppendLine('      <a class="back-to-top" href="#main-content" aria-label="Back to the top of the report">↑ Back to top</a>')
     $null = $builder.AppendLine('    </div>')
 
-    $null = $builder.AppendLine('  </div>')
+    $null = $builder.AppendLine('  </main>')
     $null = $builder.AppendLine('  <script>')
     $null = $builder.AppendLine((Get-DSAReportScript))
     $null = $builder.AppendLine('  </script>')

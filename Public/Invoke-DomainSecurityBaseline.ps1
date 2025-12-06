@@ -95,7 +95,7 @@ Resources:
         [string]$Baseline = 'Default',
         [string]$BaselineProfilePath,
         [switch]$SkipReportLaunch,
-        [switch]$ShowProgress = $true,
+        [switch]$ShowProgress,
         [switch]$PassThru
         #endregion Parameters
     )
@@ -186,6 +186,7 @@ Resources:
             $results = [System.Collections.Generic.List[object]]::new()
             $domainCount = $targetDomains.Count
             $currentIndex = 0
+            $showProgressEnabled = if ($PSBoundParameters.ContainsKey('ShowProgress')) { [bool]$ShowProgress } else { $true }
             if ($PSBoundParameters.ContainsKey('BaselineProfilePath')) {
                 $loadedBaseline = Get-DSABaseline -ProfilePath $BaselineProfilePath
             } else {
@@ -206,11 +207,11 @@ Resources:
                     -LogFile $logFile `
                     -CurrentIndex $currentIndex `
                     -TotalCount $domainCount `
-                    -ShowProgress:$ShowProgress
+                    -ShowProgress:$showProgressEnabled
                 $null = $results.Add($runResult)
             }
 
-            if ($ShowProgress) {
+            if ($showProgressEnabled) {
                 Write-Progress -Activity 'Domain Security Baseline' -Completed
             }
 
