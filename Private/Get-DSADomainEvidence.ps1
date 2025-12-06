@@ -20,17 +20,7 @@ function Get-DSADomainEvidence {
         [string]$DNSEndpoint
     )
 
-    try {
-        if (-not (Get-Module -Name DomainDetective -ErrorAction SilentlyContinue)) {
-            Import-Module -Name DomainDetective -ErrorAction Stop | Out-Null
-        }
-    } catch {
-        $message = "DomainDetective module import failed: $($_.Exception.Message)"
-        if ($LogFile) {
-            Write-DSALog -Message $message -LogFile $LogFile -Level 'ERROR'
-        }
-        throw $message
-    }
+    Import-DSADomainDetectiveModule -LogFile $LogFile
 
     $dnsEndpointObject = $null
     if ($PSBoundParameters.ContainsKey('DNSEndpoint') -and -not [string]::IsNullOrWhiteSpace($DNSEndpoint)) {

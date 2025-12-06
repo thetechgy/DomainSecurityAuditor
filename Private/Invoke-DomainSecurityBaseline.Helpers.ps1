@@ -146,6 +146,91 @@ function Get-DSADomainInputState {
     }
 }
 
+function Resolve-DSADomainContext {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$DomainName,
+
+        [Parameter(Mandatory = $true)]
+        [hashtable]$DomainMetadata,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.HashSet[string]]$DirectDomainSet,
+
+        [string]$DefaultClassificationOverride,
+
+        [string[]]$GlobalDkimSelectors,
+
+        [string]$ResolvedDnsEndpoint,
+
+        [string]$LogFile
+    )
+
+    $classificationOverride = $null
+    $classificationSource = $null
+    $metadataRecord = $null
+    $dkimSelectors = $null
+
+    if ($DomainMetadata.ContainsKey($DomainName)) {
+        $metadataRecord = $DomainMetadata[$DomainName]
+        if ($metadataRecord -and $metadataRecord.PSObject.Properties.Name -contains 'Classification') {
+            $classificationCandidate = $metadataRecord.Classification
+            if (-not [string]::IsNullOrWhiteSpace($classificationCandidate)) {
+                $classificationOverride = $classificationCandidate.Trim()
+            }
+        }
+        if ($metadataRecord -and $metadataRecord.PSObject.Properties.Name -contains 'ClassificationSource') {
+            $classificationSource = $metadataRecord.ClassificationSource
+        }
+
+        if ($metadataRecord -and $metadataRecord.PSObject.Properties.Name -contains 'DkimSelectors') {
+            $dkimSelectors = @($metadataRecord.DkimSelectors | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        }
+    }
+
+    if (-not $classificationOverride -and $DefaultClassificationOverride -and $DirectDomainSet.Contains($DomainName)) {
+        $classificationOverride = $DefaultClassificationOverride
+        $classificationSource = 'Parameter'
+    }
+
+    if (-not $dkimSelectors -and $GlobalDkimSelectors) {
+        $dkimSelectors = $GlobalDkimSelectors
+    }
+
+    if ($classificationOverride) {
+        $sourceText = switch ($classificationSource) {
+            'CSV' { 'CSV metadata' }
+            'Parameter' { 'command parameter' }
+            default { 'metadata' }
+        }
+        if ($LogFile) {
+            Write-DSALog -Message ("Classification override '{0}' detected for '{1}' from {2}." -f $classificationOverride, $DomainName, $sourceText) -LogFile $LogFile -Level 'INFO'
+        }
+    }
+
+    if ($LogFile) {
+        if ($dkimSelectors) {
+            Write-DSALog -Message ("Using custom DKIM selectors for '{0}': {1}" -f $DomainName, ($dkimSelectors -join ', ')) -LogFile $LogFile -Level 'DEBUG'
+        } else {
+            Write-DSALog -Message ("Using DomainDetective default DKIM selectors for '{0}'." -f $DomainName) -LogFile $LogFile -Level 'DEBUG'
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ResolvedDnsEndpoint) -and $LogFile) {
+        Write-DSALog -Message ("Using DNS endpoint '{0}' for '{1}'." -f $ResolvedDnsEndpoint, $DomainName) -LogFile $LogFile -Level 'DEBUG'
+    }
+
+    return [pscustomobject]@{
+        ClassificationOverride = $classificationOverride
+        ClassificationSource   = $classificationSource
+        DkimSelectors          = $dkimSelectors
+        ResolvedDnsEndpoint    = $ResolvedDnsEndpoint
+    }
+}
+
 function Invoke-DSADomainRun {
     [CmdletBinding()]
     param (
@@ -191,43 +276,7 @@ function Invoke-DSADomainRun {
         Write-Progress @progressSplat
     }
 
-    $classificationOverride = $null
-    $classificationSource = $null
-    $metadataRecord = $null
-    if ($DomainMetadata.ContainsKey($DomainName)) {
-        $metadataRecord = $DomainMetadata[$DomainName]
-        if ($metadataRecord -and $metadataRecord.PSObject.Properties.Name -contains 'Classification') {
-            $classificationCandidate = $metadataRecord.Classification
-            if (-not [string]::IsNullOrWhiteSpace($classificationCandidate)) {
-                $classificationOverride = $classificationCandidate.Trim()
-            }
-        }
-        if ($metadataRecord -and $metadataRecord.PSObject.Properties.Name -contains 'ClassificationSource') {
-            $classificationSource = $metadataRecord.ClassificationSource
-        }
-    } elseif ($DefaultClassificationOverride -and $DirectDomainSet.Contains($DomainName)) {
-        $classificationOverride = $DefaultClassificationOverride
-        $classificationSource = 'Parameter'
-    }
-
-    if ($classificationOverride) {
-        $sourceText = switch ($classificationSource) {
-            'CSV' { 'CSV metadata' }
-            'Parameter' { 'command parameter' }
-            default { 'metadata' }
-        }
-        if ($LogFile) {
-            Write-DSALog -Message ("Classification override '{0}' detected for '{1}' from {2}." -f $classificationOverride, $DomainName, $sourceText) -LogFile $LogFile -Level 'INFO'
-        }
-    }
-
-    $effectiveDkimSelectors = $null
-    if ($metadataRecord -and $metadataRecord.PSObject.Properties.Name -contains 'DkimSelectors') {
-        $effectiveDkimSelectors = @($metadataRecord.DkimSelectors | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-    }
-    if (-not $effectiveDkimSelectors -and $GlobalDkimSelectors) {
-        $effectiveDkimSelectors = $GlobalDkimSelectors
-    }
+    $domainContext = Resolve-DSADomainContext -DomainName $DomainName -DomainMetadata $DomainMetadata -DirectDomainSet $DirectDomainSet -DefaultClassificationOverride $DefaultClassificationOverride -GlobalDkimSelectors $GlobalDkimSelectors -ResolvedDnsEndpoint $ResolvedDnsEndpoint -LogFile $LogFile
 
     if ($LogFile) {
         Write-DSALog -Message "Collecting evidence for '$DomainName'." -LogFile $LogFile -Level 'DEBUG'
@@ -237,41 +286,16 @@ function Invoke-DSADomainRun {
         Domain  = $DomainName
         LogFile = $LogFile
     }
-    if ($effectiveDkimSelectors) {
-        $evidenceParams.DkimSelector = $effectiveDkimSelectors
-        if ($LogFile) {
-            Write-DSALog -Message ("Using custom DKIM selectors for '{0}': {1}" -f $DomainName, ($effectiveDkimSelectors -join ', ')) -LogFile $LogFile -Level 'DEBUG'
-        }
-    } elseif ($LogFile) {
-        Write-DSALog -Message ("Using DomainDetective default DKIM selectors for '{0}'." -f $DomainName) -LogFile $LogFile -Level 'DEBUG'
+    if ($domainContext.DkimSelectors) {
+        $evidenceParams.DkimSelector = $domainContext.DkimSelectors
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($ResolvedDnsEndpoint)) {
-        $evidenceParams.DNSEndpoint = $ResolvedDnsEndpoint
-        if ($LogFile) {
-            Write-DSALog -Message ("Using DNS endpoint '{0}' for '{1}'." -f $ResolvedDnsEndpoint, $DomainName) -LogFile $LogFile -Level 'DEBUG'
-        }
+    if (-not [string]::IsNullOrWhiteSpace($domainContext.ResolvedDnsEndpoint)) {
+        $evidenceParams.DNSEndpoint = $domainContext.ResolvedDnsEndpoint
     }
 
     $evidence = Get-DSADomainEvidence @evidenceParams
-    $profile = Invoke-DSABaselineTest -DomainEvidence $evidence -BaselineDefinition $BaselineProfiles -ClassificationOverride $classificationOverride
-
-    if ($profile.Checks -and $evidence.PSObject.Properties.Name -contains 'Records' -and $evidence.Records.PSObject.Properties.Name -contains 'DKIMSelectorDetails') {
-        $dkimSelectors = $evidence.Records.DKIMSelectorDetails
-        $adjustedChecks = [System.Collections.Generic.List[object]]::new()
-        foreach ($check in $profile.Checks) {
-            if ($check.Area -eq 'DKIM' -and $dkimSelectors) {
-                $effectiveStatus = Get-DSADkimEffectiveStatus -Check $check -Selectors $dkimSelectors
-                $clone = $check.PSObject.Copy()
-                $clone | Add-Member -NotePropertyName 'Status' -NotePropertyValue $effectiveStatus -Force
-                $null = $adjustedChecks.Add($clone)
-            } else {
-                $null = $adjustedChecks.Add($check)
-            }
-        }
-        $profile.Checks = $adjustedChecks.ToArray()
-        $profile.OverallStatus = Get-DSAOverallStatus -Checks $profile.Checks
-    }
+    $profile = Invoke-DSABaselineTest -DomainEvidence $evidence -BaselineDefinition $BaselineProfiles -ClassificationOverride $domainContext.ClassificationOverride
 
     $profileWithMetadata = [pscustomobject]@{
         Domain                 = $profile.Domain
@@ -311,13 +335,15 @@ function Write-DSABaselineConsoleSummary {
     }
 
     foreach ($profile in $Profiles) {
-        foreach ($check in ($profile.Checks | Where-Object { $_ })) {
-            switch ($check.Status) {
-                'Pass' { $statusCounts.Pass++ }
-                'Fail' { $statusCounts.Fail++ }
-                'Warning' { $statusCounts.Warning++ }
-            }
+        $selectorDetails = $null
+        if ($profile -and $profile.PSObject.Properties.Name -contains 'Evidence' -and $profile.Evidence -and $profile.Evidence.PSObject.Properties.Name -contains 'DKIMSelectorDetails') {
+            $selectorDetails = $profile.Evidence.DKIMSelectorDetails
         }
+        $checks = Get-DSAEffectiveChecks -Checks ($profile.Checks | Where-Object { $_ }) -SelectorDetails $selectorDetails
+        $counts = Get-DSAStatusCounts -Checks $checks
+        $statusCounts.Pass += $counts.Pass
+        $statusCounts.Fail += $counts.Fail
+        $statusCounts.Warning += $counts.Warning
     }
 
     $domainCount = ($Profiles | Measure-Object).Count

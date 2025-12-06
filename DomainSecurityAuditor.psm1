@@ -30,6 +30,9 @@ $ErrorActionPreference = 'Stop'
 $script:ModuleRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $script:DefaultLogRoot = Join-Path -Path $script:ModuleRoot -ChildPath 'Logs'
 $script:DefaultOutputRoot = Join-Path -Path $script:ModuleRoot -ChildPath 'Output'
+$script:DSAConditionDefinitions = $null
+$script:DSADomainDetectiveLoaded = $false
+$script:DSAKnownReferenceLinks = @{}
 #endregion ModuleInitialization
 
 #region PrivateHelpers

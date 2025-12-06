@@ -176,12 +176,7 @@ Resources:
                 return
             }
 
-            $dependencyResult = Test-DSADependency -Name @('DomainDetective', 'Pester', 'PSScriptAnalyzer') -AttemptInstallation -LogFile $logFile
-            if (-not $dependencyResult.IsCompliant) {
-                $missing = $dependencyResult.MissingModules -join ', '
-                Write-DSALog -Message "Missing dependencies: $missing" -LogFile $logFile -Level 'ERROR'
-                throw "Missing dependencies: $missing"
-            }
+            Confirm-DSADependencies -Name @('DomainDetective', 'Pester', 'PSScriptAnalyzer') -AttemptInstallation -LogFile $logFile
 
             $results = [System.Collections.Generic.List[object]]::new()
             $domainCount = $targetDomains.Count

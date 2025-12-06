@@ -86,14 +86,20 @@ function Invoke-DSABaselineTest {
         $null = $checkResults.Add($result)
     }
 
-    $overallStatus = Get-DSAOverallStatus -Checks $checkResults
+    $selectorDetails = $null
+    if ($DomainEvidence.PSObject.Properties.Name -contains 'Records' -and $DomainEvidence.Records -and $DomainEvidence.Records.PSObject.Properties.Name -contains 'DKIMSelectorDetails') {
+        $selectorDetails = $DomainEvidence.Records.DKIMSelectorDetails
+    }
+
+    $effectiveChecks = Get-DSAEffectiveChecks -Checks $checkResults -SelectorDetails $selectorDetails
+    $overallStatus = Get-DSAOverallStatus -Checks $effectiveChecks
     return [pscustomobject]@{
         Domain                 = $DomainEvidence.Domain
         Classification         = $profileDefinition.Name
         OriginalClassification = $DomainEvidence.Classification
         ClassificationOverride = $ClassificationOverride
         OverallStatus          = $overallStatus
-        Checks                 = $checkResults.ToArray()
+        Checks                 = $effectiveChecks
     }
 }
 
@@ -138,198 +144,12 @@ function Test-DSABaselineCondition {
         [object]$ExpectedValue
     )
 
-    switch ($Condition) {
-        'MustExist' {
-            return Test-DSAHasValue -Value $Value
-        }
-        'MustBeNull' {
-            return -not (Test-DSAHasValue -Value $Value)
-        }
-        'MustContain' {
-            if (-not (Test-DSAHasValue -Value $Value)) {
-                return $false
-            }
-
-            $expected = $ExpectedValue ?? ''
-            if ($Value -is [System.Collections.IEnumerable] -and -not ($Value -is [string])) {
-                foreach ($item in $Value) {
-                    if (($item ?? '') -match [regex]::Escape($expected)) {
-                        return $true
-                    }
-                }
-                return $false
-            }
-
-            return (($Value ?? '') -match [regex]::Escape($expected))
-        }
-        'MustNotContain' {
-            if (-not (Test-DSAHasValue -Value $Value)) {
-                return $true
-            }
-
-            $expectedValues = ConvertTo-DSABaselineArray -Value $ExpectedValue
-            foreach ($expected in $expectedValues) {
-                if ($Value -is [System.Collections.IEnumerable] -and -not ($Value -is [string])) {
-                    foreach ($item in $Value) {
-                        if (([string]$item) -like "*$expected*") {
-                            return $false
-                        }
-                    }
-                } elseif (([string]$Value) -like "*$expected*") {
-                    return $false
-                }
-            }
-
-            return $true
-        }
-        'MustEqual' {
-            if (-not (Test-DSAHasValue -Value $Value)) {
-                return $false
-            }
-
-            return [string]::Equals($Value, $ExpectedValue, [System.StringComparison]::OrdinalIgnoreCase)
-        }
-        'MustBeOneOf' {
-            if (-not (Test-DSAHasValue -Value $Value)) {
-                return $false
-            }
-
-            $choices = ConvertTo-DSABaselineArray -Value $ExpectedValue
-            $normalizedValue = $Value.ToString()
-            foreach ($choice in $choices) {
-                if ([string]::Equals($normalizedValue, $choice, [System.StringComparison]::OrdinalIgnoreCase)) {
-                    return $true
-                }
-            }
-
-            return $false
-        }
-        'LessThanOrEqual' {
-            $numericValue = ConvertTo-DSADouble -Value $Value
-            $expectedNumber = ConvertTo-DSADouble -Value $ExpectedValue
-            if ($null -eq $numericValue -or $null -eq $expectedNumber) {
-                return $false
-            }
-
-            return $numericValue -le $expectedNumber
-        }
-        'GreaterThanOrEqual' {
-            $numericValue = ConvertTo-DSADouble -Value $Value
-            $expectedNumber = ConvertTo-DSADouble -Value $ExpectedValue
-            if ($null -eq $numericValue -or $null -eq $expectedNumber) {
-                return $false
-            }
-
-            return $numericValue -ge $expectedNumber
-        }
-        'BetweenInclusive' {
-            if (-not (Test-DSAHasValue -Value $Value)) {
-                return $false
-            }
-
-            $numericValue = ConvertTo-DSADouble -Value $Value
-            if ($null -eq $numericValue) {
-                return $false
-            }
-
-            if ($null -eq $ExpectedValue) {
-                return $false
-            }
-
-            $min = Get-DSABaselinePropertyValue -InputObject $ExpectedValue -Name 'Min'
-            $max = Get-DSABaselinePropertyValue -InputObject $ExpectedValue -Name 'Max'
-            if ($null -ne $min -and $numericValue -lt (ConvertTo-DSADouble -Value $min)) {
-                return $false
-            }
-
-            if ($null -ne $max -and $numericValue -gt (ConvertTo-DSADouble -Value $max)) {
-                return $false
-            }
-
-            return $true
-        }
-        'MustBeFalse' {
-            return -not [bool]$Value
-        }
-        'MustBeTrue' {
-            return [bool]$Value
-        }
-        'MustBeEmpty' {
-            if ($null -eq $Value) {
-                return $true
-            }
-
-            if ($Value -is [string]) {
-                return [string]::IsNullOrWhiteSpace($Value)
-            }
-
-            if ($Value -is [System.Collections.IEnumerable]) {
-                $items = @($Value)
-                return $items.Count -eq 0
-            }
-
-            return $false
-        }
-        default {
-            return $false
-        }
-    }
-}
-
-function Get-DSAOverallStatus {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory = $true)]
-        [System.Collections.IEnumerable]$Checks
-    )
-
-    $statusCounts = @{
-        Fail    = 0
-        Warning = 0
-        Pass    = 0
-    }
-    $totalCount = 0
-    $dkimCount = 0
-
-    foreach ($check in $Checks) {
-        if (-not $check) {
-            continue
-        }
-
-        $totalCount++
-        if ($check.Area -eq 'DKIM') {
-            $dkimCount++
-        }
-
-        switch ($check.Status) {
-            'Fail' { $statusCounts.Fail++ }
-            'Warning' { $statusCounts.Warning++ }
-            'Pass' { $statusCounts.Pass++ }
-        }
+    $definition = Get-DSAConditionDefinition -Name $Condition
+    if (-not $definition -or -not $definition.Evaluate) {
+        return $false
     }
 
-    # If all checks belong to DKIM and share the same status, honor that exact status to mirror per-selector breakdowns.
-    if ($totalCount -gt 0 -and $dkimCount -eq $totalCount) {
-        if ($statusCounts.Fail -eq $totalCount) {
-            return 'Fail'
-        }
-        if ($statusCounts.Warning -eq $totalCount) {
-            return 'Warning'
-        }
-        if ($statusCounts.Pass -eq $totalCount) {
-            return 'Pass'
-        }
-    }
-
-    if ($statusCounts.Fail -gt 0) {
-        return 'Fail'
-    }
-
-    if ($statusCounts.Warning -gt 0) {
-        return 'Warning'
-    }
-
-    return 'Pass'
+    return & $definition.Evaluate $Value $ExpectedValue
 }
 
 function Get-DSABaselinePropertyValue {
