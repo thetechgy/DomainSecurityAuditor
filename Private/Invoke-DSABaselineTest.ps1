@@ -276,49 +276,6 @@ function Test-DSABaselineCondition {
     }
 }
 
-function Test-DSAHasValue {
-    [CmdletBinding()]
-    param (
-        $Value
-    )
-
-    if ($null -eq $Value) {
-        return $false
-    }
-
-    if ($Value -is [string]) {
-        return -not [string]::IsNullOrWhiteSpace($Value)
-    }
-
-    if ($Value -is [System.Collections.IEnumerable]) {
-        $enumerated = @($Value)
-        return $enumerated.Count -gt 0
-    }
-
-    return $true
-}
-
-function Format-DSAActualValue {
-    [CmdletBinding()]
-    param (
-        $Value
-    )
-
-    if (-not (Test-DSAHasValue -Value $Value)) {
-        return 'None'
-    }
-
-    if ($Value -is [System.Collections.IEnumerable] -and -not ($Value -is [string])) {
-        $flattened = @($Value | Where-Object { $_ -ne $null })
-        if ($flattened.Count -eq 0) {
-            return 'None'
-        }
-        return ($flattened -join ', ')
-    }
-
-    return $Value.ToString()
-}
-
 function Get-DSAOverallStatus {
     [CmdletBinding()]
     param (
@@ -351,75 +308,6 @@ function Get-DSAOverallStatus {
     }
 
     return 'Pass'
-}
-
-function ConvertTo-DSABaselineArray {
-    param (
-        $Value
-    )
-
-    if ($Value -is [System.Collections.IEnumerable] -and -not ($Value -is [string])) {
-        return @($Value)
-    }
-
-    if ($null -eq $Value) {
-        return @()
-    }
-
-    return @($Value)
-}
-
-function ConvertTo-DSADouble {
-<#
-.SYNOPSIS
-    Converts a value to a double using culture-invariant parsing.
-.DESCRIPTION
-    Attempts to parse the input value as a double using invariant culture rules.
-    Returns null if parsing fails or input is null.
-#>
-    param (
-        $Value
-    )
-
-    if ($null -eq $Value) {
-        return $null
-    }
-
-    $number = 0.0
-    $style = [System.Globalization.NumberStyles]::Float
-    $culture = [System.Globalization.CultureInfo]::InvariantCulture
-    if ([double]::TryParse($Value.ToString(), $style, $culture, [ref]$number)) {
-        return $number
-    }
-
-    return $null
-}
-
-function Get-DSAClassificationKey {
-<#
-.SYNOPSIS
-    Normalizes a classification string to its canonical key form.
-.DESCRIPTION
-    Converts classification values like 'sending-only' or 'SendingOnly' to the
-    standard key format used in baseline profiles.
-#>
-    [CmdletBinding()]
-    param (
-        [string]$Classification
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Classification)) {
-        return $null
-    }
-
-    $normalized = ($Classification -replace '[^a-zA-Z]', '').ToLowerInvariant()
-    switch ($normalized) {
-        'sendingonly' { return 'SendingOnly' }
-        'receivingonly' { return 'ReceivingOnly' }
-        'sendingandreceiving' { return 'SendingAndReceiving' }
-        'parked' { return 'Parked' }
-        default { return $Classification }
-    }
 }
 
 function Get-DSABaselinePropertyValue {

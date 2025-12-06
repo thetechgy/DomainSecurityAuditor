@@ -374,7 +374,7 @@ function Get-DSAReportSummary {
     foreach ($profile in $profileList) {
         $checks = if ($profile.Checks) { @($profile.Checks | Where-Object { $_ }) } else { @() }
         $selectorDetails = $null
-        if ($profile.PSObject.Properties.Name -contains 'Evidence' -and $profile.Evidence.PSObject.Properties.Name -contains 'DKIMSelectorDetails') {
+        if ($profile -and $profile.PSObject.Properties['Evidence'] -and $profile.Evidence -and $profile.Evidence.PSObject.Properties['DKIMSelectorDetails']) {
             $selectorDetails = $profile.Evidence.DKIMSelectorDetails
         }
         foreach ($check in $checks) {
@@ -1374,15 +1374,28 @@ function Add-DSADkimSelectorBreakdown {
     $null = $Builder.AppendLine('                  <div class="dkim-selector-grid">')
 
     foreach ($selector in $selectorList) {
-        $found = if ($selector.PSObject.Properties.Name -contains 'Found') { [bool]$selector.Found } else { $true }
+        $found = if ($selector.PSObject.Properties.Name -contains 'Found') {
+            [bool]$selector.Found
+        } elseif ($selector.PSObject.Properties.Name -contains 'DkimRecordExists') {
+            [bool]$selector.DkimRecordExists
+        } else {
+            $true
+        }
         $keyLengthValue = if ($selector.KeyLength) { $selector.KeyLength } else { 'Unknown' }
-        $ttlValue = if ($selector.Ttl) { $selector.Ttl } else { 'Unknown' }
+        $ttlValue = if ($selector.PSObject.Properties.Name -contains 'DnsRecordTtl' -and $selector.DnsRecordTtl) {
+            $selector.DnsRecordTtl
+        } elseif ($selector.Ttl) {
+            $selector.Ttl
+        } else {
+            'Unknown'
+        }
+        $selectorName = if ($selector.PSObject.Properties.Name -contains 'Name') { $selector.Name } else { $selector.Selector }
 
         $status = Get-DSADkimSelectorStatus -Selector $selector -Check $Check
         $statusClass = Get-DSAStatusClassName -Status $status
 
         $null = $Builder.AppendLine(("                    <div class=""selector-card {0}"">" -f $statusClass))
-        $null = $Builder.AppendLine(("                      <div class=""selector-name"">{0}</div>" -f (ConvertTo-DSAHtml $selector.Name)))
+        $null = $Builder.AppendLine(("                      <div class=""selector-name"">{0}</div>" -f (ConvertTo-DSAHtml $selectorName)))
         $null = $Builder.AppendLine(("                      <div class=""selector-status {0}"">{1}</div>" -f $statusClass, (ConvertTo-DSAHtml $status)))
         $null = $Builder.AppendLine('                      <div class="selector-meta">')
         if ($Check.Id -eq 'DKIMKeyStrength') {
@@ -1402,71 +1415,6 @@ function Add-DSADkimSelectorBreakdown {
     $null = $Builder.AppendLine('                </div>')
 }
 
-function Get-DSADkimSelectorStatus {
-    param (
-        [Parameter(Mandatory = $true)][pscustomobject]$Selector,
-        [Parameter(Mandatory = $true)][pscustomobject]$Check
-    )
-
-    $found = if ($Selector.PSObject.Properties.Name -contains 'Found') { [bool]$Selector.Found } else { $true }
-    $keyLength = $Selector.KeyLength
-    $ttl = $Selector.Ttl
-    $isValid = if ($Selector.PSObject.Properties.Name -contains 'IsValid') { [bool]$Selector.IsValid } else { $true }
-
-    switch ($Check.Id) {
-        'DKIMSelectorPresence' {
-            return $(if ($found) { 'Pass' } else { 'Fail' })
-        }
-        'DKIMKeyStrength' {
-            $min = if ($Check.PSObject.Properties.Name -contains 'ExpectedValue') { $Check.ExpectedValue } else { 1024 }
-            $passesKey = $keyLength -as [int] -ge $min
-            return $(if ($found -and $passesKey -and $isValid) { 'Pass' } else { 'Fail' })
-        }
-        'DKIMSelectorHealth' {
-            $min = 1024
-            $passesKey = $keyLength -as [int] -ge $min
-            return $(if ($found -and $isValid -and $passesKey) { 'Pass' } else { 'Fail' })
-        }
-        'DKIMTtl' {
-            $min = $null
-            $max = $null
-            if ($Check.PSObject.Properties.Name -contains 'ExpectedValue') {
-                $min = $Check.ExpectedValue.Min
-                $max = $Check.ExpectedValue.Max
-            }
-            $ttlNumber = $ttl -as [int]
-            $passTtl = $false
-            if ($ttlNumber -and $min -and $max) {
-                $passTtl = ($ttlNumber -ge $min -and $ttlNumber -le $max)
-            }
-            return $(if ($passTtl) { 'Pass' } else { 'Fail' })
-        }
-        default {
-            return $(if ($found -and $isValid) { 'Pass' } else { 'Fail' })
-        }
-    }
-}
-
-function Get-DSADkimEffectiveStatus {
-    param (
-        [Parameter(Mandatory = $true)][pscustomobject]$Check,
-        [pscustomobject[]]$Selectors
-    )
-
-    $effectiveStatus = $Check.Status
-    if ($Selectors -and $Check.Area -eq 'DKIM' -and ($Check.Id -in @('DKIMKeyStrength','DKIMTtl','DKIMSelectorHealth','DKIMSelectorPresence'))) {
-        $selectorStatuses = @($Selectors | ForEach-Object { Get-DSADkimSelectorStatus -Selector $_ -Check $Check })
-        if ($selectorStatuses -contains 'Fail') {
-            $effectiveStatus = 'Fail'
-        } elseif ($selectorStatuses -contains 'Warning') {
-            $effectiveStatus = 'Warning'
-        } elseif ($selectorStatuses -contains 'Pass') {
-            $effectiveStatus = 'Pass'
-        }
-    }
-
-    return $effectiveStatus
-}
 function Get-DSAAreaStatus {
     param (
         [Parameter(Mandatory = $true)][System.Collections.IEnumerable]$Checks

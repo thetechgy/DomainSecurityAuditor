@@ -33,7 +33,17 @@ BeforeAll {
         SPFWildcardConfigured = $true
         SPFUnsafeMechanisms   = @()
         DKIMSelectors         = @('selector1')
-        DKIMSelectorDetails   = @([pscustomobject]@{ Name = 'selector1'; KeyLength = 2048; IsValid = $true; TTL = 3600 })
+        DKIMSelectorDetails   = @(
+            [pscustomobject]@{
+                Selector         = 'selector1'
+                DkimRecordExists = $true
+                KeyLength        = 2048
+                ValidPublicKey   = $true
+                ValidRsaKeyLength = $true
+                WeakKey          = $false
+                DnsRecordTtl     = 3600
+            }
+        )
         DKIMMinKeyLength      = 2048
         DKIMWeakSelectors     = 0
         DKIMMinimumTtl        = 3600
@@ -466,161 +476,200 @@ invalid.example,Unknown
 }
 
 Describe 'Get-DSADomainEvidence' {
-    It 'forwards DNSEndpoint to DomainDetective health checks' {
+    It 'forwards DNSEndpoint to DomainDetective cmdlets and maps evidence' {
         InModuleScope DomainSecurityAuditor {
             Mock -CommandName Write-DSALog -MockWith { }
             Mock -CommandName Get-Module -MockWith { $null }
             Mock -CommandName Import-Module -MockWith { }
-            Mock -CommandName Test-DDDomainOverallHealth -MockWith {
-                [pscustomobject]@{
+
+            $script:capturedDnsEndpoint = $null
+            $script:capturedMtastsEndpoint = $null
+
+            $spfResult = [pscustomobject]@{
+                SpfRecord       = 'v=spf1 -all'
+                DnsLookupsCount = 0
+                DnsRecordTtl    = 3600
+                UnknownMechanisms = @()
+                Raw             = [pscustomobject]@{
+                    SpfRecords        = @('v=spf1 -all')
+                    AllMechanism      = '-all'
+                    HasPtrType        = $false
+                    IncludeRecords    = @()
+                    UnknownMechanisms = @()
+                }
+            }
+            function Test-DDEmailSpfRecord {
+                param($DomainName, $DnsEndpoint)
+                $script:capturedDnsEndpoint = $DnsEndpoint
+                return $spfResult
+            }
+            function Test-DDEmailDkimRecord {
+                param($DomainName, $Selectors, $DnsEndpoint)
+                return @(
+                    [pscustomobject]@{
+                        Selector          = 'selector1'
+                        DkimRecordExists  = $true
+                        KeyLength         = 2048
+                        WeakKey           = $false
+                        ValidPublicKey    = $true
+                        ValidRsaKeyLength = $true
+                        DnsRecordTtl      = 600
+                    }
+                )
+            }
+            function Test-DDEmailDmarcRecord {
+                param($DomainName, $DnsEndpoint)
+                return [pscustomobject]@{
+                    DmarcRecord = 'v=DMARC1; p=reject'
+                    Policy      = 'reject'
+                    MailtoRua   = @()
+                    HttpRua     = @()
+                    MailtoRuf   = @()
+                    HttpRuf     = @()
+                    DnsRecordTtl = 400
+                    Raw         = [pscustomobject]@{}
+                }
+            }
+            function Test-DDDnsMxRecord {
+                param($DomainName, $DnsEndpoint)
+                return [pscustomobject]@{
+                    MxRecords  = @('mx1.example')
+                    HasNullMx  = $false
+                    MxRecordTtl = 1200
+                }
+            }
+            function Test-DDEmailTlsRptRecord {
+                param($DomainName, $DnsEndpoint)
+                return [pscustomobject]@{
+                    TlsRptRecordExists = $true
+                    MailtoRua          = @('mailto:tls@example.com')
+                    HttpRua            = @()
+                    DnsRecordTtl       = 900
+                }
+            }
+            function Test-DDMailDomainClassification {
+                param($DomainName, $DnsEndpoint)
+                return [pscustomobject]@{ Classification = 'SendingAndReceiving'; Raw = [pscustomobject]@{} }
+            }
+            function Test-DDDomainOverallHealth {
+                param($DomainName, $HealthCheckType, $DnsEndpoint)
+                $script:capturedMtastsEndpoint = $DnsEndpoint
+                return [pscustomobject]@{
                     Raw = [pscustomobject]@{
-                        Summary       = [pscustomobject]@{ HasMxRecord = $true; HasSpfRecord = $true; HasDmarcRecord = $true }
-                        MXAnalysis     = [pscustomobject]@{ MxRecords = @('mx1.example'); HasNullMx = $false }
-                        SpfAnalysis    = [pscustomobject]@{
-                            SpfRecord        = 'v=spf1 -all'
-                            SpfRecords       = @('v=spf1 -all')
-                            DnsLookupsCount  = 0
-                            AllMechanism     = '-all'
-                            HasPtrType       = $false
-                            IncludeRecords   = @()
-                            UnknownMechanisms = @()
-                        }
-                        DKIMAnalysis   = [pscustomobject]@{
-                            AnalysisResults = @{
-                                'selector1' = [pscustomobject]@{ KeyLength = 2048; Ttl = 3600; IsValid = $true }
-                            }
-                        }
-                        DmarcAnalysis  = [pscustomobject]@{
-                            DmarcRecord = 'v=DMARC1; p=reject'
-                            Policy      = 'reject'
-                            MailtoRua   = @()
-                            HttpRua     = @()
-                            MailtoRuf   = @()
-                            HttpRuf     = @()
-                        }
-                        MTASTSAnalysis = [pscustomobject]@{ DnsRecordPresent = $true; PolicyValid = $true; Mode = 'enforce'; MaxAge = 86400 }
-                        TLSRPTAnalysis = [pscustomobject]@{
-                            TlsRptRecordExists = $true
-                            MailtoRua          = @()
-                            HttpRua            = @()
+                        MTASTSAnalysis = [pscustomobject]@{
+                            DnsRecordPresent = $true
+                            PolicyValid      = $true
+                            Mode             = 'enforce'
+                            DnsRecordTtl     = 1800
                         }
                     }
                 }
-            } -ParameterFilter { $DNSEndpoint -eq 'udp://9.9.9.9:53' }
+            }
 
             $evidence = Get-DSADomainEvidence -Domain 'example.com' -DNSEndpoint 'udp://9.9.9.9:53'
             $evidence | Should -Not -BeNullOrEmpty
-            Assert-MockCalled -CommandName Test-DDDomainOverallHealth -Times 1 -ParameterFilter { $DNSEndpoint -eq 'udp://9.9.9.9:53' -and $HealthCheckType -contains 'SPF' }
+            $evidence.Records.SPFTtl | Should -Be 3600
+            $evidence.Records.DKIMMinKeyLength | Should -Be 2048
+            $evidence.Records.MTASTSMode | Should -Be 'enforce'
+            $evidence.Records.TLSRPTAddresses | Should -Contain 'mailto:tls@example.com'
+
+            $script:capturedDnsEndpoint | Should -Be 'udp://9.9.9.9:53'
+            $script:capturedMtastsEndpoint | Should -Be 'udp://9.9.9.9:53'
         }
     }
 
-    It 'captures all requested DKIM selectors without stopping at first match' {
+    It 'passes custom DKIM selectors to DomainDetective' {
         InModuleScope DomainSecurityAuditor {
             Mock -CommandName Write-DSALog -MockWith { }
             Mock -CommandName Get-Module -MockWith { $null }
             Mock -CommandName Import-Module -MockWith { }
-            Mock -CommandName Test-DDDomainOverallHealth -MockWith {
-                [pscustomobject]@{
+
+            $script:capturedSelectors = @()
+            $spfResult = [pscustomobject]@{
+                SpfRecord       = 'v=spf1 include:_spf.example.com -all'
+                DnsLookupsCount = 2
+                DnsRecordTtl    = 300
+                UnknownMechanisms = @()
+                Raw             = [pscustomobject]@{
+                    SpfRecords        = @('v=spf1 include:_spf.example.com -all')
+                    AllMechanism      = '-all'
+                    HasPtrType        = $false
+                    IncludeRecords    = @('_spf.example.com')
+                    UnknownMechanisms = @()
+                }
+            }
+            function Test-DDEmailSpfRecord {
+                param($DomainName, $DnsEndpoint)
+                return $spfResult
+            }
+            function Test-DDEmailDkimRecord {
+                param($DomainName, $Selectors, $DnsEndpoint)
+                $script:capturedSelectors = $Selectors
+                return @(
+                    [pscustomobject]@{
+                        Selector          = 'alpha'
+                        DkimRecordExists  = $true
+                        KeyLength         = 1024
+                        WeakKey           = $false
+                        ValidPublicKey    = $true
+                        ValidRsaKeyLength = $true
+                        DnsRecordTtl      = 500
+                    }
+                )
+            }
+            function Test-DDEmailDmarcRecord {
+                param($DomainName, $DnsEndpoint)
+                return [pscustomobject]@{
+                    DmarcRecord = 'v=DMARC1; p=quarantine'
+                    Policy      = 'quarantine'
+                    MailtoRua   = @('mailto:rua@example.com')
+                    HttpRua     = @()
+                    MailtoRuf   = @()
+                    HttpRuf     = @()
+                    DnsRecordTtl = 600
+                    Raw         = [pscustomobject]@{}
+                }
+            }
+            function Test-DDDnsMxRecord {
+                param($DomainName, $DnsEndpoint)
+                return [pscustomobject]@{
+                    MxRecords   = @('mx1.example')
+                    HasNullMx   = $false
+                    MxRecordTtl = 900
+                }
+            }
+            function Test-DDEmailTlsRptRecord {
+                param($DomainName, $DnsEndpoint)
+                return [pscustomobject]@{
+                    TlsRptRecordExists = $false
+                    MailtoRua          = @()
+                    HttpRua            = @()
+                    DnsRecordTtl       = $null
+                }
+            }
+            function Test-DDMailDomainClassification {
+                param($DomainName, $DnsEndpoint)
+                return [pscustomobject]@{ Classification = 'ReceivingOnly'; Raw = [pscustomobject]@{} }
+            }
+            function Test-DDDomainOverallHealth {
+                param($DomainName, $HealthCheckType, $DnsEndpoint)
+                return [pscustomobject]@{
                     Raw = [pscustomobject]@{
-                        Summary       = [pscustomobject]@{
-                            HasMxRecord    = $true
-                            HasSpfRecord   = $true
-                            HasDmarcRecord = $true
-                        }
-                        MXAnalysis     = [pscustomobject]@{ MxRecords = @('mx1.example'); HasNullMx = $false }
-                        SpfAnalysis    = [pscustomobject]@{
-                            SpfRecord        = 'v=spf1 -all'
-                            SpfRecords       = @('v=spf1 -all')
-                            DnsLookupsCount  = 1
-                            AllMechanism     = '-all'
-                            HasPtrType       = $false
-                            IncludeRecords   = @()
-                            UnknownMechanisms = @()
-                        }
-                        DKIMAnalysis   = [pscustomobject]@{
-                            AnalysisResults = @{
-                                'selector1' = [pscustomobject]@{ KeyLength = 2048; Ttl = 3600; IsValid = $true }
-                                'selector2' = [pscustomobject]@{ KeyLength = 768; Ttl = 7200; IsValid = $false }
-                            }
-                        }
-                        DmarcAnalysis  = [pscustomobject]@{
-                            DmarcRecord = 'v=DMARC1; p=reject'
-                            Policy      = 'reject'
-                            MailtoRua   = @('mailto:rua@example.com')
-                            HttpRua     = @()
-                            MailtoRuf   = @()
-                            HttpRuf     = @()
-                        }
-                        MTASTSAnalysis = [pscustomobject]@{ DnsRecordPresent = $true; PolicyValid = $true; Mode = 'enforce'; MaxAge = 86400 }
-                        TLSRPTAnalysis = [pscustomobject]@{
-                            TlsRptRecordExists = $true
-                            MailtoRua          = @('mailto:tls@example.com')
-                            HttpRua            = @()
+                        MTASTSAnalysis = [pscustomobject]@{
+                            DnsRecordPresent = $false
+                            PolicyValid      = $false
+                            Mode             = $null
+                            DnsRecordTtl     = $null
                         }
                     }
                 }
             }
 
-            $evidence = Get-DSADomainEvidence -Domain 'example.com' -DkimSelector @('selector1', 'missing-selector')
-            $evidence.Records.DKIMSelectors | Should -Contain 'selector1'
-            $evidence.Records.DKIMSelectors | Should -Contain 'selector2'
-            $evidence.Records.DKIMSelectors | Should -Not -Contain 'missing-selector'
-
-            $missing = $evidence.Records.DKIMSelectorDetails | Where-Object { $_.Name -eq 'missing-selector' }
-            $missing | Should -Not -BeNullOrEmpty
-            $missing.Found | Should -BeFalse
-            $missing.IsValid | Should -BeFalse
-
-            $weakCount = $evidence.Records.DKIMWeakSelectors
-            $weakCount | Should -BeGreaterThan 0
-        }
-    }
-
-    It 'does not report missing selectors when relying on DomainDetective defaults' {
-        InModuleScope DomainSecurityAuditor {
-            Mock -CommandName Write-DSALog -MockWith { }
-            Mock -CommandName Get-Module -MockWith { $null }
-            Mock -CommandName Import-Module -MockWith { }
-            Mock -CommandName Test-DDDomainOverallHealth -MockWith {
-                [pscustomobject]@{
-                    Raw = [pscustomobject]@{
-                        Summary       = [pscustomobject]@{ HasMxRecord = $true; HasSpfRecord = $true; HasDmarcRecord = $true }
-                        MXAnalysis     = [pscustomobject]@{ MxRecords = @('mx1.example'); HasNullMx = $false }
-                        SpfAnalysis    = [pscustomobject]@{
-                            SpfRecord        = 'v=spf1 -all'
-                            SpfRecords       = @('v=spf1 -all')
-                            DnsLookupsCount  = 1
-                            AllMechanism     = '-all'
-                            HasPtrType       = $false
-                            IncludeRecords   = @()
-                            UnknownMechanisms = @()
-                        }
-                        DKIMAnalysis   = [pscustomobject]@{
-                            AnalysisResults = @{
-                                'selector1' = [pscustomobject]@{ KeyLength = 2048; Ttl = 3600; IsValid = $true }
-                            }
-                        }
-                        DmarcAnalysis  = [pscustomobject]@{
-                            DmarcRecord = 'v=DMARC1; p=reject'
-                            Policy      = 'reject'
-                            MailtoRua   = @('mailto:rua@example.com')
-                            HttpRua     = @()
-                            MailtoRuf   = @()
-                            HttpRuf     = @()
-                        }
-                        MTASTSAnalysis = [pscustomobject]@{ DnsRecordPresent = $true; PolicyValid = $true; Mode = 'enforce'; MaxAge = 86400 }
-                        TLSRPTAnalysis = [pscustomobject]@{
-                            TlsRptRecordExists = $true
-                            MailtoRua          = @('mailto:tls@example.com')
-                            HttpRua            = @()
-                        }
-                    }
-                }
-            }
-
-            $evidence = Get-DSADomainEvidence -Domain 'example.com'
-            $evidence.Records.DKIMSelectors | Should -Contain 'selector1'
-            $evidence.Records.DKIMSelectorDetails | Where-Object { $_.Found -eq $false } | Should -BeNullOrEmpty
+            $evidence = Get-DSADomainEvidence -Domain 'example.com' -DkimSelector @('alpha', 'beta')
+            $evidence.Classification | Should -Be 'ReceivingOnly'
+            $evidence.Records.DKIMSelectors | Should -Contain 'alpha'
+            $script:capturedSelectors | Should -Contain 'alpha'
+            $script:capturedSelectors | Should -Contain 'beta'
         }
     }
 }

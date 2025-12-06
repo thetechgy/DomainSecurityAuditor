@@ -36,3 +36,58 @@ function Resolve-DSAClassificationOverride {
 
     throw "Classification override '$normalized'$sourceNote is invalid. Allowed values: $allowed."
 }
+
+function Get-DSAClassificationKey {
+<#
+.SYNOPSIS
+    Normalizes a classification string to its canonical key form.
+.DESCRIPTION
+    Converts classification values like 'sending-only' or 'SendingOnly' to the
+    standard key format used in baseline profiles.
+#>
+    [CmdletBinding()]
+    param (
+        [string]$Classification
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Classification)) {
+        return $null
+    }
+
+    $normalized = ($Classification -replace '[^a-zA-Z]', '').ToLowerInvariant()
+    switch ($normalized) {
+        'sendingonly' { return 'SendingOnly' }
+        'receivingonly' { return 'ReceivingOnly' }
+        'sendingandreceiving' { return 'SendingAndReceiving' }
+        'parked' { return 'Parked' }
+        default { return $Classification }
+    }
+}
+
+function Get-DSAClassificationFromSummary {
+    param (
+        $Summary
+    )
+
+    if (-not $Summary) {
+        return 'Unknown'
+    }
+
+    $hasMx = [bool]$Summary.HasMxRecord
+    $hasSpf = [bool]$Summary.HasSpfRecord
+    $hasDmarc = [bool]$Summary.HasDmarcRecord
+
+    if ($hasMx -and ($hasSpf -or $hasDmarc)) {
+        return 'SendingAndReceiving'
+    }
+
+    if ($hasMx) {
+        return 'ReceivingOnly'
+    }
+
+    if ($hasSpf -or $hasDmarc) {
+        return 'SendingOnly'
+    }
+
+    return 'Parked'
+}
