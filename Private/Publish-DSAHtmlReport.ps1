@@ -1374,15 +1374,28 @@ function Add-DSADkimSelectorBreakdown {
     $null = $Builder.AppendLine('                  <div class="dkim-selector-grid">')
 
     foreach ($selector in $selectorList) {
-        $found = if ($selector.PSObject.Properties.Name -contains 'Found') { [bool]$selector.Found } else { $true }
+        $found = if ($selector.PSObject.Properties.Name -contains 'Found') {
+            [bool]$selector.Found
+        } elseif ($selector.PSObject.Properties.Name -contains 'DkimRecordExists') {
+            [bool]$selector.DkimRecordExists
+        } else {
+            $true
+        }
         $keyLengthValue = if ($selector.KeyLength) { $selector.KeyLength } else { 'Unknown' }
-        $ttlValue = if ($selector.Ttl) { $selector.Ttl } else { 'Unknown' }
+        $ttlValue = if ($selector.PSObject.Properties.Name -contains 'DnsRecordTtl' -and $selector.DnsRecordTtl) {
+            $selector.DnsRecordTtl
+        } elseif ($selector.Ttl) {
+            $selector.Ttl
+        } else {
+            'Unknown'
+        }
+        $selectorName = if ($selector.PSObject.Properties.Name -contains 'Name') { $selector.Name } else { $selector.Selector }
 
         $status = Get-DSADkimSelectorStatus -Selector $selector -Check $Check
         $statusClass = Get-DSAStatusClassName -Status $status
 
         $null = $Builder.AppendLine(("                    <div class=""selector-card {0}"">" -f $statusClass))
-        $null = $Builder.AppendLine(("                      <div class=""selector-name"">{0}</div>" -f (ConvertTo-DSAHtml $selector.Name)))
+        $null = $Builder.AppendLine(("                      <div class=""selector-name"">{0}</div>" -f (ConvertTo-DSAHtml $selectorName)))
         $null = $Builder.AppendLine(("                      <div class=""selector-status {0}"">{1}</div>" -f $statusClass, (ConvertTo-DSAHtml $status)))
         $null = $Builder.AppendLine('                      <div class="selector-meta">')
         if ($Check.Id -eq 'DKIMKeyStrength') {

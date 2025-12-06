@@ -25,7 +25,7 @@ function New-DSARunContext {
 
     $transcriptStarted = $false
     try {
-        Start-Transcript -Path $transcriptFile -Append
+        Start-Transcript -Path $transcriptFile -Append | Out-Null
         $transcriptStarted = $true
     } catch {
         $transcriptStarted = $false
