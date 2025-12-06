@@ -24,6 +24,11 @@ Desktop.ini
 *.code-workspace.user
 
 # ----------------------------
+# Tooling
+# ----------------------------
+.claude/
+
+# ----------------------------
 # PowerShell
 # ----------------------------
 # Script Analyzer user overrides
