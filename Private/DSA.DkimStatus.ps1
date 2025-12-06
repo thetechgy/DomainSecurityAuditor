@@ -8,11 +8,14 @@ function Get-DSADkimSelectorStatus {
         [pscustomobject]$Check
     )
 
-    $found = [bool]$Selector.DkimRecordExists
-    $keyLength = $Selector.KeyLength
-    $ttl = $Selector.DnsRecordTtl
-    $isValid = [bool]($Selector.ValidPublicKey -and $Selector.ValidRsaKeyLength)
-    $weakKey = [bool]$Selector.WeakKey
+    $found = Get-DSAPropertyValue -InputObject $Selector -PropertyName @('DkimRecordExists','Found') -Default $true -As ([bool])
+    $keyLength = Get-DSAPropertyValue -InputObject $Selector -PropertyName @('KeyLength') -Default $null
+    $ttl = Get-DSAPropertyValue -InputObject $Selector -PropertyName @('DnsRecordTtl','Ttl') -Default $null
+    $validPublicKey = Get-DSAPropertyValue -InputObject $Selector -PropertyName @('ValidPublicKey','IsValid') -Default $null
+    $validRsaKeyLength = Get-DSAPropertyValue -InputObject $Selector -PropertyName @('ValidRsaKeyLength') -Default $null
+
+    $isValid = [bool]((($null -eq $validPublicKey) -or $validPublicKey) -and (($null -eq $validRsaKeyLength) -or $validRsaKeyLength))
+    $weakKey = Get-DSAPropertyValue -InputObject $Selector -PropertyName @('WeakKey') -Default $false -As ([bool])
 
     switch ($Check.Id) {
         'DKIMSelectorPresence' {
@@ -67,4 +70,40 @@ function Get-DSADkimEffectiveStatus {
     }
 
     return $effectiveStatus
+}
+
+function Get-DSAEffectiveChecks {
+    [CmdletBinding()]
+    param (
+        $Checks = @(),
+
+        [pscustomobject[]]$SelectorDetails
+    )
+
+    if (-not $Checks) {
+        return @()
+    }
+
+    $checkList = @($Checks | Where-Object { $_ })
+    $results = [System.Collections.Generic.List[object]]::new()
+
+    foreach ($check in $checkList) {
+        $clone = if ($check.PSObject) { $check.PSObject.Copy() } else { $check }
+        if (-not $clone) {
+            continue
+        }
+
+        $effectiveStatus = $clone.Status
+        if ($SelectorDetails -and $clone.PSObject -and $clone.PSObject.Properties.Name -contains 'Area' -and $clone.Area -eq 'DKIM') {
+            $effectiveStatus = Get-DSADkimEffectiveStatus -Check $clone -Selectors $SelectorDetails
+        }
+
+        if ($clone.PSObject) {
+            $clone | Add-Member -NotePropertyName 'Status' -NotePropertyValue $effectiveStatus -Force
+        }
+
+        $null = $results.Add($clone)
+    }
+
+    return $results.ToArray()
 }

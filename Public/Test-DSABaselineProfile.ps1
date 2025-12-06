@@ -62,45 +62,11 @@ function Test-DSABaselineProfile {
 
                 $condition = Get-DSABaselinePropertyValue -InputObject $check -Name 'Condition'
                 $expectedValue = Get-DSABaselinePropertyValue -InputObject $check -Name 'ExpectedValue'
-                switch ($condition) {
-                    'BetweenInclusive' {
-                        $min = Get-DSABaselinePropertyValue -InputObject $expectedValue -Name 'Min'
-                        $max = Get-DSABaselinePropertyValue -InputObject $expectedValue -Name 'Max'
-                        if ($null -eq $expectedValue -or ($null -eq $min -and $null -eq $max)) {
-                            $null = $errors.Add("Check '$checkLabel' in profile '$profileKey' must define ExpectedValue.Min or ExpectedValue.Max for condition '$condition'.")
-                        }
-                    }
-                    'LessThanOrEqual' {
-                        if ($null -eq $expectedValue -or $null -eq (ConvertTo-DSADouble -Value $expectedValue)) {
-                            $null = $errors.Add("Check '$checkLabel' in profile '$profileKey' must define a numeric ExpectedValue for condition '$condition'.")
-                        }
-                    }
-                    'GreaterThanOrEqual' {
-                        if ($null -eq $expectedValue -or $null -eq (ConvertTo-DSADouble -Value $expectedValue)) {
-                            $null = $errors.Add("Check '$checkLabel' in profile '$profileKey' must define a numeric ExpectedValue for condition '$condition'.")
-                        }
-                    }
-                    'MustBeOneOf' {
-                        $expectedValues = ConvertTo-DSABaselineArray -Value $expectedValue
-                        if ($expectedValues.Count -eq 0) {
-                            $null = $errors.Add("Check '$checkLabel' in profile '$profileKey' must define one or more ExpectedValue entries for condition '$condition'.")
-                        }
-                    }
-                    'MustNotContain' {
-                        $expectedValues = ConvertTo-DSABaselineArray -Value $expectedValue
-                        if ($expectedValues.Count -eq 0) {
-                            $null = $errors.Add("Check '$checkLabel' in profile '$profileKey' must define one or more ExpectedValue entries for condition '$condition'.")
-                        }
-                    }
-                    'MustContain' {
-                        if (-not (Test-DSAHasValue -Value $expectedValue)) {
-                            $null = $errors.Add("Check '$checkLabel' in profile '$profileKey' must define an ExpectedValue for condition '$condition'.")
-                        }
-                    }
-                    'MustEqual' {
-                        if (-not (Test-DSAHasValue -Value $expectedValue)) {
-                            $null = $errors.Add("Check '$checkLabel' in profile '$profileKey' must define an ExpectedValue for condition '$condition'.")
-                        }
+                if ($condition) {
+                    $validation = Test-DSAConditionExpectedValue -Condition $condition -ExpectedValue $expectedValue
+                    if (-not $validation.IsValid) {
+                        $message = if ($validation.Message) { $validation.Message } else { "has an invalid ExpectedValue for condition '$condition'." }
+                        $null = $errors.Add("Check '$checkLabel' in profile '$profileKey' $message")
                     }
                 }
             }
