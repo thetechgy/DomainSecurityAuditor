@@ -588,6 +588,106 @@ Describe 'Get-DSADomainEvidence' {
         }
     }
 
+    It 'prefers authoritative TTL properties when available' {
+        InModuleScope DomainSecurityAuditor {
+            Mock -CommandName Write-DSALog -MockWith { }
+            Mock -CommandName Get-Module -MockWith { $null }
+            Mock -CommandName Import-Module -MockWith { }
+
+            function Test-DDEmailSpfRecord {
+                param($DomainName, $DnsEndpoint)
+                return [pscustomobject]@{
+                    SpfRecord                = 'v=spf1 -all'
+                    DnsLookupsCount          = 0
+                    DnsRecordTtl             = 300
+                    AuthoritativeDnsRecordTtl = 1200
+                    UnknownMechanisms        = @()
+                    Raw                      = [pscustomobject]@{
+                        SpfRecords        = @('v=spf1 -all')
+                        AllMechanism      = '-all'
+                        HasPtrType        = $false
+                        IncludeRecords    = @()
+                        UnknownMechanisms = @()
+                    }
+                }
+            }
+            function Test-DDEmailDkimRecord {
+                param($DomainName, $Selectors, $DnsEndpoint)
+                return @(
+                    [pscustomobject]@{
+                        Selector                 = 'selector1'
+                        DkimRecordExists         = $true
+                        KeyLength                = 2048
+                        WeakKey                  = $false
+                        ValidPublicKey           = $true
+                        ValidRsaKeyLength        = $true
+                        DnsRecordTtl             = 350
+                        AuthoritativeDnsRecordTtl = 700
+                    }
+                )
+            }
+            function Test-DDEmailDmarcRecord {
+                param($DomainName, $DnsEndpoint)
+                return [pscustomobject]@{
+                    DmarcRecord              = 'v=DMARC1; p=reject'
+                    Policy                   = 'reject'
+                    MailtoRua                = @()
+                    HttpRua                  = @()
+                    MailtoRuf                = @()
+                    HttpRuf                  = @()
+                    DnsRecordTtl             = 200
+                    AuthoritativeDnsRecordTtl = 900
+                    Raw                      = [pscustomobject]@{}
+                }
+            }
+            function Test-DDDnsMxRecord {
+                param($DomainName, $DnsEndpoint)
+                return [pscustomobject]@{
+                    MxRecords                = @('mx1.example')
+                    HasNullMx                = $false
+                    MxRecordTtl              = 150
+                    AuthoritativeDnsRecordTtl = 400
+                }
+            }
+            function Test-DDEmailTlsRptRecord {
+                param($DomainName, $DnsEndpoint)
+                return [pscustomobject]@{
+                    TlsRptRecordExists       = $true
+                    MailtoRua                = @('mailto:tls@example.com')
+                    HttpRua                  = @()
+                    DnsRecordTtl             = 250
+                    AuthoritativeDnsRecordTtl = 500
+                }
+            }
+            function Test-DDMailDomainClassification {
+                param($DomainName, $DnsEndpoint)
+                return [pscustomobject]@{ Classification = 'SendingAndReceiving'; Raw = [pscustomobject]@{} }
+            }
+            function Test-DDDomainOverallHealth {
+                param($DomainName, $HealthCheckType, $DnsEndpoint)
+                return [pscustomobject]@{
+                    Raw = [pscustomobject]@{
+                        MTASTSAnalysis = [pscustomobject]@{
+                            DnsRecordPresent        = $true
+                            PolicyValid             = $true
+                            Mode                    = 'enforce'
+                            DnsRecordTtl            = 100
+                            AuthoritativeDnsRecordTtl = 600
+                        }
+                    }
+                }
+            }
+
+            $evidence = Get-DSADomainEvidence -Domain 'example.com'
+            $evidence.Records.SPFTtl | Should -Be 1200
+            $evidence.Records.MXMinimumTtl | Should -Be 400
+            $evidence.Records.DKIMMinimumTtl | Should -Be 700
+            $evidence.Records.DMARCTtl | Should -Be 900
+            $evidence.Records.MTASTSTtl | Should -Be 600
+            $evidence.Records.TLSRPTTtl | Should -Be 500
+        }
+    }
+
     It 'passes custom DKIM selectors to DomainDetective' {
         InModuleScope DomainSecurityAuditor {
             Mock -CommandName Write-DSALog -MockWith { }

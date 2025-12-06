@@ -128,17 +128,22 @@ function Get-DSADomainEvidence {
             (($_.KeyLength -as [int]) -lt $script:DSAMinDkimKeyLength)
         }
     ).Count
-    $dkimTtls = @($dkimFound | ForEach-Object { $_.DnsRecordTtl } | Where-Object { $_ })
+    $dkimTtls = @($dkimFound | ForEach-Object { Get-DSATtlValue -InputObject $_ } | Where-Object { $_ })
     $dkimMinTtl = if ($dkimTtls) { ($dkimTtls | Measure-Object -Minimum).Minimum } else { $null }
 
     $dmarcRaw = $dmarc.Raw
     $mtastsAnalysis = $mtastsHealth.Raw.MTASTSAnalysis
+    $mxMinimumTtl = Get-DSATtlValue -InputObject $mx -PropertyName 'MxRecordTtl'
+    $spfTtl = Get-DSATtlValue -InputObject $spf
+    $dmarcTtl = Get-DSATtlValue -InputObject $dmarc
+    $mtastsTtl = Get-DSATtlValue -InputObject $mtastsAnalysis
+    $tlsRptTtl = Get-DSATtlValue -InputObject $tlsRpt
 
     $records = [pscustomobject]@{
         MX                    = $mx.MxRecords
         MXRecordCount         = @($mx.MxRecords).Count
         MXHasNull             = $mx.HasNullMx
-        MXMinimumTtl          = $mx.MxRecordTtl
+        MXMinimumTtl          = $mxMinimumTtl
 
         SPFRecord             = $spfRecord
         SPFRecords            = $spfRecords
@@ -147,7 +152,7 @@ function Get-DSADomainEvidence {
         SPFTerminalMechanism  = $spfRaw.AllMechanism
         SPFHasPtrMechanism    = [bool]$spfRaw.HasPtrType
         SPFRecordLength       = if ($spfRecord) { $spfRecord.Length } else { 0 }
-        SPFTtl                = $spf.DnsRecordTtl
+        SPFTtl                = $spfTtl
         SPFIncludes           = $spfRaw.IncludeRecords
         SPFWildcardRecord     = $null
         SPFWildcardConfigured = $false
@@ -163,16 +168,16 @@ function Get-DSADomainEvidence {
         DMARCPolicy           = $dmarc.Policy
         DMARCRuaAddresses     = @($dmarc.MailtoRua + $dmarc.HttpRua)
         DMARCRufAddresses     = @($dmarc.MailtoRuf + $dmarc.HttpRuf)
-        DMARCTtl              = $dmarc.DnsRecordTtl
+        DMARCTtl              = $dmarcTtl
 
         MTASTSRecordPresent   = [bool]$mtastsAnalysis.DnsRecordPresent
         MTASTSPolicyValid     = [bool]$mtastsAnalysis.PolicyValid
         MTASTSMode            = $mtastsAnalysis.Mode
-        MTASTSTtl             = $mtastsAnalysis.DnsRecordTtl
+        MTASTSTtl             = $mtastsTtl
 
         TLSRPTRecordPresent   = [bool]$tlsRpt.TlsRptRecordExists
         TLSRPTAddresses       = @($tlsRpt.MailtoRua + $tlsRpt.HttpRua)
-        TLSRPTTtl             = $tlsRpt.DnsRecordTtl
+        TLSRPTTtl             = $tlsRptTtl
     }
 
     Write-Verbose -Message "Collected DomainDetective evidence for '$Domain'."

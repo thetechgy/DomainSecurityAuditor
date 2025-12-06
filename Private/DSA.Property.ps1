@@ -46,3 +46,34 @@ function Convert-DSAPropertyValue {
     $result = $Value -as $As
     return $(if ($null -eq $result) { $Default } else { $result })
 }
+
+function Get-DSATtlValue {
+    [CmdletBinding()]
+    param (
+        $InputObject,
+        [string[]]$PropertyName,
+        $Default = $null
+    )
+
+    $candidateNames = @(
+        'AuthoritativeDnsRecordTtl'
+        'AuthorityDnsRecordTtl'
+        'DnsRecordAuthorityTtl'
+        'AuthoritativeTtl'
+        'SpfRecordTtl'
+        'DmarcRecordTtl'
+        'DkimRecordTtl'
+        'TlsRptRecordTtl'
+        'MtastsRecordTtl'
+        'MxRecordTtl'
+        'DnsRecordTtl'
+        'Ttl'
+        'TimeToLive'
+    )
+
+    if ($PropertyName) {
+        $candidateNames = @($candidateNames + $PropertyName)
+    }
+
+    return Get-DSAPropertyValue -InputObject $InputObject -PropertyName $candidateNames -Default $Default -As ([int])
+}

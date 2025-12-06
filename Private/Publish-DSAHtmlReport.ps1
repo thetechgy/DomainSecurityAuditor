@@ -209,7 +209,7 @@ function Add-DSAProtocolSection {
     }
 
     $effectiveChecks = Get-DSAEffectiveChecks -Checks $groupChecks -SelectorDetails $selectorDetails
-    $areaStatus = Get-DSAAreaStatus -Checks $effectiveChecks
+    $areaStatus = Get-DSAOverallStatus -Checks $effectiveChecks
     $statusClass = Get-DSAStatusClassName -Status $areaStatus
 
     $null = $Builder.AppendLine(("      <div class=""{0}"">" -f $sectionClass))
@@ -414,13 +414,8 @@ function Add-DSADkimSelectorBreakdown {
             $true
         }
         $keyLengthValue = if ($selector.KeyLength) { $selector.KeyLength } else { 'Unknown' }
-        $ttlValue = if ($selector.PSObject.Properties.Name -contains 'DnsRecordTtl' -and $selector.DnsRecordTtl) {
-            $selector.DnsRecordTtl
-        } elseif ($selector.Ttl) {
-            $selector.Ttl
-        } else {
-            'Unknown'
-        }
+        $ttl = Get-DSATtlValue -InputObject $selector
+        $ttlValue = if ($null -ne $ttl) { $ttl } else { 'Unknown' }
         $selectorName = if ($selector.PSObject.Properties.Name -contains 'Name') { $selector.Name } else { $selector.Selector }
 
         $status = Get-DSADkimSelectorStatus -Selector $selector -Check $Check
@@ -445,16 +440,4 @@ function Add-DSADkimSelectorBreakdown {
 
     $null = $Builder.AppendLine('                  </div>')
     $null = $Builder.AppendLine('                </div>')
-}
-
-function Get-DSAAreaStatus {
-    param (
-        [Parameter(Mandatory = $true)][object[]]$Checks
-    )
-
-    $counts = Get-DSAStatusCounts -Checks $Checks
-    if ($counts.Fail -gt 0) { return 'Fail' }
-    if ($counts.Warning -gt 0) { return 'Warning' }
-    return 'Pass'
-
 }

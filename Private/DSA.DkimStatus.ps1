@@ -10,7 +10,7 @@ function Get-DSADkimSelectorStatus {
 
     $found = Get-DSAPropertyValue -InputObject $Selector -PropertyName @('DkimRecordExists','Found') -Default $true -As ([bool])
     $keyLength = Get-DSAPropertyValue -InputObject $Selector -PropertyName @('KeyLength') -Default $null
-    $ttl = Get-DSAPropertyValue -InputObject $Selector -PropertyName @('DnsRecordTtl','Ttl') -Default $null
+    $ttl = Get-DSATtlValue -InputObject $Selector
     $validPublicKey = Get-DSAPropertyValue -InputObject $Selector -PropertyName @('ValidPublicKey','IsValid') -Default $null
     $validRsaKeyLength = Get-DSAPropertyValue -InputObject $Selector -PropertyName @('ValidRsaKeyLength') -Default $null
 
