@@ -441,6 +441,18 @@ function Write-DSABaselineConsoleSummary {
         [string]$ReportPath
     )
 
+    function New-StatusLine {
+        param (
+            [Parameter(Mandatory = $true)]
+            [string]$Label,
+
+            [Parameter(Mandatory = $true)]
+            [int]$Value
+        )
+
+        return ("  {0,-8}: {1}" -f $Label, $Value)
+    }
+
     $statusCounts = @{
         Pass    = 0
         Fail    = 0
@@ -460,11 +472,13 @@ function Write-DSABaselineConsoleSummary {
     }
 
     $domainCount = ($Profiles | Measure-Object).Count
-    Write-Information -MessageData ''
-    Write-Information -MessageData ("Baselines complete ({0} domain{1})" -f $domainCount, $(if ($domainCount -ne 1) { 's' } else { '' }))
-    Write-Information -MessageData ("  Pass:    {0}" -f $statusCounts.Pass)
-    Write-Information -MessageData ("  Warning: {0}" -f $statusCounts.Warning)
-    Write-Information -MessageData ("  Fail:    {0}" -f $statusCounts.Fail)
-    Write-Information -MessageData ("Report: {0}" -f $ReportPath)
+    Write-Information -MessageData '' -InformationAction Continue
+    Write-Information -MessageData ("Baselines complete ({0} domain{1})" -f $domainCount, $(if ($domainCount -ne 1) { 's' } else { '' })) -InformationAction Continue
+    Write-Information -MessageData (New-StatusLine -Label 'Pass' -Value $statusCounts.Pass) -InformationAction Continue
+    Write-Information -MessageData (New-StatusLine -Label 'Warning' -Value $statusCounts.Warning) -InformationAction Continue
+    Write-Information -MessageData (New-StatusLine -Label 'Fail' -Value $statusCounts.Fail) -InformationAction Continue
+    Write-Information -MessageData '' -InformationAction Continue
+    Write-Information -MessageData 'Report:' -InformationAction Continue
+    Write-Information -MessageData ("  {0}" -f $ReportPath) -InformationAction Continue
+    Write-Information -MessageData '' -InformationAction Continue
 }
-

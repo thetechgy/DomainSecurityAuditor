@@ -38,6 +38,7 @@
     $commonParams = @{
         DomainName  = $Domain
         ErrorAction = 'Stop'
+        WarningAction = 'SilentlyContinue'
     }
     if ($dnsEndpointObject) {
         $commonParams['DnsEndpoint'] = $dnsEndpointObject
@@ -191,4 +192,3 @@
     Write-Verbose -Message "Collected DomainDetective evidence for '$Domain'."
     return New-DSADomainEvidenceObject -Domain $Domain -Classification $classification.Classification -Records $records
 }
-

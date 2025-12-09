@@ -477,6 +477,62 @@ invalid.example,Unknown
             }
         }
 
+        Context 'console output' {
+            It 'emits pass, warning, and fail counts to the information stream' {
+                InModuleScope DomainSecurityAuditor {
+                    $originalPreference = $InformationPreference
+                    $originalRendering = if ($PSStyle) { $PSStyle.OutputRendering } else { $null }
+                    try {
+                        $InformationPreference = 'SilentlyContinue'
+                        if ($PSStyle) {
+                            $PSStyle.OutputRendering = 'PlainText'
+                        }
+                        $profile = [pscustomobject]@{
+                            Domain                 = 'example.com'
+                            Classification         = 'SendingAndReceiving'
+                            OriginalClassification = 'SendingAndReceiving'
+                            ClassificationOverride = $null
+                            OverallStatus          = 'Warning'
+                            Checks                 = @(
+                                [pscustomobject]@{ Id = 'CheckPass'; Status = 'Pass'; Area = 'SPF' }
+                                [pscustomobject]@{ Id = 'CheckWarn'; Status = 'Warning'; Area = 'DMARC' }
+                                [pscustomobject]@{ Id = 'CheckFail'; Status = 'Fail'; Area = 'MX' }
+                            )
+                            Evidence               = [pscustomobject]@{
+                                DKIMSelectorDetails = @()
+                            }
+                        }
+
+                        $infoOutput = & {
+                            Write-DSABaselineConsoleSummary -Profiles @($profile) -ReportPath 'C:\Reports\domain_report.html'
+                        } 6>&1
+
+                        $stripAnsi = {
+                            param($Value)
+                            if (-not $Value) { return '' }
+                            return ($Value.ToString() -replace "`e\\[[0-9;]*[A-Za-z]", '')
+                        }
+
+                        $infoMessages = @($infoOutput | ForEach-Object { & $stripAnsi $_ })
+
+                        $infoMessages | Should -Contain 'Baselines complete (1 domain)'
+                        $infoMessages | Should -Contain '  Pass    : 1'
+                        $infoMessages | Should -Contain '  Warning : 1'
+                        $infoMessages | Should -Contain '  Fail    : 1'
+                        $infoMessages | Should -Contain 'Report:'
+                        $infoMessages | Should -Contain '  C:\Reports\domain_report.html'
+                        $infoMessages | Should -Contain ''
+                    }
+                    finally {
+                        if ($PSStyle -and $null -ne $originalRendering) {
+                            $PSStyle.OutputRendering = $originalRendering
+                        }
+                        $InformationPreference = $originalPreference
+                    }
+                }
+            }
+        }
+
     }
 }
 
@@ -509,11 +565,13 @@ Describe 'Get-DSADomainEvidence' {
                 }
             }
             function Test-DDEmailSpfRecord {
+                [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 $script:capturedDnsEndpoint = $DnsEndpoint
                 return $spfResult
             }
             function Test-DDEmailDkimRecord {
+                [CmdletBinding()]
                 param($DomainName, $Selectors, $DnsEndpoint)
                 return @(
                     [pscustomobject]@{
@@ -528,6 +586,7 @@ Describe 'Get-DSADomainEvidence' {
                 )
             }
             function Test-DDEmailDmarcRecord {
+                [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{
                     DmarcRecord  = 'v=DMARC1; p=reject'
@@ -541,6 +600,7 @@ Describe 'Get-DSADomainEvidence' {
                 }
             }
             function Test-DDDnsMxRecord {
+                [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{
                     MxRecords   = @('mx1.example')
@@ -549,6 +609,7 @@ Describe 'Get-DSADomainEvidence' {
                 }
             }
             function Test-DDEmailTlsRptRecord {
+                [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{
                     TlsRptRecordExists = $true
@@ -558,10 +619,12 @@ Describe 'Get-DSADomainEvidence' {
                 }
             }
             function Test-DDMailDomainClassification {
+                [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{ Classification = 'SendingAndReceiving'; Raw = [pscustomobject]@{} }
             }
             function Test-DDDomainOverallHealth {
+                [CmdletBinding()]
                 param($DomainName, $HealthCheckType, $DnsEndpoint)
                 $script:capturedMtastsEndpoint = $DnsEndpoint
                 return [pscustomobject]@{
@@ -595,6 +658,7 @@ Describe 'Get-DSADomainEvidence' {
             Mock -CommandName Import-Module -MockWith { }
 
             function Test-DDEmailSpfRecord {
+                [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{
                     SpfRecord                 = 'v=spf1 -all'
@@ -612,6 +676,7 @@ Describe 'Get-DSADomainEvidence' {
                 }
             }
             function Test-DDEmailDkimRecord {
+                [CmdletBinding()]
                 param($DomainName, $Selectors, $DnsEndpoint)
                 return @(
                     [pscustomobject]@{
@@ -627,6 +692,7 @@ Describe 'Get-DSADomainEvidence' {
                 )
             }
             function Test-DDEmailDmarcRecord {
+                [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{
                     DmarcRecord               = 'v=DMARC1; p=reject'
@@ -641,6 +707,7 @@ Describe 'Get-DSADomainEvidence' {
                 }
             }
             function Test-DDDnsMxRecord {
+                [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{
                     MxRecords                 = @('mx1.example')
@@ -650,6 +717,7 @@ Describe 'Get-DSADomainEvidence' {
                 }
             }
             function Test-DDEmailTlsRptRecord {
+                [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{
                     TlsRptRecordExists        = $true
@@ -660,10 +728,12 @@ Describe 'Get-DSADomainEvidence' {
                 }
             }
             function Test-DDMailDomainClassification {
+                [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{ Classification = 'SendingAndReceiving'; Raw = [pscustomobject]@{} }
             }
             function Test-DDDomainOverallHealth {
+                [CmdletBinding()]
                 param($DomainName, $HealthCheckType, $DnsEndpoint)
                 return [pscustomobject]@{
                     Raw = [pscustomobject]@{
@@ -709,10 +779,12 @@ Describe 'Get-DSADomainEvidence' {
                 }
             }
             function Test-DDEmailSpfRecord {
+                [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return $spfResult
             }
             function Test-DDEmailDkimRecord {
+                [CmdletBinding()]
                 param($DomainName, $Selectors, $DnsEndpoint)
                 $script:capturedSelectors = $Selectors
                 return @(
@@ -728,6 +800,7 @@ Describe 'Get-DSADomainEvidence' {
                 )
             }
             function Test-DDEmailDmarcRecord {
+                [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{
                     DmarcRecord  = 'v=DMARC1; p=quarantine'
@@ -741,6 +814,7 @@ Describe 'Get-DSADomainEvidence' {
                 }
             }
             function Test-DDDnsMxRecord {
+                [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{
                     MxRecords   = @('mx1.example')
@@ -749,6 +823,7 @@ Describe 'Get-DSADomainEvidence' {
                 }
             }
             function Test-DDEmailTlsRptRecord {
+                [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{
                     TlsRptRecordExists = $false
@@ -758,10 +833,12 @@ Describe 'Get-DSADomainEvidence' {
                 }
             }
             function Test-DDMailDomainClassification {
+                [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{ Classification = 'ReceivingOnly'; Raw = [pscustomobject]@{} }
             }
             function Test-DDDomainOverallHealth {
+                [CmdletBinding()]
                 param($DomainName, $HealthCheckType, $DnsEndpoint)
                 return [pscustomobject]@{
                     Raw = [pscustomobject]@{
@@ -830,4 +907,3 @@ Describe 'Baseline profile helpers' {
         }
     }
 }
-
