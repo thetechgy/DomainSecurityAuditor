@@ -441,23 +441,7 @@ function Write-DSABaselineConsoleSummary {
         [string]$ReportPath
     )
 
-    function New-StatusLine {
-        param (
-            [Parameter(Mandatory = $true)]
-            [string]$Label,
-
-            [Parameter(Mandatory = $true)]
-            [int]$Value
-        )
-
-        return ("  {0,-8}: {1}" -f $Label, $Value)
-    }
-
-    $statusCounts = @{
-        Pass    = 0
-        Fail    = 0
-        Warning = 0
-    }
+    $domainSummaries = [System.Collections.Generic.List[object]]::new()
 
     foreach ($profile in $Profiles) {
         $selectorDetails = $null
@@ -466,17 +450,38 @@ function Write-DSABaselineConsoleSummary {
         }
         $checks = Get-DSAEffectiveChecks -Checks ($profile.Checks | Where-Object { $_ }) -SelectorDetails $selectorDetails
         $counts = Get-DSAStatusCounts -Checks $checks
-        $statusCounts.Pass += $counts.Pass
-        $statusCounts.Fail += $counts.Fail
-        $statusCounts.Warning += $counts.Warning
+        $rank = switch ($profile.OverallStatus) {
+            'Fail' { 0 }
+            'Warning' { 1 }
+            default { 2 }
+        }
+
+        $domainSummaries.Add([pscustomobject]@{
+            Rank   = $rank
+            Domain = $profile.Domain
+            Status = $profile.OverallStatus
+            Pass   = $counts.Pass
+            Warn   = $counts.Warning
+            Fail   = $counts.Fail
+        })
     }
 
+    $sortedSummaries = $domainSummaries | Sort-Object -Property @{ Expression = { $_.Rank } }, @{ Expression = { $_.Domain } }
+    $passWidth = if ($sortedSummaries) { ($sortedSummaries | ForEach-Object { $_.Pass.ToString().Length } | Measure-Object -Maximum).Maximum } else { 1 }
+    $warnWidth = if ($sortedSummaries) { ($sortedSummaries | ForEach-Object { $_.Warn.ToString().Length } | Measure-Object -Maximum).Maximum } else { 1 }
+    $failWidth = if ($sortedSummaries) { ($sortedSummaries | ForEach-Object { $_.Fail.ToString().Length } | Measure-Object -Maximum).Maximum } else { 1 }
     $domainCount = ($Profiles | Measure-Object).Count
     Write-Information -MessageData '' -InformationAction Continue
     Write-Information -MessageData ("Baselines complete ({0} domain{1})" -f $domainCount, $(if ($domainCount -ne 1) { 's' } else { '' })) -InformationAction Continue
-    Write-Information -MessageData (New-StatusLine -Label 'Pass' -Value $statusCounts.Pass) -InformationAction Continue
-    Write-Information -MessageData (New-StatusLine -Label 'Warning' -Value $statusCounts.Warning) -InformationAction Continue
-    Write-Information -MessageData (New-StatusLine -Label 'Fail' -Value $statusCounts.Fail) -InformationAction Continue
+    foreach ($summary in $sortedSummaries) {
+        $indicator = switch ($summary.Status) {
+            'Fail' { '[FAIL]' }
+            'Warning' { '[WARN]' }
+            default { '[PASS]' }
+        }
+        $line = "  {0} {1} (Pass {2,$passWidth} | Warn {3,$warnWidth} | Fail {4,$failWidth})" -f $indicator, $summary.Domain, $summary.Pass, $summary.Warn, $summary.Fail
+        Write-Information -MessageData $line -InformationAction Continue
+    }
     Write-Information -MessageData '' -InformationAction Continue
     Write-Information -MessageData 'Report:' -InformationAction Continue
     Write-Information -MessageData ("  {0}" -f $ReportPath) -InformationAction Continue

@@ -516,9 +516,7 @@ invalid.example,Unknown
                         $infoMessages = @($infoOutput | ForEach-Object { & $stripAnsi $_ })
 
                         $infoMessages | Should -Contain 'Baselines complete (1 domain)'
-                        $infoMessages | Should -Contain '  Pass    : 1'
-                        $infoMessages | Should -Contain '  Warning : 1'
-                        $infoMessages | Should -Contain '  Fail    : 1'
+                        $infoMessages | Should -Contain '  [WARN] example.com (Pass 1 | Warn 1 | Fail 1)'
                         $infoMessages | Should -Contain 'Report:'
                         $infoMessages | Should -Contain '  C:\Reports\domain_report.html'
                         $infoMessages | Should -Contain ''
