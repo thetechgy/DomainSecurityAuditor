@@ -4,7 +4,7 @@
     Lists built-in baseline profiles available to the Domain Security Auditor module.
 .DESCRIPTION
     Enumerates the profile data files stored under the module's Configs directory. Use this to discover profile names
-    that can be supplied to -Baseline on Invoke-DomainSecurityBaseline or as the source for New-DSABaselineProfile.
+    that can be supplied to -Baseline on Invoke-DomainSecurityAuditor or as the source for New-DSABaselineProfile.
 .PARAMETER Name
     Optional profile name (for example, 'Default'). When specified, only the matching profile metadata is returned.
 .EXAMPLE
@@ -36,4 +36,3 @@
         }
     }
 }
-

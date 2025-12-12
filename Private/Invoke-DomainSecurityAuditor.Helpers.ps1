@@ -372,7 +372,7 @@ function Invoke-DSADomainRun {
 
     if ($ShowProgress) {
         $progressSplat = @{
-            Activity        = 'Domain Security Baseline'
+            Activity        = 'Domain Security Auditor'
             Status          = "Processing $DomainName (${CurrentIndex}/$TotalCount)"
             PercentComplete = [int](($CurrentIndex / [math]::Max($TotalCount, 1)) * 100)
         }

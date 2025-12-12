@@ -1,4 +1,4 @@
-﻿function Invoke-DomainSecurityBaseline {
+﻿function Invoke-DomainSecurityAuditor {
     <#
 .SYNOPSIS
     Execute the Domain Security Auditor baseline workflow for one or more domains.
@@ -35,7 +35,7 @@
     Returns the compliance profile objects to the pipeline instead of writing a summary to the console.
     Use this when you need to process results programmatically or in scripts.
 .EXAMPLE
-    Invoke-DomainSecurityBaseline -Domain 'example.com'
+    Invoke-DomainSecurityAuditor -Domain 'example.com'
     Runs the baseline workflow for example.com and writes the report to the default Output folder.
 .OUTPUTS
     None by default. Writes a summary to the information stream.
@@ -43,10 +43,11 @@
 .NOTES
     Author: Travis McDade
     Date: 11/21/2025
-    Version: 0.1.2
+    Version: 0.2.0
     Purpose: Provide a consistent baseline entry point for the Domain Security Auditor module.
 
 Revision History:
+      0.2.0 - 11/22/2025 - BREAKING: Rename entry point to Invoke-DomainSecurityAuditor and align report naming (timestamp after report name).
       0.1.2 - 11/21/2025 - BREAKING: Default output changed from returning objects to writing summary.
                           Add -PassThru parameter to return compliance profile objects for pipeline use.
                           Capture and log DomainDetective warnings.
@@ -152,7 +153,7 @@ Resources:
                 $value = if ($_.Value -is [System.Array]) { $_.Value -join ';' } else { $_.Value }
                 '{0}={1}' -f $_.Key, $value
             }
-            Write-DSALog -Message 'Starting Domain Security Baseline invocation.' -LogFile $logFile
+            Write-DSALog -Message 'Starting Domain Security Auditor invocation.' -LogFile $logFile
             Write-DSALog -Message ("Effective parameters: {0}" -f ($parameterSummary -join ', ')) -LogFile $logFile -Level 'DEBUG'
 
             $inputSplat = @{
@@ -208,7 +209,7 @@ Resources:
             }
 
             if ($showProgressEnabled) {
-                Write-Progress -Activity 'Domain Security Baseline' -Completed
+                Write-Progress -Activity 'Domain Security Auditor' -Completed
             }
 
             Write-DSALog -Message "Processed $domainCount domain(s)." -LogFile $logFile
@@ -243,4 +244,3 @@ Resources:
         }
     }
 }
-

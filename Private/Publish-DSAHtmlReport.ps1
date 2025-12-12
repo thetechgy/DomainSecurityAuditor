@@ -43,7 +43,7 @@ function Publish-DSAHtmlReport {
     }
 
     $reportsRoot = Resolve-DSAPath -Path (Join-Path -Path $OutputRoot -ChildPath 'Reports') -EnsureExists
-    $reportFileName = '{0}_domain_security_report.html' -f $GeneratedOn.ToString('yyyyMMdd_HHmmss')
+    $reportFileName = 'domain_security_auditor_report_{0}.html' -f $GeneratedOn.ToString('yyyyMMdd_HHmmss')
     $reportPath = Join-Path -Path $reportsRoot -ChildPath $reportFileName
 
     $summary = Get-DSAReportSummary -Profiles $profilesList
@@ -59,7 +59,7 @@ function Publish-DSAHtmlReport {
     $null = $builder.AppendLine('<head>')
     $null = $builder.AppendLine('    <meta charset="UTF-8">')
     $null = $builder.AppendLine('    <meta name="viewport" content="width=device-width, initial-scale=1.0">')
-    $null = $builder.AppendLine('    <title>Domain Security Compliance Report</title>')
+    $null = $builder.AppendLine('    <title>Domain Security Auditor Report</title>')
     $null = $builder.AppendLine('    <style>')
     $null = $builder.AppendLine((Get-DSAReportStyles))
     $null = $builder.AppendLine('    </style>')
@@ -68,7 +68,7 @@ function Publish-DSAHtmlReport {
     $null = $builder.AppendLine('  <a href="#main-content" class="skip-link">Skip to main content</a>')
     $null = $builder.AppendLine('  <main class="container" id="main-content" role="main">')
     $null = $builder.AppendLine('    <header class="header">')
-    $null = $builder.AppendLine('      <h1>Domain Security Compliance Report</h1>')
+    $null = $builder.AppendLine('      <h1>Domain Security Auditor Report</h1>')
     $localTimeZone = [System.TimeZoneInfo]::Local
     $timeZoneSuffix = if ($localTimeZone.IsDaylightSavingTime($GeneratedOn)) { $localTimeZone.DaylightName } else { $localTimeZone.StandardName }
     $collectedText = '{0} {1}' -f ($GeneratedOn.ToString('MMMM d, yyyy h:mm tt')), $timeZoneSuffix
@@ -528,4 +528,3 @@ function Add-DSADkimSelectorBreakdown {
     $null = $Builder.AppendLine('                  </div>')
     $null = $Builder.AppendLine('                </div>')
 }
-

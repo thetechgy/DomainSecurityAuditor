@@ -135,7 +135,7 @@ When the agent needs to:
 
 ### Module & Script Structure
 
-- Use modular, reusable functions with PowerShell-approved verbs in names; exported entry points (e.g., `Invoke-DomainSecurityBaseline`) belong in the module's `Public\` folder and call private helpers.
+- Use modular, reusable functions with PowerShell-approved verbs in names; exported entry points (e.g., `Invoke-DomainSecurityAuditor`) belong in the module's `Public\` folder and call private helpers.
 - Keep the DomainSecurityAuditor layout consistent: `Public\`, `Private\`, `Tests\`, `Examples\`, `Output\`, and `Logs\`. Wrapper scripts stored in `Examples\` must only import the module and call exported commands.
 - Maintain a `DomainSecurityAuditor.psd1` manifest with accurate metadata, `RootModule`, and `RequiredModules` so consumers understand the supported entry points.
 - Parameterize scripts with defaults, type validation, and safe fallbacks.
@@ -195,7 +195,7 @@ Stop-Transcript
 Anytime functionality, report baselines, or remediation guidance changes, complete the following before opening a PR:
 
 1. **README Alignment** — Update `README.md` so the documented goals, workflows, and examples reflect the latest behavior.
-2. **Example Report Refresh** — Regenerate `Examples/domain_compliance_report.html` (or its successor artifact) so screenshots and sample data match the current report schema and recommendations.
+2. **Example Report Refresh** — Regenerate `Examples/domain_security_auditor_report.html` (or its successor artifact) so screenshots and sample data match the current report schema and recommendations.
 3. **Pester Coverage** — Add or adjust Pester tests to cover new behaviors, updated baselines, or regression fixes. Keep coverage under `Tests\` and ensure new assertions run in CI.
 4. **Reference-Backed Guidance** — When modifying tests or recommendations, cite the same caliber of authoritative sources referenced in the README (e.g., RFCs, M3AAWG, dmarc.org, Microsoft Learn). Surface those references in code comments, test descriptions, or report content so downstream consumers understand the rationale.
 
@@ -269,10 +269,10 @@ Resources:
 .PARAMETER ShowProgress
     Toggle `Write-Progress` output.
 .EXAMPLE
-    Invoke-DomainSecurityBaseline -Domain "example.com"
+    Invoke-DomainSecurityAuditor -Domain "example.com"
     Runs baseline tests and writes an HTML report to the default output folder.
 .EXAMPLE
-    Invoke-DomainSecurityBaseline -InputFile ".\domains.csv" -SkipReportLaunch
+    Invoke-DomainSecurityAuditor -InputFile ".\domains.csv" -SkipReportLaunch
     Processes every domain listed in the CSV and suppresses auto-launching the HTML report (CI-friendly).
 .OUTPUTS
     PSCustomObject describing compliance results.

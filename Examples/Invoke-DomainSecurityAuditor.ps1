@@ -6,6 +6,6 @@ Import-Module -Name (Resolve-Path -Path $moduleManifest) -Force
 #endregion ModuleImport
 
 #region Execution
-Invoke-DomainSecurityBaseline -Domain 'example.com'
+Invoke-DomainSecurityAuditor -Domain 'example.com'
 #endregion Execution
 

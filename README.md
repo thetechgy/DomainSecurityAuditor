@@ -88,13 +88,13 @@ DSA generates comprehensive HTML reports with intuitive modern styling, interact
 Analyze a single domain:
 
 ```powershell
-Invoke-DomainSecurityBaseline -Domain 'example.com'
+Invoke-DomainSecurityAuditor -Domain 'example.com'
 ```
 
 Analyze multiple domains at once:
 
 ```powershell
-Invoke-DomainSecurityBaseline -Domain 'example.com','contoso.com' -SkipReportLaunch
+Invoke-DomainSecurityAuditor -Domain 'example.com','contoso.com' -SkipReportLaunch
 ```
 
 Provide a CSV (or newline-delimited text) file with a `Domain` column to batch large lists:
@@ -107,7 +107,7 @@ contoso.com
 legacy.example
 '@ | Set-Content -Encoding UTF8 -Path ./domains.csv
 
-Invoke-DomainSecurityBaseline -InputFile ./domains.csv
+Invoke-DomainSecurityAuditor -InputFile ./domains.csv
 ```
 
 Add optional metadata columns when the defaults need adjustment. A `Classification` column overrides the DomainDetective-detected type for that row, ensuring the correct baseline is selected:
@@ -119,7 +119,7 @@ example.com,SendingAndReceiving
 legacy.example,SendingOnly
 '@ | Set-Content -Encoding UTF8 -Path ./domains-with-classifications.csv
 
-Invoke-DomainSecurityBaseline -InputFile ./domains-with-classifications.csv
+Invoke-DomainSecurityAuditor -InputFile ./domains-with-classifications.csv
 ```
 Accepted values mirror the built-in profile keys (`SendingOnly`, `ReceivingOnly`, `SendingAndReceiving`, or `Parked`) and are matched case-insensitively.
 
@@ -132,15 +132,15 @@ example.com,selector1;selector2
 legacy.example,
 '@ | Set-Content -Encoding UTF8 -Path ./domains-with-dkim-selectors.csv
 
-Invoke-DomainSecurityBaseline -InputFile ./domains-with-dkim-selectors.csv
+Invoke-DomainSecurityAuditor -InputFile ./domains-with-dkim-selectors.csv
 ```
 
 For single-domain or ad-hoc runs without a CSV, specify the override directly:
 
 ```powershell
-Invoke-DomainSecurityBaseline -Domain 'example.com' -Classification SendingOnly
-Invoke-DomainSecurityBaseline -Domain 'example.com' -DkimSelector 'selector1','selector2'
-Invoke-DomainSecurityBaseline -Domain 'example.com' -DNSEndpoint 'udp://1.1.1.1:53'
+Invoke-DomainSecurityAuditor -Domain 'example.com' -Classification SendingOnly
+Invoke-DomainSecurityAuditor -Domain 'example.com' -DkimSelector 'selector1','selector2'
+Invoke-DomainSecurityAuditor -Domain 'example.com' -DNSEndpoint 'udp://1.1.1.1:53'
 ```
 
 When `-DNSEndpoint` is omitted, DomainDetective automatically uses the system resolver.
@@ -168,7 +168,7 @@ The HTML reports provide:
 Here's what a typical report shows:
 
 ```
-Domain Security Compliance Report
+Domain Security Auditor Report
 Generated on: September 4, 2025, 2:30 PM EDT
 Framework Version: 1.0.0 | Test Suite: Baseline Email Security v1.2
 
@@ -221,7 +221,7 @@ Production Domain • 14 tests executed
      📖 References: RFC 7489, DMARC.org Deployment, M3AAWG DMARC Guide
 ```
 
-> 📸 [View full example report](Examples/domain_compliance_report.html)
+> 📸 [View full example report](Examples/domain_security_auditor_report.html)
 
 ---
 
