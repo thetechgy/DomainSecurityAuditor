@@ -46,14 +46,15 @@ jobs:
         shell: pwsh
         run: |
           $moduleName = 'PSScriptAnalyzer'
-          $requiredVersion = '${{ env.PSSA_VERSION }}'
+          $requiredVersion = [Version]'${{ env.PSSA_VERSION }}'
 
-          if (-not (Get-Module -ListAvailable -Name $moduleName -RequiredVersion $requiredVersion)) {
+          $installed = Get-Module -ListAvailable -Name $moduleName | Where-Object { $_.Version -eq $requiredVersion }
+          if (-not $installed) {
               Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-              Install-Module -Name $moduleName -RequiredVersion $requiredVersion -Scope CurrentUser -Force -AllowClobber
+              Install-Module -Name $moduleName -RequiredVersion $requiredVersion.ToString() -Scope CurrentUser -Force -AllowClobber
           }
 
-          Get-Module -ListAvailable -Name $moduleName -RequiredVersion $requiredVersion |
+          Get-Module -ListAvailable -Name $moduleName | Where-Object { $_.Version -eq $requiredVersion } |
               Select-Object -First 1 |
               Format-List Name, Version, ModuleBase
 
