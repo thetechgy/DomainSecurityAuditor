@@ -160,6 +160,7 @@ function Get-DSAEvidenceValue {
 #>
 function Test-DSABaselineCondition {
     [CmdletBinding()]
+    [OutputType([bool])]
     param (
         [Parameter(Mandatory = $true)]
         [string]$Condition,
@@ -178,4 +179,3 @@ function Test-DSABaselineCondition {
 
     return & $definition.Evaluate $Value $ExpectedValue
 }
-

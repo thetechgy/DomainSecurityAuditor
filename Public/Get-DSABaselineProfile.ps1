@@ -16,6 +16,7 @@
 #>
 
     [CmdletBinding()]
+    [OutputType([object[]])]
     param (
         [ValidateNotNullOrEmpty()]
         [string]$Name
@@ -28,11 +29,15 @@
 
     $pattern = if ($Name) { "Baseline.$Name.psd1" } else { 'Baseline.*.psd1' }
     $files = Get-ChildItem -Path $configRoot -Filter $pattern -File -ErrorAction SilentlyContinue
-    return $files | ForEach-Object {
-        $profileName = $_.BaseName -replace '^Baseline\.', ''
-        [pscustomobject]@{
-            Name = $profileName
-            Path = $_.FullName
+    $profiles = @(
+        $files | ForEach-Object {
+            $profileName = $_.BaseName -replace '^Baseline\.', ''
+            [pscustomobject]@{
+                Name = $profileName
+                Path = $_.FullName
+            }
         }
-    }
+    )
+
+    return [object[]]$profiles
 }

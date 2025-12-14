@@ -8,7 +8,7 @@
                 @{
                     Condition = 'GreaterThanOrEqual'
                     References = @(
-                        'RFC 5321 §5',
+                        'RFC 5321 section 5',
                         'M3AAWG Operational Guidance'
                     )
                     ExpectedValue = 1
@@ -61,7 +61,7 @@
                     Area = 'SPF'
                     Id = 'SPFRecordMultiplicity'
                     References = @(
-                        'RFC 7208 §3.1'
+                        'RFC 7208 section 3.1'
                     )
                     Target = 'Records.SPFRecordCount'
                 },
@@ -70,12 +70,12 @@
                     Enforcement = 'Required'
                     ExpectedValue = 10
                     Expectation = 'SPF processing must stay within the 10 DNS lookup ceiling.'
-                    Remediation = 'Reduce includes/redirects by flattening or delegating per RFC 7208 §4.6.4.'
+                    Remediation = 'Reduce includes/redirects by flattening or delegating per RFC 7208 section 4.6.4.'
                     Severity = 'High'
                     Area = 'SPF'
                     Id = 'SPFLookupLimit'
                     References = @(
-                        'RFC 7208 §4.6.4'
+                        'RFC 7208 section 4.6.4'
                     )
                     Target = 'Records.SPFLookupCount'
                 },
@@ -105,7 +105,7 @@
                     Area = 'SPF'
                     Id = 'SPFUnsafeMechanisms'
                     References = @(
-                        'RFC 7208 §5.7'
+                        'RFC 7208 section 5.7'
                     )
                     Target = 'Records.SPFHasPtrMechanism'
                 },
@@ -119,7 +119,7 @@
                     Area = 'SPF'
                     Id = 'SPFRecordLength'
                     References = @(
-                        'RFC 7208 §3.2'
+                        'RFC 7208 section 3.2'
                     )
                     Target = 'Records.SPFRecordLength'
                 },
@@ -130,7 +130,7 @@
                         Min = 3600
                         Max = 86400
                     }
-                    Expectation = 'SPF TTL should balance agility with cache efficiency (1–24 hours).'
+                    Expectation = 'SPF TTL should balance agility with cache efficiency (1-24 hours).'
                     Remediation = 'Adjust TXT record TTL to between 3600 and 86400 seconds.'
                     Severity = 'Low'
                     Area = 'SPF'
@@ -158,7 +158,7 @@
                     Condition = 'GreaterThanOrEqual'
                     Enforcement = 'Required'
                     ExpectedValue = 1024
-                    Expectation = 'DKIM keys must be ≥1024 bits (2048 preferred).'
+                    Expectation = 'DKIM keys must be >=1024 bits (2048 preferred).'
                     Remediation = 'Rotate weak DKIM keys with 2048-bit RSA entries.'
                     Severity = 'High'
                     Area = 'DKIM'
@@ -324,7 +324,7 @@
                         Min = 86400
                         Max = 604800
                     }
-                    Expectation = 'MTA-STS TXT TTL should be 1–7 days.'
+                    Expectation = 'MTA-STS TXT TTL should be 1-7 days.'
                     Remediation = 'Adjust the TXT TTL to balance agility and cache efficiency.'
                     Severity = 'Low'
                     Area = 'MTA-STS'
@@ -367,7 +367,7 @@
                         Min = 86400
                         Max = 604800
                     }
-                    Expectation = 'TLS-RPT TXT TTL should be 1–7 days.'
+                    Expectation = 'TLS-RPT TXT TTL should be 1-7 days.'
                     Remediation = 'Adjust TTL for TLS-RPT to improve manageability.'
                     Severity = 'Low'
                     Area = 'TLS-RPT'
@@ -420,7 +420,7 @@
                     Area = 'SPF'
                     Id = 'SPFRecordMultiplicity'
                     References = @(
-                        'RFC 7208 §3.1'
+                        'RFC 7208 section 3.1'
                     )
                     Target = 'Records.SPFRecordCount'
                 },
@@ -429,12 +429,12 @@
                     Enforcement = 'Required'
                     ExpectedValue = 10
                     Expectation = 'SPF processing must stay within the 10 DNS lookup ceiling.'
-                    Remediation = 'Reduce includes/redirects by flattening or delegating per RFC 7208 §4.6.4.'
+                    Remediation = 'Reduce includes/redirects by flattening or delegating per RFC 7208 section 4.6.4.'
                     Severity = 'High'
                     Area = 'SPF'
                     Id = 'SPFLookupLimit'
                     References = @(
-                        'RFC 7208 §4.6.4'
+                        'RFC 7208 section 4.6.4'
                     )
                     Target = 'Records.SPFLookupCount'
                 },
@@ -464,7 +464,7 @@
                     Area = 'SPF'
                     Id = 'SPFUnsafeMechanisms'
                     References = @(
-                        'RFC 7208 §5.7'
+                        'RFC 7208 section 5.7'
                     )
                     Target = 'Records.SPFHasPtrMechanism'
                 },
@@ -478,7 +478,7 @@
                     Area = 'SPF'
                     Id = 'SPFRecordLength'
                     References = @(
-                        'RFC 7208 §3.2'
+                        'RFC 7208 section 3.2'
                     )
                     Target = 'Records.SPFRecordLength'
                 },
@@ -489,7 +489,7 @@
                         Min = 3600
                         Max = 86400
                     }
-                    Expectation = 'SPF TTL should balance agility with cache efficiency (1–24 hours).'
+                    Expectation = 'SPF TTL should balance agility with cache efficiency (1-24 hours).'
                     Remediation = 'Adjust TXT record TTL to between 3600 and 86400 seconds.'
                     Severity = 'Low'
                     Area = 'SPF'
@@ -563,7 +563,7 @@
                         'M3AAWG DKIM Deployment Guide'
                     )
                     ExpectedValue = 1024
-                    Expectation = 'DKIM keys must be ≥1024 bits (2048 preferred).'
+                    Expectation = 'DKIM keys must be >=1024 bits (2048 preferred).'
                     Enforcement = 'Recommended'
                     Severity = 'High'
                     Area = 'DKIM'
@@ -744,7 +744,7 @@
                         Min = 86400
                         Max = 604800
                     }
-                    Expectation = 'MTA-STS TXT TTL should be 1–7 days.'
+                    Expectation = 'MTA-STS TXT TTL should be 1-7 days.'
                     Enforcement = 'Recommended'
                     Severity = 'Low'
                     Area = 'MTA-STS'
@@ -787,7 +787,7 @@
                         Min = 86400
                         Max = 604800
                     }
-                    Expectation = 'TLS-RPT TXT TTL should be 1–7 days.'
+                    Expectation = 'TLS-RPT TXT TTL should be 1-7 days.'
                     Enforcement = 'Recommended'
                     Severity = 'Low'
                     Area = 'TLS-RPT'
@@ -811,7 +811,7 @@
                     Area = 'MX'
                     Id = 'MXPresence'
                     References = @(
-                        'RFC 5321 §5',
+                        'RFC 5321 section 5',
                         'M3AAWG Operational Guidance'
                     )
                     Target = 'Records.MXRecordCount'
@@ -850,7 +850,7 @@
                 @{
                     Condition = 'MustEqual'
                     References = @(
-                        'RFC 7208 §3.1'
+                        'RFC 7208 section 3.1'
                     )
                     ExpectedValue = '1'
                     Expectation = 'Only one SPF record should exist per RFC 7208.'
@@ -864,7 +864,7 @@
                 @{
                     Condition = 'LessThanOrEqual'
                     References = @(
-                        'RFC 7208 §4.6.4'
+                        'RFC 7208 section 4.6.4'
                     )
                     ExpectedValue = 10
                     Expectation = 'SPF processing must stay within the 10 DNS lookup ceiling.'
@@ -873,7 +873,7 @@
                     Area = 'SPF'
                     Id = 'SPFLookupLimit'
                     Target = 'Records.SPFLookupCount'
-                    Remediation = 'Reduce includes/redirects by flattening or delegating per RFC 7208 §4.6.4.'
+                    Remediation = 'Reduce includes/redirects by flattening or delegating per RFC 7208 section 4.6.4.'
                 },
                 @{
                     Condition = 'MustBeOneOf'
@@ -895,7 +895,7 @@
                 @{
                     Condition = 'MustBeFalse'
                     References = @(
-                        'RFC 7208 §5.7'
+                        'RFC 7208 section 5.7'
                     )
                     Expectation = 'Avoid unsafe mechanisms such as ptr per RFC 7208 guidance.'
                     Enforcement = 'Recommended'
@@ -908,7 +908,7 @@
                 @{
                     Condition = 'LessThanOrEqual'
                     References = @(
-                        'RFC 7208 §3.2'
+                        'RFC 7208 section 3.2'
                     )
                     ExpectedValue = 255
                     Expectation = 'Keep SPF strings within 255 characters to avoid DNS truncation.'
@@ -928,7 +928,7 @@
                         Min = 3600
                         Max = 86400
                     }
-                    Expectation = 'SPF TTL should balance agility with cache efficiency (1–24 hours).'
+                    Expectation = 'SPF TTL should balance agility with cache efficiency (1-24 hours).'
                     Enforcement = 'Recommended'
                     Severity = 'Low'
                     Area = 'SPF'
@@ -957,7 +957,7 @@
                         'M3AAWG DKIM Deployment Guide'
                     )
                     ExpectedValue = 1024
-                    Expectation = 'DKIM keys must be ≥1024 bits (2048 preferred).'
+                    Expectation = 'DKIM keys must be >=1024 bits (2048 preferred).'
                     Enforcement = 'Recommended'
                     Severity = 'High'
                     Area = 'DKIM'
@@ -1120,7 +1120,7 @@
                         Min = 86400
                         Max = 604800
                     }
-                    Expectation = 'MTA-STS TXT TTL should be 1–7 days.'
+                    Expectation = 'MTA-STS TXT TTL should be 1-7 days.'
                     Remediation = 'Adjust the TXT TTL to balance agility and cache efficiency.'
                     Severity = 'Low'
                     Area = 'MTA-STS'
@@ -1163,7 +1163,7 @@
                         Min = 86400
                         Max = 604800
                     }
-                    Expectation = 'TLS-RPT TXT TTL should be 1–7 days.'
+                    Expectation = 'TLS-RPT TXT TTL should be 1-7 days.'
                     Remediation = 'Adjust TTL for TLS-RPT to improve manageability.'
                     Severity = 'Low'
                     Area = 'TLS-RPT'
@@ -1203,7 +1203,7 @@
                     Area = 'SPF'
                     Id = 'SPFRecordMultiplicity'
                     References = @(
-                        'RFC 7208 §3.1'
+                        'RFC 7208 section 3.1'
                     )
                     Target = 'Records.SPFRecordCount'
                 },
@@ -1212,12 +1212,12 @@
                     Enforcement = 'Required'
                     ExpectedValue = 10
                     Expectation = 'SPF processing must stay within the 10 DNS lookup ceiling.'
-                    Remediation = 'Reduce includes/redirects by flattening or delegating per RFC 7208 §4.6.4.'
+                    Remediation = 'Reduce includes/redirects by flattening or delegating per RFC 7208 section 4.6.4.'
                     Severity = 'High'
                     Area = 'SPF'
                     Id = 'SPFLookupLimit'
                     References = @(
-                        'RFC 7208 §4.6.4'
+                        'RFC 7208 section 4.6.4'
                     )
                     Target = 'Records.SPFLookupCount'
                 },
@@ -1247,7 +1247,7 @@
                     Area = 'SPF'
                     Id = 'SPFUnsafeMechanisms'
                     References = @(
-                        'RFC 7208 §5.7'
+                        'RFC 7208 section 5.7'
                     )
                     Target = 'Records.SPFHasPtrMechanism'
                 },
@@ -1261,7 +1261,7 @@
                     Area = 'SPF'
                     Id = 'SPFRecordLength'
                     References = @(
-                        'RFC 7208 §3.2'
+                        'RFC 7208 section 3.2'
                     )
                     Target = 'Records.SPFRecordLength'
                 },
@@ -1272,7 +1272,7 @@
                         Min = 3600
                         Max = 86400
                     }
-                    Expectation = 'SPF TTL should balance agility with cache efficiency (1–24 hours).'
+                    Expectation = 'SPF TTL should balance agility with cache efficiency (1-24 hours).'
                     Remediation = 'Adjust TXT record TTL to between 3600 and 86400 seconds.'
                     Severity = 'Low'
                     Area = 'SPF'
@@ -1390,7 +1390,7 @@
                         Min = 86400
                         Max = 604800
                     }
-                    Expectation = 'TLS-RPT TXT TTL should be 1–7 days.'
+                    Expectation = 'TLS-RPT TXT TTL should be 1-7 days.'
                     Remediation = 'Adjust TTL for TLS-RPT to improve manageability.'
                     Severity = 'Low'
                     Area = 'TLS-RPT'
@@ -1416,7 +1416,7 @@
                     Area = 'MX'
                     Id = 'MXPresence'
                     References = @(
-                        'RFC 5321 §5',
+                        'RFC 5321 section 5',
                         'M3AAWG Operational Guidance'
                     )
                     Target = 'Records.MXRecordCount'
@@ -1462,7 +1462,7 @@
                     Area = 'SPF'
                     Id = 'SPFRecordMultiplicity'
                     References = @(
-                        'RFC 7208 §3.1'
+                        'RFC 7208 section 3.1'
                     )
                     Target = 'Records.SPFRecordCount'
                 },
@@ -1471,12 +1471,12 @@
                     Enforcement = 'Required'
                     ExpectedValue = 10
                     Expectation = 'SPF processing must stay within the 10 DNS lookup ceiling.'
-                    Remediation = 'Reduce includes/redirects by flattening or delegating per RFC 7208 §4.6.4.'
+                    Remediation = 'Reduce includes/redirects by flattening or delegating per RFC 7208 section 4.6.4.'
                     Severity = 'High'
                     Area = 'SPF'
                     Id = 'SPFLookupLimit'
                     References = @(
-                        'RFC 7208 §4.6.4'
+                        'RFC 7208 section 4.6.4'
                     )
                     Target = 'Records.SPFLookupCount'
                 },
@@ -1506,7 +1506,7 @@
                     Area = 'SPF'
                     Id = 'SPFUnsafeMechanisms'
                     References = @(
-                        'RFC 7208 §5.7'
+                        'RFC 7208 section 5.7'
                     )
                     Target = 'Records.SPFHasPtrMechanism'
                 },
@@ -1520,7 +1520,7 @@
                     Area = 'SPF'
                     Id = 'SPFRecordLength'
                     References = @(
-                        'RFC 7208 §3.2'
+                        'RFC 7208 section 3.2'
                     )
                     Target = 'Records.SPFRecordLength'
                 },
@@ -1531,7 +1531,7 @@
                         Min = 3600
                         Max = 86400
                     }
-                    Expectation = 'SPF TTL should balance agility with cache efficiency (1–24 hours).'
+                    Expectation = 'SPF TTL should balance agility with cache efficiency (1-24 hours).'
                     Remediation = 'Adjust TXT record TTL to between 3600 and 86400 seconds.'
                     Severity = 'Low'
                     Area = 'SPF'
@@ -1559,7 +1559,7 @@
                     Condition = 'GreaterThanOrEqual'
                     Enforcement = 'Required'
                     ExpectedValue = 1024
-                    Expectation = 'DKIM keys must be ≥1024 bits (2048 preferred).'
+                    Expectation = 'DKIM keys must be >=1024 bits (2048 preferred).'
                     Remediation = 'Rotate weak DKIM keys with 2048-bit RSA entries.'
                     Severity = 'High'
                     Area = 'DKIM'
@@ -1725,7 +1725,7 @@
                         Min = 86400
                         Max = 604800
                     }
-                    Expectation = 'MTA-STS TXT TTL should be 1–7 days.'
+                    Expectation = 'MTA-STS TXT TTL should be 1-7 days.'
                     Remediation = 'Adjust the TXT TTL to balance agility and cache efficiency.'
                     Severity = 'Low'
                     Area = 'MTA-STS'
@@ -1768,7 +1768,7 @@
                         Min = 86400
                         Max = 604800
                     }
-                    Expectation = 'TLS-RPT TXT TTL should be 1–7 days.'
+                    Expectation = 'TLS-RPT TXT TTL should be 1-7 days.'
                     Remediation = 'Adjust TTL for TLS-RPT to improve manageability.'
                     Severity = 'Low'
                     Area = 'TLS-RPT'

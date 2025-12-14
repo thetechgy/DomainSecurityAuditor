@@ -1,5 +1,16 @@
 function Invoke-DomainDetective {
+    <#
+    .SYNOPSIS
+        Test stub for the DomainDetective entry point.
+    .DESCRIPTION
+        Returns canned domain metadata so DomainSecurityAuditor tests can run without the real module.
+    .PARAMETER Domain
+        Target domain name to echo into the stubbed payload.
+    .OUTPUTS
+        PSCustomObject
+    #>
     [CmdletBinding()]
+    [OutputType([pscustomobject])]
     param (
         [Parameter(Mandatory = $true)]
         [string]$Domain

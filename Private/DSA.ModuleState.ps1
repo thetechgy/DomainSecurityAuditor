@@ -10,4 +10,3 @@ function Reset-DSAModuleState {
     $script:DSADomainDetectiveLoaded = $false
     $script:DSAKnownReferenceLinks = @{}
 }
-

@@ -140,7 +140,6 @@
     $dkimTtls = @($dkimFound | ForEach-Object { Get-DSATtlValue -InputObject $_ } | Where-Object { $_ })
     $dkimMinTtl = if ($dkimTtls) { ($dkimTtls | Measure-Object -Minimum).Minimum } else { $null }
 
-    $dmarcRaw = $dmarc.Raw
     $mtastsAnalysis = $mtastsHealth.Raw.MTASTSAnalysis
     $mxMinimumTtl = Get-DSATtlValue -InputObject $mx -PropertyName 'MxRecordTtl'
     $spfTtl = Get-DSATtlValue -InputObject $spf

@@ -7,6 +7,7 @@
     Returns a hashtable of profile definitions keyed by classification name.
 #>
     [CmdletBinding()]
+    [OutputType([hashtable])]
     param (
         [Parameter()]
         [string]$ProfilePath,
@@ -41,4 +42,3 @@
         Profiles = $profiles
     }
 }
-

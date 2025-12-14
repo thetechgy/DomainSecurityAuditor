@@ -105,7 +105,18 @@ function Get-DSADomainInputState {
     )
 
     function Get-DSADkimSelectorsFromRecord {
+        <#
+        .SYNOPSIS
+            Extract DKIM selectors from a CSV or object record.
+        .DESCRIPTION
+            Normalizes selector values into a trimmed string array, handling collection and delimited string inputs.
+        .PARAMETER Record
+            Input record containing DKIM selector metadata.
+        .OUTPUTS
+            System.String[]
+        #>
         [CmdletBinding()]
+        [OutputType([string[]])]
         param (
             [Parameter(Mandatory = $true)]
             $Record
@@ -113,20 +124,20 @@ function Get-DSADomainInputState {
 
         $dkimSelectorProperty = $Record.PSObject.Properties | Where-Object { $_.Name -in @('DkimSelectors', 'DKIMSelectors') } | Select-Object -First 1
         if (-not $dkimSelectorProperty) {
-            return @()
+            return [string[]]@()
         }
 
         $rawSelectors = $dkimSelectorProperty.Value
         if ($rawSelectors -is [System.Collections.IEnumerable] -and -not ($rawSelectors -is [string])) {
-            return @($rawSelectors | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+            return [string[]]@($rawSelectors | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
         }
 
         $selectorString = "$rawSelectors".Trim()
         if ([string]::IsNullOrWhiteSpace($selectorString)) {
-            return @()
+            return [string[]]@()
         }
 
-        return @($selectorString -split '[,;]' | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        return [string[]]@($selectorString -split '[,;]' | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     }
 
     if ($PSBoundParameters.ContainsKey('InputFile')) {
@@ -398,15 +409,15 @@ function Invoke-DSADomainRun {
     }
 
     $evidence = Get-DSADomainEvidence @evidenceParams
-    $profile = Invoke-DSABaselineTest -DomainEvidence $evidence -BaselineDefinition $BaselineProfiles -ClassificationOverride $domainContext.ClassificationOverride
+    $baselineProfile = Invoke-DSABaselineTest -DomainEvidence $evidence -BaselineDefinition $BaselineProfiles -ClassificationOverride $domainContext.ClassificationOverride
 
     $profileWithMetadata = [pscustomobject]@{
-        Domain                 = $profile.Domain
-        Classification         = $profile.Classification
-        OriginalClassification = $profile.OriginalClassification
-        ClassificationOverride = $profile.ClassificationOverride
-        OverallStatus          = $profile.OverallStatus
-        Checks                 = $profile.Checks
+        Domain                 = $baselineProfile.Domain
+        Classification         = $baselineProfile.Classification
+        OriginalClassification = $baselineProfile.OriginalClassification
+        ClassificationOverride = $baselineProfile.ClassificationOverride
+        OverallStatus          = $baselineProfile.OverallStatus
+        Checks                 = $baselineProfile.Checks
         Evidence               = $evidence.Records
         OutputPath             = $OutputRoot
         Timestamp              = (Get-Date)
@@ -414,7 +425,7 @@ function Invoke-DSADomainRun {
     }
 
     if ($LogFile) {
-        Write-DSALog -Message ("Completed baseline for '{0}' with status '{1}'." -f $DomainName, $profile.OverallStatus) -LogFile $LogFile
+        Write-DSALog -Message ("Completed baseline for '{0}' with status '{1}'." -f $DomainName, $baselineProfile.OverallStatus) -LogFile $LogFile
     }
 
     return $profileWithMetadata
@@ -443,27 +454,29 @@ function Write-DSABaselineConsoleSummary {
 
     $domainSummaries = [System.Collections.Generic.List[object]]::new()
 
-    foreach ($profile in $Profiles) {
+    foreach ($baselineProfile in $Profiles) {
         $selectorDetails = $null
-        if ($profile -and $profile.PSObject.Properties.Name -contains 'Evidence' -and $profile.Evidence -and $profile.Evidence.PSObject.Properties.Name -contains 'DKIMSelectorDetails') {
-            $selectorDetails = $profile.Evidence.DKIMSelectorDetails
+        if ($baselineProfile -and $baselineProfile.PSObject.Properties.Name -contains 'Evidence' -and $baselineProfile.Evidence -and $baselineProfile.Evidence.PSObject.Properties.Name -contains 'DKIMSelectorDetails') {
+            $selectorDetails = $baselineProfile.Evidence.DKIMSelectorDetails
         }
-        $checks = Get-DSAEffectiveChecks -Checks ($profile.Checks | Where-Object { $_ }) -SelectorDetails $selectorDetails
+
+        $checks = Get-DSAEffectiveChecks -Checks ($baselineProfile.Checks | Where-Object { $_ }) -SelectorDetails $selectorDetails
         $counts = Get-DSAStatusCounts -Checks $checks
-        $rank = switch ($profile.OverallStatus) {
+        $rank = switch ($baselineProfile.OverallStatus) {
             'Fail' { 0 }
             'Warning' { 1 }
             default { 2 }
         }
 
-        $domainSummaries.Add([pscustomobject]@{
+        $summaryItem = [pscustomobject]@{
             Rank   = $rank
-            Domain = $profile.Domain
-            Status = $profile.OverallStatus
+            Domain = $baselineProfile.Domain
+            Status = $baselineProfile.OverallStatus
             Pass   = $counts.Pass
             Warn   = $counts.Warning
             Fail   = $counts.Fail
-        })
+        }
+        $domainSummaries.Add($summaryItem)
     }
 
     $sortedSummaries = $domainSummaries | Sort-Object -Property @{ Expression = { $_.Rank } }, @{ Expression = { $_.Domain } }
@@ -471,6 +484,7 @@ function Write-DSABaselineConsoleSummary {
     $warnWidth = if ($sortedSummaries) { ($sortedSummaries | ForEach-Object { $_.Warn.ToString().Length } | Measure-Object -Maximum).Maximum } else { 1 }
     $failWidth = if ($sortedSummaries) { ($sortedSummaries | ForEach-Object { $_.Fail.ToString().Length } | Measure-Object -Maximum).Maximum } else { 1 }
     $domainCount = ($Profiles | Measure-Object).Count
+
     Write-Information -MessageData '' -InformationAction Continue
     Write-Information -MessageData ("Baselines complete ({0} domain{1})" -f $domainCount, $(if ($domainCount -ne 1) { 's' } else { '' })) -InformationAction Continue
     foreach ($summary in $sortedSummaries) {
@@ -479,9 +493,11 @@ function Write-DSABaselineConsoleSummary {
             'Warning' { '[WARN]' }
             default { '[PASS]' }
         }
+
         $line = "  {0} {1} (Pass {2,$passWidth} | Warn {3,$warnWidth} | Fail {4,$failWidth})" -f $indicator, $summary.Domain, $summary.Pass, $summary.Warn, $summary.Fail
         Write-Information -MessageData $line -InformationAction Continue
     }
+
     Write-Information -MessageData '' -InformationAction Continue
     Write-Information -MessageData 'Report:' -InformationAction Continue
     Write-Information -MessageData ("  {0}" -f $ReportPath) -InformationAction Continue

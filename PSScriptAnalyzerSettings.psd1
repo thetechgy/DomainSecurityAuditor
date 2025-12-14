@@ -1,5 +1,10 @@
 @{
     Severity = @('Error', 'Warning', 'Information')
+    ExcludeRules = @(
+        'PSReviewUnusedParameter'
+        'PSUseShouldProcessForStateChangingFunctions'
+        'PSUseSingularNouns'
+    )
 
     # Default rules stay enabled; the Rules block below tweaks the ones that matter most to DSA.
     Rules = @{

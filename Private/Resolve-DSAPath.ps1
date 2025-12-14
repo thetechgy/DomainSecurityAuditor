@@ -12,6 +12,7 @@
 #>
 function Resolve-DSAPath {
     [CmdletBinding()]
+    [OutputType([string])]
     param (
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
@@ -60,4 +61,3 @@ function Resolve-DSAPath {
 
     return $expandedPath
 }
-

@@ -55,6 +55,7 @@ function Get-DSAClassificationKey {
     standard key format used in baseline profiles.
 #>
     [CmdletBinding()]
+    [OutputType([string])]
     param (
         [string]$Classification
     )
@@ -72,4 +73,3 @@ function Get-DSAClassificationKey {
         default { return $Classification }
     }
 }
-

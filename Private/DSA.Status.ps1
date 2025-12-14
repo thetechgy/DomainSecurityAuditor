@@ -8,6 +8,7 @@
 #>
 function Get-DSAStatusCounts {
     [CmdletBinding()]
+    [OutputType([pscustomobject])]
     param (
         [object[]]$Checks = @()
     )
@@ -56,6 +57,7 @@ function Get-DSAStatusCounts {
 #>
 function Get-DSAOverallStatus {
     [CmdletBinding()]
+    [OutputType([string])]
     param (
         [object[]]$Checks = @()
     )
@@ -72,4 +74,3 @@ function Get-DSAOverallStatus {
     if ($counts.Warning -gt 0) { return 'Warning' }
     return 'Pass'
 }
-

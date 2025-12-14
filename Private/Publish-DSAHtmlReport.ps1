@@ -164,35 +164,35 @@ function Add-DSADomainSections {
     $null = $Builder.AppendLine('      <button type="button" class="section-toggle" id="toggle-all-sections" aria-pressed="false">Expand all sections</button>')
     $null = $Builder.AppendLine('    </div>')
 
-    foreach ($profile in $Profiles) {
-        $statusClass = Get-DSAStatusClassName -Status $profile.OverallStatus
+    foreach ($domainProfile in $Profiles) {
+        $statusClass = Get-DSAStatusClassName -Status $domainProfile.OverallStatus
         $statusAttr = switch ($statusClass) {
             'passed' { 'pass' }
             'failed' { 'fail' }
             'warning' { 'warning' }
             default { 'info' }
         }
-        $checks = if ($profile.Checks) { @($profile.Checks | Where-Object { $_ }) } else { @() }
+        $checks = if ($domainProfile.Checks) { @($domainProfile.Checks | Where-Object { $_ }) } else { @() }
         $checkCount = ($checks | Measure-Object).Count
         $metaSegments = [System.Collections.Generic.List[string]]::new()
         $hasOverride = $false
-        if ($profile.PSObject.Properties.Name -contains 'ClassificationOverride' -and -not [string]::IsNullOrWhiteSpace($profile.ClassificationOverride)) {
-            $null = $metaSegments.Add(("Override: {0}" -f $profile.ClassificationOverride))
+        if ($domainProfile.PSObject.Properties.Name -contains 'ClassificationOverride' -and -not [string]::IsNullOrWhiteSpace($domainProfile.ClassificationOverride)) {
+            $null = $metaSegments.Add(("Override: {0}" -f $domainProfile.ClassificationOverride))
             $hasOverride = $true
         }
-        if ($profile.OriginalClassification) {
+        if ($domainProfile.OriginalClassification) {
             $label = if ($hasOverride) { 'Detected' } else { 'Detected' }
-            $null = $metaSegments.Add(("{0}: {1}" -f $label, $profile.OriginalClassification))
+            $null = $metaSegments.Add(("{0}: {1}" -f $label, $domainProfile.OriginalClassification))
         }
         if ($checkCount -gt 0) {
             $null = $metaSegments.Add(("{0} checks executed" -f $checkCount))
         }
-        $statusText = if ($profile.OverallStatus) { $profile.OverallStatus.ToUpperInvariant() } else { '' }
+        $statusText = if ($domainProfile.OverallStatus) { $domainProfile.OverallStatus.ToUpperInvariant() } else { '' }
 
         $null = $Builder.AppendLine(("    <section class=""domain-results status-{0}"" data-status=""{0}"">" -f $statusAttr))
         $null = $Builder.AppendLine('      <div class="domain-header">')
         $null = $Builder.AppendLine('        <div class="domain-title">')
-        $null = $Builder.AppendLine(("          <div class='domain-name'>{0}</div>" -f (ConvertTo-DSAHtml $profile.Domain)))
+        $null = $Builder.AppendLine(("          <div class='domain-name'>{0}</div>" -f (ConvertTo-DSAHtml $domainProfile.Domain)))
         $null = $Builder.AppendLine(("          <span class='domain-status {0}'>{1}</span>" -f $statusClass, (ConvertTo-DSAHtml $statusText)))
         $null = $Builder.AppendLine('        </div>')
         if ($metaSegments.Count -gt 0) {
@@ -208,9 +208,9 @@ function Add-DSADomainSections {
         }
 
         $groupedChecks = $checks | Group-Object -Property Area
-        $domainSlug = ($profile.Domain -replace '[^a-zA-Z0-9]', '-').ToLowerInvariant()
+        $domainSlug = ($domainProfile.Domain -replace '[^a-zA-Z0-9]', '-').ToLowerInvariant()
         foreach ($group in $groupedChecks) {
-            Add-DSAProtocolSection -Builder $Builder -Group $group -DomainSlug $domainSlug -Profile $profile
+            Add-DSAProtocolSection -Builder $Builder -Group $group -DomainSlug $domainSlug -DomainProfile $domainProfile
         }
 
         $null = $Builder.AppendLine('    </section>')
@@ -228,7 +228,7 @@ function Add-DSADomainSections {
     Grouped set of checks for the protocol area.
 .PARAMETER DomainSlug
     Sanitized domain identifier used in element ids.
-.PARAMETER Profile
+.PARAMETER DomainProfile
     Compliance profile for the domain.
 #>
 function Add-DSAProtocolSection {
@@ -236,7 +236,7 @@ function Add-DSAProtocolSection {
         [Parameter(Mandatory = $true)][System.Text.StringBuilder]$Builder,
         [Parameter(Mandatory = $true)][System.Management.Automation.PSObject]$Group,
         [string]$DomainSlug,
-        [pscustomobject]$Profile
+        [pscustomobject]$DomainProfile
     )
 
     if (-not $Group -or -not $Group.Group) {
@@ -256,8 +256,8 @@ function Add-DSAProtocolSection {
     $detailsId = "protocol-{0}-{1}" -f $DomainSlug, $areaSlug
 
     $selectorDetails = $null
-    if (($Group.Name -eq 'DKIM') -and $Profile -and $Profile.PSObject.Properties.Name -contains 'Evidence') {
-        $selectorDetails = $Profile.Evidence.DKIMSelectorDetails
+    if (($Group.Name -eq 'DKIM') -and $DomainProfile -and $DomainProfile.PSObject.Properties.Name -contains 'Evidence') {
+        $selectorDetails = $DomainProfile.Evidence.DKIMSelectorDetails
     }
 
     $effectiveChecks = Get-DSAEffectiveChecks -Checks $groupChecks -SelectorDetails $selectorDetails
@@ -312,7 +312,7 @@ function Add-DSATestResult {
     $filterStatus = Get-DSAFilterStatus -Status $effectiveStatus
     $detailItems = [System.Collections.Generic.List[object]]::new()
     $suppressActual = ($Check.Area -eq 'DKIM' -and $Check.Id -in @('DKIMKeyStrength', 'DKIMTtl'))
-    if (-not $suppressActual -and $Check.PSObject.Properties.Name -contains 'Actual' -and ($Check.Actual -ne $null)) {
+    if (-not $suppressActual -and $Check.PSObject.Properties.Name -contains 'Actual' -and ($null -ne $Check.Actual)) {
         $valueHtml = ConvertTo-DSAValueHtml -Value $Check.Actual
         $null = $detailItems.Add([pscustomobject]@{
                 Label  = 'Observed Value'
@@ -424,13 +424,13 @@ function Get-DSAReportSummary {
         Warning = 0
     }
     $totalChecks = 0
-    foreach ($profile in $profileList) {
+    foreach ($domainProfile in $profileList) {
         $selectorDetails = $null
-        if ($profile -and $profile.PSObject.Properties['Evidence'] -and $profile.Evidence -and $profile.Evidence.PSObject.Properties['DKIMSelectorDetails']) {
-            $selectorDetails = $profile.Evidence.DKIMSelectorDetails
+        if ($domainProfile -and $domainProfile.PSObject.Properties['Evidence'] -and $domainProfile.Evidence -and $domainProfile.Evidence.PSObject.Properties['DKIMSelectorDetails']) {
+            $selectorDetails = $domainProfile.Evidence.DKIMSelectorDetails
         }
 
-        $checksInput = if ($profile.Checks) { $profile.Checks } else { @() }
+        $checksInput = if ($domainProfile.Checks) { $domainProfile.Checks } else { @() }
         $checks = Get-DSAEffectiveChecks -Checks $checksInput -SelectorDetails $selectorDetails
         if (-not $checks) {
             $checks = @()

@@ -106,6 +106,7 @@ function Get-DSADkimEffectiveStatus {
 #>
 function Get-DSAEffectiveChecks {
     [CmdletBinding()]
+    [OutputType([object[]])]
     param (
         $Checks = @(),
 
@@ -137,6 +138,5 @@ function Get-DSAEffectiveChecks {
         $null = $results.Add($clone)
     }
 
-    return $results.ToArray()
+    return [object[]]$results.ToArray()
 }
-
