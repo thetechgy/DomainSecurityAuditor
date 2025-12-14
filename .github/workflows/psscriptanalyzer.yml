@@ -67,7 +67,7 @@ jobs:
               exit 1
           }
 
-          $paths = @(
+          $paths = [string[]]@(
               'DomainSecurityAuditor.psm1'
               'DomainSecurityAuditor.psd1'
               'Public'
