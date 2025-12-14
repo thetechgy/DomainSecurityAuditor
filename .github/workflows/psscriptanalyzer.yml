@@ -1,0 +1,83 @@
+name: PSScriptAnalyzer
+
+on:
+  pull_request:
+    paths:
+      - "**/*.ps1"
+      - "**/*.psm1"
+      - "**/*.psd1"
+      - "PSScriptAnalyzerSettings.psd1"
+      - ".github/workflows/psscriptanalyzer.yml"
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - "**/*.ps1"
+      - "**/*.psm1"
+      - "**/*.psd1"
+      - "PSScriptAnalyzerSettings.psd1"
+      - ".github/workflows/psscriptanalyzer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Run PSScriptAnalyzer
+    runs-on: ubuntu-latest
+    env:
+      PSSA_VERSION: "1.22.0"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cache PowerShell modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/powershell/Modules/PSScriptAnalyzer
+          key: pssa-${{ runner.os }}-${{ env.PSSA_VERSION }}-${{ hashFiles('PSScriptAnalyzerSettings.psd1') }}
+          restore-keys: |
+            pssa-${{ runner.os }}-
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $moduleName = 'PSScriptAnalyzer'
+          $requiredVersion = '${{ env.PSSA_VERSION }}'
+
+          if (-not (Get-Module -ListAvailable -Name $moduleName -RequiredVersion $requiredVersion)) {
+              Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+              Install-Module -Name $moduleName -RequiredVersion $requiredVersion -Scope CurrentUser -Force -AllowClobber
+          }
+
+          Get-Module -ListAvailable -Name $moduleName -RequiredVersion $requiredVersion |
+              Select-Object -First 1 |
+              Format-List Name, Version, ModuleBase
+
+      - name: Analyze PowerShell scripts
+        shell: pwsh
+        run: |
+          $settingsPath = Join-Path $PWD 'PSScriptAnalyzerSettings.psd1'
+          if (-not (Test-Path $settingsPath)) {
+              Write-Error "Settings file not found at $settingsPath"
+              exit 1
+          }
+
+          $paths = @(
+              'DomainSecurityAuditor.psm1'
+              'DomainSecurityAuditor.psd1'
+              'Public'
+              'Private'
+              'Examples'
+              'Tests'
+          ) | Where-Object { Test-Path $_ }
+
+          if (-not $paths) {
+              Write-Error 'No PowerShell paths found to analyze'
+              exit 1
+          }
+
+          Invoke-ScriptAnalyzer -Path $paths -Recurse -Settings $settingsPath -ReportSummary -EnableExit
