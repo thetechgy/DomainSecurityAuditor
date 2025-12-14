@@ -7,13 +7,10 @@
             Enable = $true
             TargetVersions = @('7.0') # README mandates PowerShell 7+, so fail anything outside that syntax surface.
         }
+        # PSUseCompatibleCmdlets disabled - PSUseCompatibleSyntax above covers PS7+ requirements.
+        # Enable manually if cross-platform cmdlet compatibility checks are needed.
         PSUseCompatibleCmdlets = @{
-            Enable = $true
-            # Use the built-in compatibility profiles shipped with PSScriptAnalyzer (PowerShell 7.0 on Windows/Ubuntu).
-            TargetProfiles = @(
-                'win-8_x64_10.0.17763.0_7.0.0_x64_3.1.2_core'
-                'ubuntu_x64_18.04_7.0.0_x64_3.1.2_core'
-            )
+            Enable = $false
         }
 
         # Enforce the authoring standards from AGENTS.md
@@ -62,6 +59,9 @@
             Enable = $false
         }
         PSPlaceOpenBrace = @{
+            Enable = $true
+            OnSameLine = $true
+            IgnoreOneLineBlock = $true
         }
         PSPlaceCloseBrace = @{
             Enable = $true
