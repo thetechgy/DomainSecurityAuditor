@@ -28,7 +28,7 @@ jobs:
     name: Run PSScriptAnalyzer
     runs-on: ubuntu-latest
     env:
-      PSSA_VERSION: "1.22.0"
+      PSSA_VERSION: "1.24.0"
 
     steps:
       - name: Checkout repository
@@ -81,6 +81,7 @@ jobs:
               exit 1
           }
 
+          $ErrorActionPreference = 'Stop'
           $results = @()
           foreach ($p in $paths) {
               $results += Invoke-ScriptAnalyzer -Path $p -Recurse -Settings $settingsPath
@@ -90,6 +91,5 @@ jobs:
               $results | Format-Table RuleName, Severity, ScriptName, Line, Message -AutoSize
               Write-Host "`nTotal issues: $($results.Count)"
               exit 1
-          } else {
-              Write-Host 'No issues found.'
           }
+          Write-Host 'No issues found.'

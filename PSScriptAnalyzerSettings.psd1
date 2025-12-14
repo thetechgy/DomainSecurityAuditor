@@ -7,10 +7,13 @@
             Enable = $true
             TargetVersions = @('7.0') # README mandates PowerShell 7+, so fail anything outside that syntax surface.
         }
-        # PSUseCompatibleCmdlets disabled - PSUseCompatibleSyntax above covers PS7+ requirements.
-        # Enable manually if cross-platform cmdlet compatibility checks are needed.
         PSUseCompatibleCmdlets = @{
-            Enable = $false
+            Enable = $true
+            # Compatibility profiles shipped with PSScriptAnalyzer 1.24.0 (PS 7.0 on Windows/Ubuntu).
+            TargetProfiles = @(
+                'win-8_x64_10.0.17763.0_7.0.0_x64_3.1.2_core'
+                'ubuntu_x64_18.04_7.0.0_x64_3.1.2_core'
+            )
         }
 
         # Enforce the authoring standards from AGENTS.md
