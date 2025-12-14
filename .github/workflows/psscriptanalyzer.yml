@@ -74,13 +74,22 @@ jobs:
               'Private'
               'Examples'
               'Tests'
-          ) | Where-Object { Test-Path $_ } | ForEach-Object { $_.ToString() }
-
-          $paths = [string[]]$paths
+          ) | Where-Object { Test-Path $_ }
 
           if (-not $paths) {
               Write-Error 'No PowerShell paths found to analyze'
               exit 1
           }
 
-          Invoke-ScriptAnalyzer -Path $paths -Recurse -Settings $settingsPath -ReportSummary -EnableExit
+          $results = @()
+          foreach ($p in $paths) {
+              $results += Invoke-ScriptAnalyzer -Path $p -Recurse -Settings $settingsPath
+          }
+
+          if ($results) {
+              $results | Format-Table RuleName, Severity, ScriptName, Line, Message -AutoSize
+              Write-Host "`nTotal issues: $($results.Count)"
+              exit 1
+          } else {
+              Write-Host 'No issues found.'
+          }
