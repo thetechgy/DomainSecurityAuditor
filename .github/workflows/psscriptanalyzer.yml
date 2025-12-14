@@ -67,14 +67,16 @@ jobs:
               exit 1
           }
 
-          $paths = [string[]]@(
+          $paths = @(
               'DomainSecurityAuditor.psm1'
               'DomainSecurityAuditor.psd1'
               'Public'
               'Private'
               'Examples'
               'Tests'
-          ) | Where-Object { Test-Path $_ }
+          ) | Where-Object { Test-Path $_ } | ForEach-Object { $_.ToString() }
+
+          $paths = [string[]]$paths
 
           if (-not $paths) {
               Write-Error 'No PowerShell paths found to analyze'
