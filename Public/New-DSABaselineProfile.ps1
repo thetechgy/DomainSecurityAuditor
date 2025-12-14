@@ -17,6 +17,7 @@
 #>
 
     [CmdletBinding(SupportsShouldProcess = $true)]
+    [OutputType([string])]
     param (
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
@@ -49,4 +50,3 @@
 
     return $targetPath
 }
-

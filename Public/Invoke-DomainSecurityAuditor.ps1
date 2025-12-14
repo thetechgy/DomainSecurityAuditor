@@ -62,6 +62,7 @@ Resources:
 #>
 
     [CmdletBinding()]
+    [OutputType([pscustomobject[]])]
     param (
         #region Parameters
         [Parameter(ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
@@ -225,7 +226,7 @@ Resources:
             }
 
             if ($PassThru) {
-                return $resultArray
+                return [pscustomobject[]]$resultArray
             }
 
             Write-DSABaselineConsoleSummary -Profiles $resultArray -ReportPath $reportPath

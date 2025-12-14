@@ -12,6 +12,7 @@
 #>
 function New-DSADomainEvidenceObject {
     [CmdletBinding()]
+    [OutputType([pscustomobject])]
     param (
         [Parameter(Mandatory = $true)]
         [string]$Domain,
@@ -29,4 +30,3 @@ function New-DSADomainEvidenceObject {
         Records        = $Records
     }
 }
-

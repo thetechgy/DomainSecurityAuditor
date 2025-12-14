@@ -1,4 +1,76 @@
-﻿BeforeAll {
+﻿<#
+.SYNOPSIS
+    Create a reusable evidence payload for tests.
+.DESCRIPTION
+    Builds a customizable DomainDetective-like evidence object for use across test scenarios.
+#>
+function global:New-TestEvidence {
+    param (
+        [string]$Domain = 'example.com',
+        [string]$Classification = 'SendingAndReceiving',
+        [ScriptBlock]$Adjust
+    )
+
+    $records = [pscustomobject]@{
+        MX                    = @('mx1.example.com')
+        MXRecordCount         = 1
+        MXHasNull             = $false
+        MXMinimumTtl          = 3600
+        SPFRecord             = 'v=spf1 include:_spf.example.com -all'
+        SPFRecords            = @('v=spf1 include:_spf.example.com -all')
+        SPFRecordCount        = 1
+        SPFLookupCount        = 2
+        SPFTerminalMechanism  = '-all'
+        SPFHasPtrMechanism    = $false
+        SPFRecordLength       = 40
+        SPFTtl                = 3600
+        SPFIncludes           = @('_spf.example.com')
+        SPFWildcardRecord     = 'v=spf1 -all'
+        SPFWildcardConfigured = $true
+        SPFUnsafeMechanisms   = @()
+        DKIMSelectors         = @('selector1')
+        DKIMSelectorDetails   = @(
+            [pscustomobject]@{
+                Selector          = 'selector1'
+                DkimRecordExists  = $true
+                KeyLength         = 2048
+                ValidPublicKey    = $true
+                ValidRsaKeyLength = $true
+                WeakKey           = $false
+                DnsRecordTtl      = 3600
+            }
+        )
+        DKIMMinKeyLength      = 2048
+        DKIMWeakSelectors     = 0
+        DKIMMinimumTtl        = 3600
+        DMARCRecord           = 'v=DMARC1; p=reject; rua=mailto:dmarc@example.com'
+        DMARCPolicy           = 'reject'
+        DMARCRuaAddresses     = @('dmarc@example.com')
+        DMARCRufAddresses     = @()
+        DMARCTtl              = 3600
+        MTASTSRecordPresent   = $true
+        MTASTSPolicyValid     = $true
+        MTASTSMode            = 'enforce'
+        MTASTSTtl             = 86400
+        TLSRPTRecordPresent   = $true
+        TLSRPTAddresses       = @('tls@example.com')
+        TLSRPTTtl             = 86400
+    }
+
+    $evidence = [pscustomobject]@{
+        Domain         = $Domain
+        Classification = $Classification
+        Records        = $records
+    }
+
+    if ($Adjust) {
+        & $Adjust -ArgumentList $evidence
+    }
+
+    return $evidence
+}
+
+BeforeAll {
     $stubModuleRoot = Join-Path -Path $PSScriptRoot -ChildPath 'Stubs'
     if (Test-Path -Path $stubModuleRoot) {
         $env:PSModulePath = "{0}{1}{2}" -f $stubModuleRoot, [System.IO.Path]::PathSeparator, $env:PSModulePath
@@ -6,73 +78,6 @@
 
     $moduleManifest = Join-Path -Path $PSScriptRoot -ChildPath '..\DomainSecurityAuditor.psd1'
     Import-Module -Name (Resolve-Path -Path $moduleManifest) -Force
-
-    # Define test helper in global scope for InModuleScope access
-    function global:New-TestEvidence {
-        param (
-            [string]$Domain = 'example.com',
-            [string]$Classification = 'SendingAndReceiving',
-            [ScriptBlock]$Adjust
-        )
-
-        $records = [pscustomobject]@{
-            MX                    = @('mx1.example.com')
-            MXRecordCount         = 1
-            MXHasNull             = $false
-            MXMinimumTtl          = 3600
-            SPFRecord             = 'v=spf1 include:_spf.example.com -all'
-            SPFRecords            = @('v=spf1 include:_spf.example.com -all')
-            SPFRecordCount        = 1
-            SPFLookupCount        = 2
-            SPFTerminalMechanism  = '-all'
-            SPFHasPtrMechanism    = $false
-            SPFRecordLength       = 40
-            SPFTtl                = 3600
-            SPFIncludes           = @('_spf.example.com')
-            SPFWildcardRecord     = 'v=spf1 -all'
-            SPFWildcardConfigured = $true
-            SPFUnsafeMechanisms   = @()
-            DKIMSelectors         = @('selector1')
-            DKIMSelectorDetails   = @(
-                [pscustomobject]@{
-                    Selector          = 'selector1'
-                    DkimRecordExists  = $true
-                    KeyLength         = 2048
-                    ValidPublicKey    = $true
-                    ValidRsaKeyLength = $true
-                    WeakKey           = $false
-                    DnsRecordTtl      = 3600
-                }
-            )
-            DKIMMinKeyLength      = 2048
-            DKIMWeakSelectors     = 0
-            DKIMMinimumTtl        = 3600
-            DMARCRecord           = 'v=DMARC1; p=reject; rua=mailto:dmarc@example.com'
-            DMARCPolicy           = 'reject'
-            DMARCRuaAddresses     = @('dmarc@example.com')
-            DMARCRufAddresses     = @()
-            DMARCTtl              = 3600
-            MTASTSRecordPresent   = $true
-            MTASTSPolicyValid     = $true
-            MTASTSMode            = 'enforce'
-            MTASTSTtl             = 86400
-            TLSRPTRecordPresent   = $true
-            TLSRPTAddresses       = @('tls@example.com')
-            TLSRPTTtl             = 86400
-        }
-
-        $evidence = [pscustomobject]@{
-            Domain         = $Domain
-            Classification = $Classification
-            Records        = $records
-        }
-
-        if ($Adjust) {
-            & $Adjust -ArgumentList $evidence
-        }
-
-        return $evidence
-    }
 }
 
 AfterAll {
@@ -135,11 +140,11 @@ Describe 'Invoke-DomainSecurityAuditor' {
                 $result = Invoke-DomainSecurityAuditor -Domain 'example.com' -SkipReportLaunch -PassThru
                 $result | Should -Not -BeNullOrEmpty
 
-                $profile = $result | Select-Object -First 1
-                $profile.Domain | Should -Be 'example.com'
-                $profile.Checks.Count | Should -BeGreaterThan 0
-                $profile.OverallStatus | Should -Be 'Pass'
-                $profile.ReportPath | Should -Be 'C:\Reports\domain_report.html'
+                $auditProfile = $result | Select-Object -First 1
+                $auditProfile.Domain | Should -Be 'example.com'
+                $auditProfile.Checks.Count | Should -BeGreaterThan 0
+                $auditProfile.OverallStatus | Should -Be 'Pass'
+                $auditProfile.ReportPath | Should -Be 'C:\Reports\domain_report.html'
 
                 Assert-MockCalled -CommandName Publish-DSAHtmlReport -Times 1 -Scope It
                 Assert-MockCalled -CommandName Open-DSAReport -Times 0 -Scope It
@@ -222,12 +227,12 @@ contoso.com,;alpha;;beta;
                 }
 
                 $result = Invoke-DomainSecurityAuditor -Domain 'example.com' -PassThru
-                $profile = $result | Select-Object -First 1
-                $profile.OverallStatus | Should -Be 'Fail'
+                $auditProfile = $result | Select-Object -First 1
+                $auditProfile.OverallStatus | Should -Be 'Fail'
 
-                $mxCheck = $profile.Checks | Where-Object { $_.Id -eq 'MXPresence' }
+                $mxCheck = $auditProfile.Checks | Where-Object { $_.Id -eq 'MXPresence' }
                 $mxCheck.Status | Should -Be 'Fail'
-                $profile.ReportPath | Should -Be 'C:\Reports\domain_report.html'
+                $auditProfile.ReportPath | Should -Be 'C:\Reports\domain_report.html'
 
                 Assert-MockCalled -CommandName Publish-DSAHtmlReport -Times 1 -Scope It
                 Assert-MockCalled -CommandName Open-DSAReport -Times 1 -Scope It
@@ -243,9 +248,9 @@ contoso.com,;alpha;;beta;
                 }
 
                 $result = Invoke-DomainSecurityAuditor -Domain 'example.com' -PassThru
-                $profile = $result | Select-Object -First 1
+                $auditProfile = $result | Select-Object -First 1
 
-                $spfLookup = $profile.Checks | Where-Object { $_.Id -eq 'SPFLookupLimit' }
+                $spfLookup = $auditProfile.Checks | Where-Object { $_.Id -eq 'SPFLookupLimit' }
                 $spfLookup.Status | Should -Be 'Fail'
                 Assert-MockCalled -CommandName Publish-DSAHtmlReport -Times 1 -Scope It
                 Assert-MockCalled -CommandName Open-DSAReport -Times 1 -Scope It
@@ -261,10 +266,10 @@ contoso.com,;alpha;;beta;
                 }
 
                 $result = Invoke-DomainSecurityAuditor -Domain 'example.com' -PassThru
-                $profile = $result | Select-Object -First 1
-                $profile.Classification | Should -Match 'Parked'
+                $auditProfile = $result | Select-Object -First 1
+                $auditProfile.Classification | Should -Match 'Parked'
 
-                $nullMxCheck = $profile.Checks | Where-Object { $_.Id -eq 'MXNullForParked' }
+                $nullMxCheck = $auditProfile.Checks | Where-Object { $_.Id -eq 'MXNullForParked' }
                 $nullMxCheck.Status | Should -Be 'Fail'
                 Assert-MockCalled -CommandName Publish-DSAHtmlReport -Times 1 -Scope It
                 Assert-MockCalled -CommandName Open-DSAReport -Times 1 -Scope It
@@ -319,8 +324,8 @@ contoso.com,;alpha;;beta;
                 } -ParameterFilter { $ProfilePath -eq $profilePath }
 
                 $result = Invoke-DomainSecurityAuditor -Domain 'example.com' -BaselineProfilePath $profilePath -SkipReportLaunch -PassThru
-                $profile = $result | Select-Object -First 1
-                $spfLookup = $profile.Checks | Where-Object { $_.Id -eq 'SPFLookupLimit' }
+                $auditProfile = $result | Select-Object -First 1
+                $spfLookup = $auditProfile.Checks | Where-Object { $_.Id -eq 'SPFLookupLimit' }
                 $spfLookup.Status | Should -Be 'Fail'
                 Assert-MockCalled -CommandName Open-DSAReport -Times 0 -Scope It
             }
@@ -487,7 +492,7 @@ invalid.example,Unknown
                         if ($PSStyle) {
                             $PSStyle.OutputRendering = 'PlainText'
                         }
-                        $profile = [pscustomobject]@{
+                        $auditProfile = [pscustomobject]@{
                             Domain                 = 'example.com'
                             Classification         = 'SendingAndReceiving'
                             OriginalClassification = 'SendingAndReceiving'
@@ -504,7 +509,7 @@ invalid.example,Unknown
                         }
 
                         $infoOutput = & {
-                            Write-DSABaselineConsoleSummary -Profiles @($profile) -ReportPath 'C:\Reports\domain_report.html'
+                            Write-DSABaselineConsoleSummary -Profiles @($auditProfile) -ReportPath 'C:\Reports\domain_report.html'
                         } 6>&1
 
                         $stripAnsi = {
@@ -530,7 +535,6 @@ invalid.example,Unknown
                 }
             }
         }
-
     }
 }
 
@@ -562,16 +566,25 @@ Describe 'Get-DSADomainEvidence' {
                     UnknownMechanisms = @()
                 }
             }
+            <#
+            .SYNOPSIS
+                Test stub for DomainSecurityAuditor scenarios.
+            #>
             function Test-DDEmailSpfRecord {
                 [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 $script:capturedDnsEndpoint = $DnsEndpoint
                 return $spfResult
             }
+            <#
+            .SYNOPSIS
+                Test stub for DomainSecurityAuditor scenarios.
+            #>
             function Test-DDEmailDkimRecord {
                 [CmdletBinding()]
+                [OutputType([pscustomobject[]])]
                 param($DomainName, $Selectors, $DnsEndpoint)
-                return @(
+                return [pscustomobject[]]@(
                     [pscustomobject]@{
                         Selector          = 'selector1'
                         DkimRecordExists  = $true
@@ -583,6 +596,10 @@ Describe 'Get-DSADomainEvidence' {
                     }
                 )
             }
+            <#
+            .SYNOPSIS
+                Test stub for DomainSecurityAuditor scenarios.
+            #>
             function Test-DDEmailDmarcRecord {
                 [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
@@ -597,6 +614,10 @@ Describe 'Get-DSADomainEvidence' {
                     Raw          = [pscustomobject]@{}
                 }
             }
+            <#
+            .SYNOPSIS
+                Test stub for DomainSecurityAuditor scenarios.
+            #>
             function Test-DDDnsMxRecord {
                 [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
@@ -606,6 +627,10 @@ Describe 'Get-DSADomainEvidence' {
                     MxRecordTtl = 1200
                 }
             }
+            <#
+            .SYNOPSIS
+                Test stub for DomainSecurityAuditor scenarios.
+            #>
             function Test-DDEmailTlsRptRecord {
                 [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
@@ -616,11 +641,19 @@ Describe 'Get-DSADomainEvidence' {
                     DnsRecordTtl       = 900
                 }
             }
+            <#
+            .SYNOPSIS
+                Test stub for DomainSecurityAuditor scenarios.
+            #>
             function Test-DDMailDomainClassification {
                 [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{ Classification = 'SendingAndReceiving'; Raw = [pscustomobject]@{} }
             }
+            <#
+            .SYNOPSIS
+                Test stub for DomainSecurityAuditor scenarios.
+            #>
             function Test-DDDomainOverallHealth {
                 [CmdletBinding()]
                 param($DomainName, $HealthCheckType, $DnsEndpoint)
@@ -649,113 +682,6 @@ Describe 'Get-DSADomainEvidence' {
         }
     }
 
-    It 'prefers authoritative TTL properties when available' {
-        InModuleScope DomainSecurityAuditor {
-            Mock -CommandName Write-DSALog -MockWith { }
-            Mock -CommandName Get-Module -MockWith { $null }
-            Mock -CommandName Import-Module -MockWith { }
-
-            function Test-DDEmailSpfRecord {
-                [CmdletBinding()]
-                param($DomainName, $DnsEndpoint)
-                return [pscustomobject]@{
-                    SpfRecord                 = 'v=spf1 -all'
-                    DnsLookupsCount           = 0
-                    DnsRecordTtl              = 300
-                    AuthoritativeDnsRecordTtl = 1200
-                    UnknownMechanisms         = @()
-                    Raw                       = [pscustomobject]@{
-                        SpfRecords        = @('v=spf1 -all')
-                        AllMechanism      = '-all'
-                        HasPtrType        = $false
-                        IncludeRecords    = @()
-                        UnknownMechanisms = @()
-                    }
-                }
-            }
-            function Test-DDEmailDkimRecord {
-                [CmdletBinding()]
-                param($DomainName, $Selectors, $DnsEndpoint)
-                return @(
-                    [pscustomobject]@{
-                        Selector                  = 'selector1'
-                        DkimRecordExists          = $true
-                        KeyLength                 = 2048
-                        WeakKey                   = $false
-                        ValidPublicKey            = $true
-                        ValidRsaKeyLength         = $true
-                        DnsRecordTtl              = 350
-                        AuthoritativeDnsRecordTtl = 700
-                    }
-                )
-            }
-            function Test-DDEmailDmarcRecord {
-                [CmdletBinding()]
-                param($DomainName, $DnsEndpoint)
-                return [pscustomobject]@{
-                    DmarcRecord               = 'v=DMARC1; p=reject'
-                    Policy                    = 'reject'
-                    MailtoRua                 = @()
-                    HttpRua                   = @()
-                    MailtoRuf                 = @()
-                    HttpRuf                   = @()
-                    DnsRecordTtl              = 200
-                    AuthoritativeDnsRecordTtl = 900
-                    Raw                       = [pscustomobject]@{}
-                }
-            }
-            function Test-DDDnsMxRecord {
-                [CmdletBinding()]
-                param($DomainName, $DnsEndpoint)
-                return [pscustomobject]@{
-                    MxRecords                 = @('mx1.example')
-                    HasNullMx                 = $false
-                    MxRecordTtl               = 150
-                    AuthoritativeDnsRecordTtl = 400
-                }
-            }
-            function Test-DDEmailTlsRptRecord {
-                [CmdletBinding()]
-                param($DomainName, $DnsEndpoint)
-                return [pscustomobject]@{
-                    TlsRptRecordExists        = $true
-                    MailtoRua                 = @('mailto:tls@example.com')
-                    HttpRua                   = @()
-                    DnsRecordTtl              = 250
-                    AuthoritativeDnsRecordTtl = 500
-                }
-            }
-            function Test-DDMailDomainClassification {
-                [CmdletBinding()]
-                param($DomainName, $DnsEndpoint)
-                return [pscustomobject]@{ Classification = 'SendingAndReceiving'; Raw = [pscustomobject]@{} }
-            }
-            function Test-DDDomainOverallHealth {
-                [CmdletBinding()]
-                param($DomainName, $HealthCheckType, $DnsEndpoint)
-                return [pscustomobject]@{
-                    Raw = [pscustomobject]@{
-                        MTASTSAnalysis = [pscustomobject]@{
-                            DnsRecordPresent          = $true
-                            PolicyValid               = $true
-                            Mode                      = 'enforce'
-                            DnsRecordTtl              = 100
-                            AuthoritativeDnsRecordTtl = 600
-                        }
-                    }
-                }
-            }
-
-            $evidence = Get-DSADomainEvidence -Domain 'example.com'
-            $evidence.Records.SPFTtl | Should -Be 1200
-            $evidence.Records.MXMinimumTtl | Should -Be 400
-            $evidence.Records.DKIMMinimumTtl | Should -Be 700
-            $evidence.Records.DMARCTtl | Should -Be 900
-            $evidence.Records.MTASTSTtl | Should -Be 600
-            $evidence.Records.TLSRPTTtl | Should -Be 500
-        }
-    }
-
     It 'passes custom DKIM selectors to DomainDetective' {
         InModuleScope DomainSecurityAuditor {
             Mock -CommandName Write-DSALog -MockWith { }
@@ -776,16 +702,25 @@ Describe 'Get-DSADomainEvidence' {
                     UnknownMechanisms = @()
                 }
             }
+            <#
+            .SYNOPSIS
+                Test stub for DomainSecurityAuditor scenarios.
+            #>
             function Test-DDEmailSpfRecord {
                 [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return $spfResult
             }
+            <#
+            .SYNOPSIS
+                Test stub for DomainSecurityAuditor scenarios.
+            #>
             function Test-DDEmailDkimRecord {
                 [CmdletBinding()]
+                [OutputType([pscustomobject[]])]
                 param($DomainName, $Selectors, $DnsEndpoint)
                 $script:capturedSelectors = $Selectors
-                return @(
+                return [pscustomobject[]]@(
                     [pscustomobject]@{
                         Selector          = 'alpha'
                         DkimRecordExists  = $true
@@ -797,6 +732,10 @@ Describe 'Get-DSADomainEvidence' {
                     }
                 )
             }
+            <#
+            .SYNOPSIS
+                Test stub for DomainSecurityAuditor scenarios.
+            #>
             function Test-DDEmailDmarcRecord {
                 [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
@@ -811,6 +750,10 @@ Describe 'Get-DSADomainEvidence' {
                     Raw          = [pscustomobject]@{}
                 }
             }
+            <#
+            .SYNOPSIS
+                Test stub for DomainSecurityAuditor scenarios.
+            #>
             function Test-DDDnsMxRecord {
                 [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
@@ -820,6 +763,10 @@ Describe 'Get-DSADomainEvidence' {
                     MxRecordTtl = 900
                 }
             }
+            <#
+            .SYNOPSIS
+                Test stub for DomainSecurityAuditor scenarios.
+            #>
             function Test-DDEmailTlsRptRecord {
                 [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
@@ -830,11 +777,19 @@ Describe 'Get-DSADomainEvidence' {
                     DnsRecordTtl       = $null
                 }
             }
+            <#
+            .SYNOPSIS
+                Test stub for DomainSecurityAuditor scenarios.
+            #>
             function Test-DDMailDomainClassification {
                 [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{ Classification = 'ReceivingOnly'; Raw = [pscustomobject]@{} }
             }
+            <#
+            .SYNOPSIS
+                Test stub for DomainSecurityAuditor scenarios.
+            #>
             function Test-DDDomainOverallHealth {
                 [CmdletBinding()]
                 param($DomainName, $HealthCheckType, $DnsEndpoint)

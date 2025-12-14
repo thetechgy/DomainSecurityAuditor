@@ -38,8 +38,8 @@
     }
     else {
         foreach ($profileKey in $profiles.Keys) {
-            $profile = $profiles[$profileKey]
-            $checks = Get-DSAPropertyValue -InputObject $profile -PropertyName 'Checks'
+            $profileDefinition = $profiles[$profileKey]
+            $checks = Get-DSAPropertyValue -InputObject $profileDefinition -PropertyName 'Checks'
             if (-not $checks) {
                 $null = $errors.Add("Profile '$profileKey' does not define any checks.")
                 continue
@@ -81,4 +81,3 @@
         Errors  = $errors
     }
 }
-

@@ -8,6 +8,7 @@
 #>
 function Test-DSAHasValue {
     [CmdletBinding()]
+    [OutputType([bool])]
     param (
         $Value
     )
@@ -88,6 +89,7 @@ function ConvertTo-DSADouble {
 #>
 function Format-DSAActualValue {
     [CmdletBinding()]
+    [OutputType([string])]
     param (
         $Value
     )
@@ -106,4 +108,3 @@ function Format-DSAActualValue {
 
     return $Value.ToString()
 }
-

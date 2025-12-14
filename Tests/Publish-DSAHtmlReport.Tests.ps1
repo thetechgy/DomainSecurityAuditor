@@ -16,7 +16,7 @@ Describe 'Publish-DSAHtmlReport' {
     }
     It 'renders expected header and footer metadata' {
         InModuleScope DomainSecurityAuditor {
-            $profile = [pscustomobject]@{
+            $complianceProfile = [pscustomobject]@{
                 Domain                 = 'example.com'
                 Classification         = 'Default'
                 OriginalClassification = 'SendingOnly'
@@ -28,7 +28,7 @@ Describe 'Publish-DSAHtmlReport' {
             }
 
             $outputRoot = Join-Path -Path $TestDrive -ChildPath 'Output'
-            $reportPath = Publish-DSAHtmlReport -Profiles $profile -OutputRoot $outputRoot -GeneratedOn (Get-Date)
+            $reportPath = Publish-DSAHtmlReport -Profiles $complianceProfile -OutputRoot $outputRoot -GeneratedOn (Get-Date)
             Test-Path -Path $reportPath | Should -BeTrue
 
             $content = Get-Content -Path $reportPath -Raw
@@ -41,7 +41,7 @@ Describe 'Publish-DSAHtmlReport' {
 
     It 'renders DKIM selectors within the DKIM section' {
         InModuleScope DomainSecurityAuditor {
-            $profile = [pscustomobject]@{
+            $complianceProfile = [pscustomobject]@{
                 Domain                 = 'example.com'
                 Classification         = 'Default'
                 OriginalClassification = 'SendingOnly'
@@ -72,7 +72,7 @@ Describe 'Publish-DSAHtmlReport' {
             }
 
             $outputRoot = Join-Path -Path $TestDrive -ChildPath 'Output'
-            $reportPath = Publish-DSAHtmlReport -Profiles $profile -OutputRoot $outputRoot -GeneratedOn (Get-Date)
+            $reportPath = Publish-DSAHtmlReport -Profiles $complianceProfile -OutputRoot $outputRoot -GeneratedOn (Get-Date)
             $content = Get-Content -Path $reportPath -Raw
             $content | Should -Match 'Selector details'
             $content | Should -Match 'selector1'
@@ -84,7 +84,7 @@ Describe 'Publish-DSAHtmlReport' {
 
     It 'handles profiles with no checks' {
         InModuleScope DomainSecurityAuditor {
-            $profile = [pscustomobject]@{
+            $complianceProfile = [pscustomobject]@{
                 Domain                 = 'example.com'
                 Classification         = 'Default'
                 OriginalClassification = 'SendingOnly'
@@ -95,7 +95,7 @@ Describe 'Publish-DSAHtmlReport' {
                 Evidence               = [pscustomobject]@{}
             }
 
-            $summary = Get-DSAReportSummary -Profiles $profile
+            $summary = Get-DSAReportSummary -Profiles $complianceProfile
             $summary.TotalChecks | Should -Be 0
             $summary.DomainCount | Should -Be 1
         }
@@ -109,4 +109,3 @@ Describe 'Resolve-DSAClassificationOverride' {
         }
     }
 }
-
