@@ -35,17 +35,7 @@ jobs:
       - name: Harden runner
         uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
-          egress-policy: block
-          allowed-endpoints: |
-            api.github.com:443
-            actions.githubusercontent.com:443
-            artifactcache.actions.githubusercontent.com:443
-            codeload.github.com:443
-            github.com:443
-            objects.githubusercontent.com:443
-            raw.githubusercontent.com:443
-            token.actions.githubusercontent.com:443
-            www.powershellgallery.com:443
+          egress-policy: audit
 
       - name: Checkout repository
         uses: actions/checkout@v4
