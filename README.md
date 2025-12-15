@@ -4,6 +4,7 @@
 > This README explains the design concept and how the project is intended to work once functional.
 
 [![Status](https://img.shields.io/badge/status-active_development-orange)](https://github.com/thetechgy/DomainSecurityAuditor/tree/develop)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/thetechgy/DomainSecurityAuditor/badge)](https://api.securityscorecards.dev/projects/github.com/thetechgy/DomainSecurityAuditor)
 [![PowerShell 7+](https://img.shields.io/badge/PowerShell-7%2B-2671E5)](#requirements)
 [![Pester](https://img.shields.io/badge/Tests-Pester-blue)](#quality--testing)
 [![License](https://img.shields.io/badge/License-Apache--2.0-green)](LICENSE)
