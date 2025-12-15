@@ -43,7 +43,7 @@ jobs:
             www.powershellgallery.com:443
 
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Validate pinned Pester version
         shell: pwsh
@@ -53,7 +53,7 @@ jobs:
           Write-Host "Using pinned Pester version ${{ env.PESTER_VERSION }}"
 
       - name: Cache Pester module
-        uses: actions/cache@v5
+        uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
         with:
           path: ~/.local/share/powershell/Modules/Pester
           key: pester-${{ runner.os }}-${{ env.PESTER_VERSION }}
@@ -131,7 +131,7 @@ jobs:
 
       - name: Upload Pester results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: pester-results
           path: Output/TestResults/*.xml
