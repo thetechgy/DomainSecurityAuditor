@@ -43,7 +43,7 @@ jobs:
             www.powershellgallery.com:443
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Validate pinned Pester version
         shell: pwsh
