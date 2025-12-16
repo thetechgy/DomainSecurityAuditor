@@ -607,6 +607,8 @@ Describe 'Get-DSADomainEvidence' {
                 ServerTtlTxtPerName = @{
                     'selector1._domainkey.example.com' = @{ '1.1.1.1' = 3200 }
                 }
+                ServerTtlTxtMtasts  = @{}
+                ServerTtlTxtTlsRpt  = @{}
             }
 
             function Test-DDDomainOverallHealth {
@@ -715,6 +717,8 @@ Describe 'Get-DSADomainEvidence' {
                             ServerTtlTxtPerName = @{
                                 'alpha._domainkey.example.com' = @{ '1.1.1.1' = 500 }
                             }
+                            ServerTtlTxtMtasts  = @{}
+                            ServerTtlTxtTlsRpt  = @{}
                         }
                     }
                 }
