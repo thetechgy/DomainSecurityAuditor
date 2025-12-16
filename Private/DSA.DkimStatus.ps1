@@ -31,20 +31,20 @@ function Get-DSADkimSelectorStatus {
         'DKIMSelectorPresence' {
             return $(if ($found) { 'Pass' } else { 'Fail' })
         }
-        'DKIMKeyStrength' {
-            $min = if ($Check.PSObject.Properties.Name -contains 'ExpectedValue' -and $Check.ExpectedValue) { $Check.ExpectedValue } else { $script:DSAMinDkimKeyLength }
-            $passesKey = ($keyLength -as [int]) -ge $min -and -not $weakKey
-            return $(if ($found -and $isValid -and $passesKey) { 'Pass' } else { 'Fail' })
-        }
-        'DKIMSelectorHealth' {
-            $min = $script:DSAMinDkimKeyLength
+        { $_ -in @('DKIMKeyStrength', 'DKIMSelectorHealth') } {
+            $min = if ((Test-DSAProperty -InputObject $Check -Name 'ExpectedValue') -and $Check.ExpectedValue) {
+                $Check.ExpectedValue
+            }
+            else {
+                $script:DSAMinDkimKeyLength
+            }
             $passesKey = ($keyLength -as [int]) -ge $min -and -not $weakKey
             return $(if ($found -and $isValid -and $passesKey) { 'Pass' } else { 'Fail' })
         }
         'DKIMTtl' {
             $min = $null
             $max = $null
-            if ($Check.PSObject.Properties.Name -contains 'ExpectedValue' -and $Check.ExpectedValue) {
+            if ((Test-DSAProperty -InputObject $Check -Name 'ExpectedValue') -and $Check.ExpectedValue) {
                 $min = $Check.ExpectedValue.Min
                 $max = $Check.ExpectedValue.Max
             }
@@ -127,7 +127,7 @@ function Get-DSAEffectiveChecks {
         }
 
         $effectiveStatus = $clone.Status
-        if ($SelectorDetails -and $clone.PSObject -and $clone.PSObject.Properties.Name -contains 'Area' -and $clone.Area -eq 'DKIM') {
+        if ($SelectorDetails -and (Test-DSAProperty -InputObject $clone -Name 'Area') -and $clone.Area -eq 'DKIM') {
             $effectiveStatus = Get-DSADkimEffectiveStatus -Check $clone -Selectors $SelectorDetails
         }
 

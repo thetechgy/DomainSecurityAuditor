@@ -172,7 +172,7 @@ function Add-DSADomainSections {
             'warning' { 'warning' }
             default { 'info' }
         }
-        $checks = if ($domainProfile.PSObject.Properties.Name -contains 'EffectiveChecks' -and $domainProfile.EffectiveChecks) {
+        $checks = if ((Test-DSAProperty -InputObject $domainProfile -Name 'EffectiveChecks') -and $domainProfile.EffectiveChecks) {
             @($domainProfile.EffectiveChecks | Where-Object { $_ })
         }
         elseif ($domainProfile.Checks) {
@@ -182,7 +182,7 @@ function Add-DSADomainSections {
         $checkCount = ($checks | Measure-Object).Count
         $metaSegments = [System.Collections.Generic.List[string]]::new()
         $hasOverride = $false
-        if ($domainProfile.PSObject.Properties.Name -contains 'ClassificationOverride' -and -not [string]::IsNullOrWhiteSpace($domainProfile.ClassificationOverride)) {
+        if ((Test-DSAProperty -InputObject $domainProfile -Name 'ClassificationOverride') -and -not [string]::IsNullOrWhiteSpace($domainProfile.ClassificationOverride)) {
             $null = $metaSegments.Add(("Override: {0}" -f $domainProfile.ClassificationOverride))
             $hasOverride = $true
         }
@@ -262,11 +262,11 @@ function Add-DSAProtocolSection {
     $detailsId = "protocol-{0}-{1}" -f $DomainSlug, $areaSlug
 
     $selectorDetails = $null
-    if (($Group.Name -eq 'DKIM') -and $DomainProfile -and $DomainProfile.PSObject.Properties.Name -contains 'Evidence') {
+    if (($Group.Name -eq 'DKIM') -and $DomainProfile -and (Test-DSAProperty -InputObject $DomainProfile -Name 'Evidence')) {
         $selectorDetails = $DomainProfile.Evidence.DKIMSelectorDetails
     }
 
-    $effectiveChecks = if ($DomainProfile.PSObject.Properties.Name -contains 'EffectiveChecks' -and $DomainProfile.EffectiveChecks) {
+    $effectiveChecks = if ((Test-DSAProperty -InputObject $DomainProfile -Name 'EffectiveChecks') -and $DomainProfile.EffectiveChecks) {
         $groupChecks
     }
     else {
@@ -323,7 +323,7 @@ function Add-DSATestResult {
     $filterStatus = Get-DSAFilterStatus -Status $effectiveStatus
     $detailItems = [System.Collections.Generic.List[object]]::new()
     $suppressActual = ($Check.Area -eq 'DKIM' -and $Check.Id -in @('DKIMKeyStrength', 'DKIMTtl'))
-    if (-not $suppressActual -and $Check.PSObject.Properties.Name -contains 'Actual' -and ($null -ne $Check.Actual)) {
+    if (-not $suppressActual -and (Test-DSAProperty -InputObject $Check -Name 'Actual') -and ($null -ne $Check.Actual)) {
         $valueHtml = ConvertTo-DSAValueHtml -Value $Check.Actual
         $null = $detailItems.Add([pscustomobject]@{
                 Label  = 'Observed Value'
@@ -345,7 +345,7 @@ function Add-DSATestResult {
                 IsHtml = $false
             })
     }
-    if ($Check.PSObject.Properties.Name -contains 'Enforcement' -and $Check.Enforcement) {
+    if ((Test-DSAProperty -InputObject $Check -Name 'Enforcement') -and $Check.Enforcement) {
         $null = $detailItems.Add([pscustomobject]@{
                 Label  = 'Enforcement'
                 Value  = $Check.Enforcement
@@ -441,12 +441,12 @@ function Get-DSAReportSummary {
             $selectorDetails = $domainProfile.Evidence.DKIMSelectorDetails
         }
 
-        $checksInput = if ($domainProfile.PSObject.Properties.Name -contains 'EffectiveChecks' -and $domainProfile.EffectiveChecks) {
+        $checksInput = if ((Test-DSAProperty -InputObject $domainProfile -Name 'EffectiveChecks') -and $domainProfile.EffectiveChecks) {
             $domainProfile.EffectiveChecks
         }
         elseif ($domainProfile.Checks) { $domainProfile.Checks } else { @() }
 
-        $checks = if ($domainProfile.PSObject.Properties.Name -contains 'EffectiveChecks' -and $domainProfile.EffectiveChecks) {
+        $checks = if ((Test-DSAProperty -InputObject $domainProfile -Name 'EffectiveChecks') -and $domainProfile.EffectiveChecks) {
             @($checksInput | Where-Object { $_ })
         }
         else {
@@ -456,7 +456,7 @@ function Get-DSAReportSummary {
             $checks = @()
         }
 
-        $counts = if ($domainProfile.PSObject.Properties.Name -contains 'StatusCounts' -and $domainProfile.StatusCounts) {
+        $counts = if ((Test-DSAProperty -InputObject $domainProfile -Name 'StatusCounts') -and $domainProfile.StatusCounts) {
             $domainProfile.StatusCounts
         }
         else {
@@ -516,10 +516,10 @@ function Add-DSADkimSelectorBreakdown {
     $null = $Builder.AppendLine('                  <div class="dkim-selector-grid">')
 
     foreach ($selector in $selectorList) {
-        $found = if ($selector.PSObject.Properties.Name -contains 'Found') {
+        $found = if (Test-DSAProperty -InputObject $selector -Name 'Found') {
             [bool]$selector.Found
         }
-        elseif ($selector.PSObject.Properties.Name -contains 'DkimRecordExists') {
+        elseif (Test-DSAProperty -InputObject $selector -Name 'DkimRecordExists') {
             [bool]$selector.DkimRecordExists
         }
         else {
@@ -528,7 +528,7 @@ function Add-DSADkimSelectorBreakdown {
         $keyLengthValue = if ($selector.KeyLength) { $selector.KeyLength } else { 'Unknown' }
         $ttl = Get-DSATtlValue -InputObject $selector
         $ttlValue = if ($null -ne $ttl) { $ttl } else { 'Unknown' }
-        $selectorName = if ($selector.PSObject.Properties.Name -contains 'Name') { $selector.Name } else { $selector.Selector }
+        $selectorName = if (Test-DSAProperty -InputObject $selector -Name 'Name') { $selector.Name } else { $selector.Selector }
 
         $status = Get-DSADkimSelectorStatus -Selector $selector -Check $Check
         $statusClass = Get-DSAStatusClassName -Status $status

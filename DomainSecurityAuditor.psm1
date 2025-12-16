@@ -49,6 +49,9 @@ if (Test-Path -Path $privatePath) {
         . $file.FullName
     }
 }
+
+# Pre-warm condition definitions cache to avoid lazy initialization overhead during first domain run.
+$null = Get-DSAConditionDefinitions
 #endregion PrivateHelpers
 
 #region PublicFunctions
