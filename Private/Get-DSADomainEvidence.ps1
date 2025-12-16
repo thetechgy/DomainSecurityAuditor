@@ -17,6 +17,8 @@
         [Alias('DkimSelectors')]
         [string[]]$DkimSelector,
 
+        [string]$ClassificationOverride,
+
         [string]$DNSEndpoint
     )
 
@@ -59,11 +61,37 @@
         $null = $errors.Add("Overall health lookup failed for '$Domain': $($_.Exception.Message)")
     }
 
-    try {
-        $classification = Test-DDMailDomainClassification @commonParams
+    $classificationValue = $null
+    $extractClassification = {
+        param($source)
+        if (-not $source) { return $null }
+        $names = @('Classification', 'MailClassification', 'MailDomainClassification')
+        foreach ($name in $names) {
+            if ($source.PSObject -and $source.PSObject.Properties.Name -contains $name) {
+                $val = $source.$name
+                if ($val -and -not [string]::IsNullOrWhiteSpace("$val")) {
+                    return "$val".Trim()
+                }
+            }
+        }
+        return $null
     }
-    catch {
-        $null = $errors.Add("Classification lookup failed for '$Domain': $($_.Exception.Message)")
+
+    $classificationValue = & $extractClassification $health
+    if (-not $classificationValue -and $health -and $health.Raw) {
+        $classificationValue = & $extractClassification $health.Raw
+    }
+
+    if (-not $classificationValue) {
+        try {
+            $classificationLookup = Test-DDMailDomainClassification @commonParams
+            if ($classificationLookup -and $classificationLookup.PSObject.Properties.Name -contains 'Classification') {
+                $classificationValue = "$($classificationLookup.Classification)".Trim()
+            }
+        }
+        catch {
+            $null = $errors.Add("Classification lookup failed for '$Domain': $($_.Exception.Message)")
+        }
     }
 
     if ($errors.Count -gt 0 -or -not $health -or -not $health.Raw) {
@@ -74,6 +102,16 @@
         }
         $failureMessage = if ($errors.Count -gt 0) { $errors -join '; ' } else { 'DomainDetective returned no data.' }
         throw "DomainDetective evidence collection failed for '$Domain': $failureMessage"
+    }
+
+    if ($PSBoundParameters.ContainsKey('ClassificationOverride') -and -not [string]::IsNullOrWhiteSpace($ClassificationOverride)) {
+        $classificationValue = "$ClassificationOverride".Trim()
+        if ($LogFile) {
+            Write-DSALog -Message ("Using classification override '{0}' for '{1}'." -f $classificationValue, $Domain) -LogFile $LogFile -Level 'INFO'
+        }
+    }
+    elseif (-not $classificationValue) {
+        throw "Classification unavailable for '$Domain' after DomainDetective lookups."
     }
 
     $rawHealth = $health.Raw
@@ -283,5 +321,5 @@
     }
 
     Write-Verbose -Message "Collected DomainDetective evidence for '$Domain'."
-    return New-DSADomainEvidenceObject -Domain $Domain -Classification $classification.Classification -Records $records
+    return New-DSADomainEvidenceObject -Domain $Domain -Classification $classificationValue -Records $records
 }

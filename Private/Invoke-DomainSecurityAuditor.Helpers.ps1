@@ -400,6 +400,9 @@ function Invoke-DSADomainRun {
         Domain  = $DomainName
         LogFile = $LogFile
     }
+    if ($domainContext.ClassificationOverride) {
+        $evidenceParams.ClassificationOverride = $domainContext.ClassificationOverride
+    }
     if ($domainContext.DkimSelectors) {
         $evidenceParams.DkimSelector = $domainContext.DkimSelectors
     }
