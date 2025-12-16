@@ -801,3 +801,103 @@ Describe 'Baseline profile helpers' {
         }
     }
 }
+
+Describe 'Test-DSAProperty' {
+    It 'returns true when PSObject has the property' {
+        InModuleScope DomainSecurityAuditor {
+            $obj = [pscustomobject]@{ Name = 'test'; Value = 42 }
+            Test-DSAProperty -InputObject $obj -Name 'Name' | Should -BeTrue
+            Test-DSAProperty -InputObject $obj -Name 'Value' | Should -BeTrue
+        }
+    }
+
+    It 'returns false when PSObject lacks the property' {
+        InModuleScope DomainSecurityAuditor {
+            $obj = [pscustomobject]@{ Name = 'test' }
+            Test-DSAProperty -InputObject $obj -Name 'Missing' | Should -BeFalse
+        }
+    }
+
+    It 'returns true when hashtable contains the key' {
+        InModuleScope DomainSecurityAuditor {
+            $hash = @{ Name = 'test'; Count = 5 }
+            Test-DSAProperty -InputObject $hash -Name 'Name' | Should -BeTrue
+            Test-DSAProperty -InputObject $hash -Name 'Count' | Should -BeTrue
+        }
+    }
+
+    It 'returns false when hashtable lacks the key' {
+        InModuleScope DomainSecurityAuditor {
+            $hash = @{ Name = 'test' }
+            Test-DSAProperty -InputObject $hash -Name 'Missing' | Should -BeFalse
+        }
+    }
+
+    It 'returns false for null input' {
+        InModuleScope DomainSecurityAuditor {
+            Test-DSAProperty -InputObject $null -Name 'Any' | Should -BeFalse
+        }
+    }
+}
+
+Describe 'Get-DSAStatusMetadata' {
+    It 'returns correct metadata for Pass status' {
+        InModuleScope DomainSecurityAuditor {
+            $meta = Get-DSAStatusMetadata -Status 'Pass'
+            $meta.Class | Should -Be 'passed'
+            $meta.Filter | Should -Be 'pass'
+            $meta.Icon | Should -Be '✔'
+        }
+    }
+
+    It 'returns correct metadata for Fail status' {
+        InModuleScope DomainSecurityAuditor {
+            $meta = Get-DSAStatusMetadata -Status 'Fail'
+            $meta.Class | Should -Be 'failed'
+            $meta.Filter | Should -Be 'fail'
+            $meta.Icon | Should -Be '✖'
+        }
+    }
+
+    It 'returns correct metadata for Warning status' {
+        InModuleScope DomainSecurityAuditor {
+            $meta = Get-DSAStatusMetadata -Status 'Warning'
+            $meta.Class | Should -Be 'warning'
+            $meta.Filter | Should -Be 'warning'
+            $meta.Icon | Should -Be '!'
+        }
+    }
+
+    It 'returns info metadata for unknown status' {
+        InModuleScope DomainSecurityAuditor {
+            $meta = Get-DSAStatusMetadata -Status 'Unknown'
+            $meta.Class | Should -Be 'info'
+            $meta.Filter | Should -Be 'info'
+            $meta.Icon | Should -Be 'ℹ'
+        }
+    }
+
+    It 'returns info metadata for null or empty status' {
+        InModuleScope DomainSecurityAuditor {
+            $meta = Get-DSAStatusMetadata -Status ''
+            $meta.Class | Should -Be 'info'
+            $meta.Filter | Should -Be 'info'
+
+            $meta = Get-DSAStatusMetadata -Status $null
+            $meta.Class | Should -Be 'info'
+        }
+    }
+
+    It 'handles case-insensitive status values' {
+        InModuleScope DomainSecurityAuditor {
+            $meta = Get-DSAStatusMetadata -Status 'PASS'
+            $meta.Class | Should -Be 'passed'
+
+            $meta = Get-DSAStatusMetadata -Status 'fail'
+            $meta.Class | Should -Be 'failed'
+
+            $meta = Get-DSAStatusMetadata -Status 'WARNING'
+            $meta.Class | Should -Be 'warning'
+        }
+    }
+}
