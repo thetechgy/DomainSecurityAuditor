@@ -29,8 +29,6 @@ $ErrorActionPreference = 'Stop'
 
 #region ModuleInitialization
 $script:ModuleRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$script:DefaultLogRoot = Join-Path -Path $script:ModuleRoot -ChildPath 'Logs'
-$script:DefaultOutputRoot = Join-Path -Path $script:ModuleRoot -ChildPath 'Output'
 $script:ConfigRoot = Join-Path -Path $script:ModuleRoot -ChildPath 'Configs'
 $script:DSAMinDkimKeyLength = 1024
 $script:DSAConditionDefinitions = $null
