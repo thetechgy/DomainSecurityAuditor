@@ -17,6 +17,8 @@
         [Alias('DkimSelectors')]
         [string[]]$DkimSelector,
 
+        [string]$ClassificationOverride,
+
         [string]$DNSEndpoint
     )
 
@@ -59,11 +61,37 @@
         $null = $errors.Add("Overall health lookup failed for '$Domain': $($_.Exception.Message)")
     }
 
-    try {
-        $classification = Test-DDMailDomainClassification @commonParams
+    $classificationValue = $null
+    $extractClassification = {
+        param($source)
+        if (-not $source) { return $null }
+        $names = @('Classification', 'MailClassification', 'MailDomainClassification')
+        foreach ($name in $names) {
+            if ($source.PSObject -and $source.PSObject.Properties.Name -contains $name) {
+                $val = $source.$name
+                if ($val -and -not [string]::IsNullOrWhiteSpace("$val")) {
+                    return "$val".Trim()
+                }
+            }
+        }
+        return $null
     }
-    catch {
-        $null = $errors.Add("Classification lookup failed for '$Domain': $($_.Exception.Message)")
+
+    $classificationValue = & $extractClassification $health
+    if (-not $classificationValue -and $health -and $health.Raw) {
+        $classificationValue = & $extractClassification $health.Raw
+    }
+
+    if (-not $classificationValue) {
+        try {
+            $classificationLookup = Test-DDMailDomainClassification @commonParams
+            if ($classificationLookup -and $classificationLookup.PSObject.Properties.Name -contains 'Classification') {
+                $classificationValue = "$($classificationLookup.Classification)".Trim()
+            }
+        }
+        catch {
+            $null = $errors.Add("Classification lookup failed for '$Domain': $($_.Exception.Message)")
+        }
     }
 
     if ($errors.Count -gt 0 -or -not $health -or -not $health.Raw) {
@@ -74,6 +102,16 @@
         }
         $failureMessage = if ($errors.Count -gt 0) { $errors -join '; ' } else { 'DomainDetective returned no data.' }
         throw "DomainDetective evidence collection failed for '$Domain': $failureMessage"
+    }
+
+    if ($PSBoundParameters.ContainsKey('ClassificationOverride') -and -not [string]::IsNullOrWhiteSpace($ClassificationOverride)) {
+        $classificationValue = "$ClassificationOverride".Trim()
+        if ($LogFile) {
+            Write-DSALog -Message ("Using classification override '{0}' for '{1}'." -f $classificationValue, $Domain) -LogFile $LogFile -Level 'INFO'
+        }
+    }
+    elseif (-not $classificationValue) {
+        throw "Classification unavailable for '$Domain' after DomainDetective lookups."
     }
 
     $rawHealth = $health.Raw
@@ -186,7 +224,7 @@
     }
 
     $authMtastsTtl = $null
-    if ($ttlAnalysis.ServerTtlTxtMtasts) {
+    if ($ttlAnalysis -and $ttlAnalysis.PSObject -and ($ttlAnalysis.PSObject.Properties.Name -contains 'ServerTtlTxtMtasts') -and $ttlAnalysis.ServerTtlTxtMtasts) {
         $authMtastsTtl = & $getMinPositiveTtl ($ttlAnalysis.ServerTtlTxtMtasts.Values | Where-Object { $_ })
         if ($authMtastsTtl -and $LogFile) {
             Write-DSALog -Message ("Using authoritative MTA-STS TTL {0}" -f $authMtastsTtl) -LogFile $LogFile -Level 'DEBUG'
@@ -197,7 +235,7 @@
     }
 
     $authTlsRptTtl = $null
-    if ($ttlAnalysis.ServerTtlTxtTlsRpt) {
+    if ($ttlAnalysis -and $ttlAnalysis.PSObject -and ($ttlAnalysis.PSObject.Properties.Name -contains 'ServerTtlTxtTlsRpt') -and $ttlAnalysis.ServerTtlTxtTlsRpt) {
         $authTlsRptTtl = & $getMinPositiveTtl ($ttlAnalysis.ServerTtlTxtTlsRpt.Values | Where-Object { $_ })
         if ($authTlsRptTtl -and $LogFile) {
             Write-DSALog -Message ("Using authoritative TLS-RPT TTL {0}" -f $authTlsRptTtl) -LogFile $LogFile -Level 'DEBUG'
@@ -229,8 +267,8 @@
                 }
             }
         }
-        $mtastsAuthCount = if ($ttlAnalysis.ServerTtlTxtMtasts) { (@($ttlAnalysis.ServerTtlTxtMtasts.Values | Where-Object { $_ })).Count } else { 0 }
-        $tlsRptAuthCount = if ($ttlAnalysis.ServerTtlTxtTlsRpt) { (@($ttlAnalysis.ServerTtlTxtTlsRpt.Values | Where-Object { $_ })).Count } else { 0 }
+        $mtastsAuthCount = if ($ttlAnalysis -and $ttlAnalysis.PSObject -and ($ttlAnalysis.PSObject.Properties.Name -contains 'ServerTtlTxtMtasts') -and $ttlAnalysis.ServerTtlTxtMtasts) { (@($ttlAnalysis.ServerTtlTxtMtasts.Values | Where-Object { $_ })).Count } else { 0 }
+        $tlsRptAuthCount = if ($ttlAnalysis -and $ttlAnalysis.PSObject -and ($ttlAnalysis.PSObject.Properties.Name -contains 'ServerTtlTxtTlsRpt') -and $ttlAnalysis.ServerTtlTxtTlsRpt) { (@($ttlAnalysis.ServerTtlTxtTlsRpt.Values | Where-Object { $_ })).Count } else { 0 }
         $dkimResolverMin = if ($dkimTtls) { ($dkimTtls | Measure-Object -Minimum).Minimum } else { $null }
         $ttlSourceMessage = "TTL source summary: SPF auth={0} resolver={1}; DMARC auth={2} resolver={3}; DKIM auth={4} resolverMin={5}; MX resolverMin={6}; MTASTS auth={7} resolver={8}; TLSRPT auth={9} resolver={10}" -f `
             $spfAuthCount, $spf.DnsRecordTtl, `
@@ -283,5 +321,5 @@
     }
 
     Write-Verbose -Message "Collected DomainDetective evidence for '$Domain'."
-    return New-DSADomainEvidenceObject -Domain $Domain -Classification $classification.Classification -Records $records
+    return New-DSADomainEvidenceObject -Domain $Domain -Classification $classificationValue -Records $records
 }
