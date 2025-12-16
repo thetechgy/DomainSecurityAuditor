@@ -1,4 +1,25 @@
-﻿<#
+﻿# Module-level constants for TTL property resolution.
+# This is the single source of truth for TTL property candidates across DomainDetective responses.
+$script:DSATtlCandidateNames = @(
+    'AuthoritativeDnsRecordTtl'
+    'AuthorityDnsRecordTtl'
+    'DnsRecordAuthorityTtl'
+    'AuthoritativeTtl'
+    'SpfRecordTtl'
+    'DmarcRecordTtl'
+    'DkimRecordTtl'
+    'TlsRptRecordTtl'
+    'MtastsRecordTtl'
+    'MxRecordTtl'
+    'MinMxTtl'
+    'DnsRecordTtl'
+    'Ttl'
+    'TimeToLive'
+)
+
+# Note: $script:DSAMinDkimKeyLength is defined in DomainSecurityAuditor.psm1
+
+<#
 .SYNOPSIS
     Clear script-scoped caches for the module.
 .DESCRIPTION

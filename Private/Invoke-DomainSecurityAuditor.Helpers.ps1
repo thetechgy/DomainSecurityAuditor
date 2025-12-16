@@ -104,42 +104,6 @@ function Get-DSADomainInputState {
         [string]$LogFile
     )
 
-    function Get-DSADkimSelectorsFromRecord {
-        <#
-        .SYNOPSIS
-            Extract DKIM selectors from a CSV or object record.
-        .DESCRIPTION
-            Normalizes selector values into a trimmed string array, handling collection and delimited string inputs.
-        .PARAMETER Record
-            Input record containing DKIM selector metadata.
-        .OUTPUTS
-            System.String[]
-        #>
-        [CmdletBinding()]
-        [OutputType([string[]])]
-        param (
-            [Parameter(Mandatory = $true)]
-            $Record
-        )
-
-        $dkimSelectorProperty = $Record.PSObject.Properties | Where-Object { $_.Name -in @('DkimSelectors', 'DKIMSelectors') } | Select-Object -First 1
-        if (-not $dkimSelectorProperty) {
-            return [string[]]@()
-        }
-
-        $rawSelectors = $dkimSelectorProperty.Value
-        if ($rawSelectors -is [System.Collections.IEnumerable] -and -not ($rawSelectors -is [string])) {
-            return [string[]]@($rawSelectors | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-        }
-
-        $selectorString = "$rawSelectors".Trim()
-        if ([string]::IsNullOrWhiteSpace($selectorString)) {
-            return [string[]]@()
-        }
-
-        return [string[]]@($selectorString -split '[,;]' | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-    }
-
     if ($PSBoundParameters.ContainsKey('InputFile')) {
         $resolvedInput = Resolve-DSAPath -Path $InputFile -PathType 'File'
         $importedCount = 0
@@ -158,10 +122,10 @@ function Get-DSADomainInputState {
             if (-not $record) {
                 continue
             }
-            if ($record.PSObject.Properties.Name -contains 'Domain' -and -not [string]::IsNullOrWhiteSpace($record.Domain)) {
+            if ((Test-DSAProperty -InputObject $record -Name 'Domain') -and -not [string]::IsNullOrWhiteSpace($record.Domain)) {
                 $domainValue = $record.Domain.Trim()
                 $record.Domain = $domainValue
-                if ($record.PSObject.Properties.Name -contains 'Classification' -and -not [string]::IsNullOrWhiteSpace($record.Classification)) {
+                if ((Test-DSAProperty -InputObject $record -Name 'Classification') -and -not [string]::IsNullOrWhiteSpace($record.Classification)) {
                     $sourceDescription = "CSV row for '$domainValue'"
                     $record.Classification = Resolve-DSAClassificationOverride -Value $record.Classification -SourceDescription $sourceDescription
                     $record | Add-Member -NotePropertyName 'ClassificationSource' -NotePropertyValue 'CSV' -Force
@@ -259,17 +223,17 @@ function Resolve-DSADomainContext {
 
     if ($DomainMetadata.ContainsKey($DomainName)) {
         $metadataRecord = $DomainMetadata[$DomainName]
-        if ($metadataRecord -and $metadataRecord.PSObject.Properties.Name -contains 'Classification') {
+        if ($metadataRecord -and (Test-DSAProperty -InputObject $metadataRecord -Name 'Classification')) {
             $classificationCandidate = $metadataRecord.Classification
             if (-not [string]::IsNullOrWhiteSpace($classificationCandidate)) {
                 $classificationOverride = $classificationCandidate.Trim()
             }
         }
-        if ($metadataRecord -and $metadataRecord.PSObject.Properties.Name -contains 'ClassificationSource') {
+        if ($metadataRecord -and (Test-DSAProperty -InputObject $metadataRecord -Name 'ClassificationSource')) {
             $classificationSource = $metadataRecord.ClassificationSource
         }
 
-        if ($metadataRecord -and $metadataRecord.PSObject.Properties.Name -contains 'DkimSelectors') {
+        if ($metadataRecord -and (Test-DSAProperty -InputObject $metadataRecord -Name 'DkimSelectors')) {
             $dkimSelectors = @($metadataRecord.DkimSelectors | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
         }
     }
@@ -464,18 +428,18 @@ function Write-DSABaselineConsoleSummary {
 
     foreach ($baselineProfile in $Profiles) {
         $selectorDetails = $null
-        if ($baselineProfile -and $baselineProfile.PSObject.Properties.Name -contains 'Evidence' -and $baselineProfile.Evidence -and $baselineProfile.Evidence.PSObject.Properties.Name -contains 'DKIMSelectorDetails') {
+        if ($baselineProfile -and (Test-DSAProperty -InputObject $baselineProfile -Name 'Evidence') -and $baselineProfile.Evidence -and (Test-DSAProperty -InputObject $baselineProfile.Evidence -Name 'DKIMSelectorDetails')) {
             $selectorDetails = $baselineProfile.Evidence.DKIMSelectorDetails
         }
 
-        $checks = if ($baselineProfile.PSObject.Properties.Name -contains 'EffectiveChecks' -and $baselineProfile.EffectiveChecks) {
+        $checks = if ((Test-DSAProperty -InputObject $baselineProfile -Name 'EffectiveChecks') -and $baselineProfile.EffectiveChecks) {
             @($baselineProfile.EffectiveChecks | Where-Object { $_ })
         }
         else {
             Get-DSAEffectiveChecks -Checks ($baselineProfile.Checks | Where-Object { $_ }) -SelectorDetails $selectorDetails
         }
 
-        $counts = if ($baselineProfile.PSObject.Properties.Name -contains 'StatusCounts' -and $baselineProfile.StatusCounts) {
+        $counts = if ((Test-DSAProperty -InputObject $baselineProfile -Name 'StatusCounts') -and $baselineProfile.StatusCounts) {
             $baselineProfile.StatusCounts
         }
         else {

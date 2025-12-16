@@ -135,6 +135,36 @@ function Get-DSAKnownReferenceLink {
 
 <#
 .SYNOPSIS
+    Get consolidated status metadata for a given status.
+.DESCRIPTION
+    Returns a hashtable containing CSS class name, filter token, and icon for the status.
+    This is the single source of truth for status-related display properties.
+.PARAMETER Status
+    Status text to resolve (Pass, Fail, Warning, or other).
+.OUTPUTS
+    Hashtable with Class, Filter, and Icon keys.
+#>
+function Get-DSAStatusMetadata {
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param (
+        [string]$Status
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Status)) {
+        return @{ Class = 'info'; Filter = 'info'; Icon = 'ℹ' }
+    }
+
+    switch ($Status.ToLowerInvariant()) {
+        'pass'    { return @{ Class = 'passed'; Filter = 'pass'; Icon = '✔' } }
+        'fail'    { return @{ Class = 'failed'; Filter = 'fail'; Icon = '✖' } }
+        'warning' { return @{ Class = 'warning'; Filter = 'warning'; Icon = '!' } }
+        default   { return @{ Class = 'info'; Filter = 'info'; Icon = 'ℹ' } }
+    }
+}
+
+<#
+.SYNOPSIS
     Map a status to its CSS class name.
 .DESCRIPTION
     Normalizes pass/fail/warning statuses to class tokens used in the HTML report.
@@ -146,16 +176,7 @@ function Get-DSAStatusClassName {
         [string]$Status
     )
 
-    if ([string]::IsNullOrWhiteSpace($Status)) {
-        return 'info'
-    }
-
-    switch ($Status.ToLowerInvariant()) {
-        'pass' { return 'passed' }
-        'fail' { return 'failed' }
-        'warning' { return 'warning' }
-        default { return 'info' }
-    }
+    return (Get-DSAStatusMetadata -Status $Status).Class
 }
 
 <#
@@ -171,12 +192,7 @@ function Get-DSAStatusIcon {
         [string]$Status
     )
 
-    switch ($Status.ToLowerInvariant()) {
-        'pass' { return '✔' }
-        'fail' { return '✖' }
-        'warning' { return '!' }
-        default { return 'ℹ' }
-    }
+    return (Get-DSAStatusMetadata -Status $Status).Icon
 }
 
 <#
@@ -192,15 +208,6 @@ function Get-DSAFilterStatus {
         [string]$Status
     )
 
-    if ([string]::IsNullOrWhiteSpace($Status)) {
-        return 'info'
-    }
-
-    switch ($Status.ToLowerInvariant()) {
-        'pass' { return 'pass' }
-        'fail' { return 'fail' }
-        'warning' { return 'warning' }
-        default { return 'info' }
-    }
+    return (Get-DSAStatusMetadata -Status $Status).Filter
 }
 
