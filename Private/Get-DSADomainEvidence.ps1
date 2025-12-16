@@ -186,7 +186,7 @@
     }
 
     $authMtastsTtl = $null
-    if ($ttlAnalysis.ServerTtlTxtMtasts) {
+    if ($ttlAnalysis -and $ttlAnalysis.PSObject -and ($ttlAnalysis.PSObject.Properties.Name -contains 'ServerTtlTxtMtasts') -and $ttlAnalysis.ServerTtlTxtMtasts) {
         $authMtastsTtl = & $getMinPositiveTtl ($ttlAnalysis.ServerTtlTxtMtasts.Values | Where-Object { $_ })
         if ($authMtastsTtl -and $LogFile) {
             Write-DSALog -Message ("Using authoritative MTA-STS TTL {0}" -f $authMtastsTtl) -LogFile $LogFile -Level 'DEBUG'
@@ -197,7 +197,7 @@
     }
 
     $authTlsRptTtl = $null
-    if ($ttlAnalysis.ServerTtlTxtTlsRpt) {
+    if ($ttlAnalysis -and $ttlAnalysis.PSObject -and ($ttlAnalysis.PSObject.Properties.Name -contains 'ServerTtlTxtTlsRpt') -and $ttlAnalysis.ServerTtlTxtTlsRpt) {
         $authTlsRptTtl = & $getMinPositiveTtl ($ttlAnalysis.ServerTtlTxtTlsRpt.Values | Where-Object { $_ })
         if ($authTlsRptTtl -and $LogFile) {
             Write-DSALog -Message ("Using authoritative TLS-RPT TTL {0}" -f $authTlsRptTtl) -LogFile $LogFile -Level 'DEBUG'
@@ -229,8 +229,8 @@
                 }
             }
         }
-        $mtastsAuthCount = if ($ttlAnalysis.ServerTtlTxtMtasts) { (@($ttlAnalysis.ServerTtlTxtMtasts.Values | Where-Object { $_ })).Count } else { 0 }
-        $tlsRptAuthCount = if ($ttlAnalysis.ServerTtlTxtTlsRpt) { (@($ttlAnalysis.ServerTtlTxtTlsRpt.Values | Where-Object { $_ })).Count } else { 0 }
+        $mtastsAuthCount = if ($ttlAnalysis -and $ttlAnalysis.PSObject -and ($ttlAnalysis.PSObject.Properties.Name -contains 'ServerTtlTxtMtasts') -and $ttlAnalysis.ServerTtlTxtMtasts) { (@($ttlAnalysis.ServerTtlTxtMtasts.Values | Where-Object { $_ })).Count } else { 0 }
+        $tlsRptAuthCount = if ($ttlAnalysis -and $ttlAnalysis.PSObject -and ($ttlAnalysis.PSObject.Properties.Name -contains 'ServerTtlTxtTlsRpt') -and $ttlAnalysis.ServerTtlTxtTlsRpt) { (@($ttlAnalysis.ServerTtlTxtTlsRpt.Values | Where-Object { $_ })).Count } else { 0 }
         $dkimResolverMin = if ($dkimTtls) { ($dkimTtls | Measure-Object -Minimum).Minimum } else { $null }
         $ttlSourceMessage = "TTL source summary: SPF auth={0} resolver={1}; DMARC auth={2} resolver={3}; DKIM auth={4} resolverMin={5}; MX resolverMin={6}; MTASTS auth={7} resolver={8}; TLSRPT auth={9} resolver={10}" -f `
             $spfAuthCount, $spf.DnsRecordTtl, `
