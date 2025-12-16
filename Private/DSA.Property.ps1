@@ -105,6 +105,7 @@ function Get-DSATtlValue {
         'TlsRptRecordTtl'
         'MtastsRecordTtl'
         'MxRecordTtl'
+        'MinMxTtl'
         'DnsRecordTtl'
         'Ttl'
         'TimeToLive'
@@ -116,4 +117,3 @@ function Get-DSATtlValue {
 
     return Get-DSAPropertyValue -InputObject $InputObject -PropertyName $candidateNames -Default $Default -As ([int])
 }
-
