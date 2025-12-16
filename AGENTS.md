@@ -175,6 +175,10 @@ Stop-Transcript
   - Honor the repo's `.editorconfig` conventions for indentation, casing, and trailing whitespace so that automated formatters and IDEs produce identical diffs.
   - Before submitting, run **PSScriptAnalyzer** using the workspace settings file (`./PSScriptAnalyzerSettings.psd1`) to ensure local results match CI (`Invoke-ScriptAnalyzer -Settings .\PSScriptAnalyzerSettings.psd1`).
   - If default IDE/editor behavior changes, update the corresponding configuration files in the repo so analyzer settings remain aligned across tooling.
+- **Pre-commit validation**
+  - Before committing any code, run `Invoke-ScriptAnalyzer -Path . -Settings .\PSScriptAnalyzerSettings.psd1` and `Invoke-Pester` (matching the workflow configuration) and ensure both pass. If either fails, fix the root cause before committing.
+- **GitHub Actions**
+  - All workflows must use `step-security/harden-runner` to harden runners before executing jobs.
 
 - Every exported module command must expose a `-ShowProgress` switch so behavior remains consistent when called directly or via wrapper scripts.
 - Provide usage examples, either in comment-based help or a README-adjacent example block.
