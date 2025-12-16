@@ -126,21 +126,6 @@
         $ttlAnalysis = [pscustomobject]@{}
     }
 
-    $getMinPositiveTtl = {
-        param($values)
-        $positives = @()
-        foreach ($value in $values) {
-            $converted = $value -as [int]
-            if ($converted -and $converted -gt 0) {
-                $positives += $converted
-            }
-        }
-        if ($positives.Count -gt 0) {
-            return ($positives | Measure-Object -Minimum).Minimum
-        }
-        return $null
-    }
-
     $spfRecord = $spf.SpfRecord
     $spfRecords = $spf.SpfRecords
     $spfCount = if ($spfRecords) { @($spfRecords).Count } elseif ($spfRecord) { 1 } else { 0 }
@@ -182,79 +167,41 @@
         }
     ).Count
 
-    $authSpfTtl = $null
-    if ($ttlAnalysis.ServerTtlTxtSpf) {
-        $authSpfTtl = & $getMinPositiveTtl ($ttlAnalysis.ServerTtlTxtSpf.Values | Where-Object { $_ })
-        if ($authSpfTtl -and $LogFile) {
-            Write-DSALog -Message ("Using authoritative SPF TTL {0}" -f $authSpfTtl) -LogFile $LogFile -Level 'DEBUG'
-        }
-    }
-    if (-not $authSpfTtl -and $LogFile) {
-        Write-DSALog -Message 'Authoritative SPF TTL unavailable; falling back to resolver TTL.' -LogFile $LogFile -Level 'DEBUG'
-    }
+    $spfAuthoritativeValues = if ($ttlAnalysis.ServerTtlTxtSpf) { $ttlAnalysis.ServerTtlTxtSpf.Values | Where-Object { $_ } } else { $null }
+    $spfResolverTtl = Get-DSATtlValue -InputObject $spf
+    $spfTtl = Resolve-DSATtl -AuthoritativeValues $spfAuthoritativeValues -ResolverTtl $spfResolverTtl -RecordLabel 'SPF' -LogFile $LogFile
 
-    $authDmarcTtl = $null
-    if ($ttlAnalysis.ServerTtlTxtDmarc) {
-        $authDmarcTtl = & $getMinPositiveTtl ($ttlAnalysis.ServerTtlTxtDmarc.Values | Where-Object { $_ })
-        if ($authDmarcTtl -and $LogFile) {
-            Write-DSALog -Message ("Using authoritative DMARC TTL {0}" -f $authDmarcTtl) -LogFile $LogFile -Level 'DEBUG'
-        }
-    }
-    if (-not $authDmarcTtl -and $LogFile) {
-        Write-DSALog -Message 'Authoritative DMARC TTL unavailable; falling back to resolver TTL.' -LogFile $LogFile -Level 'DEBUG'
-    }
+    $dmarcAuthoritativeValues = if ($ttlAnalysis.ServerTtlTxtDmarc) { $ttlAnalysis.ServerTtlTxtDmarc.Values | Where-Object { $_ } } else { $null }
+    $dmarcResolverTtl = Get-DSATtlValue -InputObject $dmarc
+    $dmarcTtl = Resolve-DSATtl -AuthoritativeValues $dmarcAuthoritativeValues -ResolverTtl $dmarcResolverTtl -RecordLabel 'DMARC' -LogFile $LogFile
 
-    $authDkimTtl = $null
+    $dkimAuthoritativeValues = @()
     if ($ttlAnalysis.ServerTtlTxtPerName) {
-        $dkimAuthoritativeValues = @()
         foreach ($perNameMap in $ttlAnalysis.ServerTtlTxtPerName.Values) {
             if ($perNameMap) {
                 $dkimAuthoritativeValues += ($perNameMap.Values | Where-Object { $_ })
             }
         }
-        if ($dkimAuthoritativeValues.Count -gt 0) {
-            $authDkimTtl = & $getMinPositiveTtl $dkimAuthoritativeValues
-        }
-        if ($authDkimTtl -and $LogFile) {
-            Write-DSALog -Message ("Using authoritative DKIM TTL {0}" -f $authDkimTtl) -LogFile $LogFile -Level 'DEBUG'
-        }
     }
-    if (-not $authDkimTtl -and $LogFile) {
-        Write-DSALog -Message 'Authoritative DKIM TTL unavailable; falling back to resolver TTL.' -LogFile $LogFile -Level 'DEBUG'
-    }
+    $dkimResolverTtls = @($dkimFound | ForEach-Object { Get-DSATtlValue -InputObject $_ } | Where-Object { $_ })
+    $dkimResolverMin = if ($dkimResolverTtls) { ($dkimResolverTtls | Measure-Object -Minimum).Minimum } else { $null }
+    $dkimMinTtl = Resolve-DSATtl -AuthoritativeValues $dkimAuthoritativeValues -ResolverTtl $dkimResolverMin -RecordLabel 'DKIM' -LogFile $LogFile
 
-    $authMtastsTtl = $null
-    if ($ttlAnalysis -and $ttlAnalysis.PSObject -and ($ttlAnalysis.PSObject.Properties.Name -contains 'ServerTtlTxtMtasts') -and $ttlAnalysis.ServerTtlTxtMtasts) {
-        $authMtastsTtl = & $getMinPositiveTtl ($ttlAnalysis.ServerTtlTxtMtasts.Values | Where-Object { $_ })
-        if ($authMtastsTtl -and $LogFile) {
-            Write-DSALog -Message ("Using authoritative MTA-STS TTL {0}" -f $authMtastsTtl) -LogFile $LogFile -Level 'DEBUG'
-        }
+    $mtastsAuthoritativeValues = if ($ttlAnalysis -and $ttlAnalysis.PSObject -and ($ttlAnalysis.PSObject.Properties.Name -contains 'ServerTtlTxtMtasts') -and $ttlAnalysis.ServerTtlTxtMtasts) {
+        $ttlAnalysis.ServerTtlTxtMtasts.Values | Where-Object { $_ }
     }
-    if (-not $authMtastsTtl -and $LogFile) {
-        Write-DSALog -Message 'Authoritative MTA-STS TTL unavailable; falling back to resolver TTL.' -LogFile $LogFile -Level 'DEBUG'
-    }
+    else { $null }
+    $mtastsResolverTtl = Get-DSATtlValue -InputObject $mtastsAnalysis
+    $mtastsTtl = Resolve-DSATtl -AuthoritativeValues $mtastsAuthoritativeValues -ResolverTtl $mtastsResolverTtl -RecordLabel 'MTA-STS' -LogFile $LogFile
 
-    $authTlsRptTtl = $null
-    if ($ttlAnalysis -and $ttlAnalysis.PSObject -and ($ttlAnalysis.PSObject.Properties.Name -contains 'ServerTtlTxtTlsRpt') -and $ttlAnalysis.ServerTtlTxtTlsRpt) {
-        $authTlsRptTtl = & $getMinPositiveTtl ($ttlAnalysis.ServerTtlTxtTlsRpt.Values | Where-Object { $_ })
-        if ($authTlsRptTtl -and $LogFile) {
-            Write-DSALog -Message ("Using authoritative TLS-RPT TTL {0}" -f $authTlsRptTtl) -LogFile $LogFile -Level 'DEBUG'
-        }
+    $tlsRptAuthoritativeValues = if ($ttlAnalysis -and $ttlAnalysis.PSObject -and ($ttlAnalysis.PSObject.Properties.Name -contains 'ServerTtlTxtTlsRpt') -and $ttlAnalysis.ServerTtlTxtTlsRpt) {
+        $ttlAnalysis.ServerTtlTxtTlsRpt.Values | Where-Object { $_ }
     }
-    if (-not $authTlsRptTtl -and $LogFile) {
-        Write-DSALog -Message 'Authoritative TLS-RPT TTL unavailable; falling back to resolver TTL.' -LogFile $LogFile -Level 'DEBUG'
-    }
+    else { $null }
+    $tlsRptResolverTtl = Get-DSATtlValue -InputObject $tlsRpt
+    $tlsRptTtl = Resolve-DSATtl -AuthoritativeValues $tlsRptAuthoritativeValues -ResolverTtl $tlsRptResolverTtl -RecordLabel 'TLS-RPT' -LogFile $LogFile
 
     $mxMinimumTtl = if ($mx.MinMxTtl) { $mx.MinMxTtl } else { Get-DSATtlValue -InputObject $mx -PropertyName @('MxRecordTtl', 'MinMxTtl') }
-    $spfTtl = if ($authSpfTtl) { $authSpfTtl } else { Get-DSATtlValue -InputObject $spf }
-    $dmarcTtl = if ($authDmarcTtl) { $authDmarcTtl } else { Get-DSATtlValue -InputObject $dmarc }
-    $dkimTtls = @($dkimFound | ForEach-Object { Get-DSATtlValue -InputObject $_ } | Where-Object { $_ })
-    $dkimMinTtl = $authDkimTtl
-    if (-not $dkimMinTtl) {
-        $dkimMinTtl = if ($dkimTtls) { ($dkimTtls | Measure-Object -Minimum).Minimum } else { $null }
-    }
-    $mtastsTtl = if ($authMtastsTtl) { $authMtastsTtl } else { Get-DSATtlValue -InputObject $mtastsAnalysis }
-    $tlsRptTtl = if ($authTlsRptTtl) { $authTlsRptTtl } else { Get-DSATtlValue -InputObject $tlsRpt }
 
     if ($LogFile) {
         $spfAuthCount = if ($ttlAnalysis.ServerTtlTxtSpf) { (@($ttlAnalysis.ServerTtlTxtSpf.Values | Where-Object { $_ })).Count } else { 0 }
@@ -269,7 +216,6 @@
         }
         $mtastsAuthCount = if ($ttlAnalysis -and $ttlAnalysis.PSObject -and ($ttlAnalysis.PSObject.Properties.Name -contains 'ServerTtlTxtMtasts') -and $ttlAnalysis.ServerTtlTxtMtasts) { (@($ttlAnalysis.ServerTtlTxtMtasts.Values | Where-Object { $_ })).Count } else { 0 }
         $tlsRptAuthCount = if ($ttlAnalysis -and $ttlAnalysis.PSObject -and ($ttlAnalysis.PSObject.Properties.Name -contains 'ServerTtlTxtTlsRpt') -and $ttlAnalysis.ServerTtlTxtTlsRpt) { (@($ttlAnalysis.ServerTtlTxtTlsRpt.Values | Where-Object { $_ })).Count } else { 0 }
-        $dkimResolverMin = if ($dkimTtls) { ($dkimTtls | Measure-Object -Minimum).Minimum } else { $null }
         $ttlSourceMessage = "TTL source summary: SPF auth={0} resolver={1}; DMARC auth={2} resolver={3}; DKIM auth={4} resolverMin={5}; MX resolverMin={6}; MTASTS auth={7} resolver={8}; TLSRPT auth={9} resolver={10}" -f `
             $spfAuthCount, $spf.DnsRecordTtl, `
             $dmarcAuthCount, $dmarc.DnsRecordTtl, `
