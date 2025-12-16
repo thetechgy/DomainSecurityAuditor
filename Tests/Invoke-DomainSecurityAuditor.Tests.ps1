@@ -611,6 +611,10 @@ Describe 'Get-DSADomainEvidence' {
                 ServerTtlTxtTlsRpt  = @{}
             }
 
+            <#
+            .SYNOPSIS
+                Stubbed DomainDetective entry point for test validation.
+            #>
             function Test-DDDomainOverallHealth {
                 [CmdletBinding()]
                 param($DomainName, $HealthCheckType, $DnsEndpoint, $DkimSelectors)
@@ -629,6 +633,10 @@ Describe 'Get-DSADomainEvidence' {
                 }
             }
 
+            <#
+            .SYNOPSIS
+                Stubbed classification function for test validation.
+            #>
             function Test-DDMailDomainClassification {
                 [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
@@ -656,6 +664,10 @@ Describe 'Get-DSADomainEvidence' {
             Mock -CommandName Import-Module -MockWith { }
 
             $script:capturedSelectors = @()
+            <#
+            .SYNOPSIS
+                Stubbed DomainDetective entry point for DKIM selector tests.
+            #>
             function Test-DDDomainOverallHealth {
                 [CmdletBinding()]
                 param($DomainName, $HealthCheckType, $DnsEndpoint, $DkimSelectors)
@@ -724,6 +736,10 @@ Describe 'Get-DSADomainEvidence' {
                 }
             }
 
+            <#
+            .SYNOPSIS
+                Stubbed classification function for DKIM selector tests.
+            #>
             function Test-DDMailDomainClassification {
                 [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
