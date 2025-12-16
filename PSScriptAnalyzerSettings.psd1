@@ -4,6 +4,8 @@
         'PSReviewUnusedParameter'
         'PSUseShouldProcessForStateChangingFunctions'
         'PSUseSingularNouns'
+        # AvoidReservedCharInCmdlet throws NullReferenceException against the module's dynamic export pattern on PSScriptAnalyzer 1.24.0.
+        'AvoidReservedCharInCmdlet'
     )
 
     # Default rules stay enabled; the Rules block below tweaks the ones that matter most to DSA.

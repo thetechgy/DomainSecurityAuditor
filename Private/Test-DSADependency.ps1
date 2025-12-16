@@ -25,8 +25,15 @@ function Test-DSADependency {
     $uniqueModules = $Name | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique
     $missingModules = [System.Collections.Generic.List[string]]::new()
 
+    $availableModules = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($module in @(Get-Module -ListAvailable -Name $uniqueModules)) {
+        if ($module -and $module.Name) {
+            $null = $availableModules.Add($module.Name)
+        }
+    }
+
     foreach ($moduleName in $uniqueModules) {
-        if (-not (Get-Module -ListAvailable -Name $moduleName)) {
+        if (-not $availableModules.Contains($moduleName)) {
             $null = $missingModules.Add($moduleName)
         }
     }
@@ -70,4 +77,3 @@ function Test-DSADependency {
         IsCompliant    = ($missingModules.Count -eq 0)
     }
 }
-

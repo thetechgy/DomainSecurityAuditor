@@ -172,7 +172,13 @@ function Add-DSADomainSections {
             'warning' { 'warning' }
             default { 'info' }
         }
-        $checks = if ($domainProfile.Checks) { @($domainProfile.Checks | Where-Object { $_ }) } else { @() }
+        $checks = if ($domainProfile.PSObject.Properties.Name -contains 'EffectiveChecks' -and $domainProfile.EffectiveChecks) {
+            @($domainProfile.EffectiveChecks | Where-Object { $_ })
+        }
+        elseif ($domainProfile.Checks) {
+            @($domainProfile.Checks | Where-Object { $_ })
+        }
+        else { @() }
         $checkCount = ($checks | Measure-Object).Count
         $metaSegments = [System.Collections.Generic.List[string]]::new()
         $hasOverride = $false
@@ -260,7 +266,12 @@ function Add-DSAProtocolSection {
         $selectorDetails = $DomainProfile.Evidence.DKIMSelectorDetails
     }
 
-    $effectiveChecks = Get-DSAEffectiveChecks -Checks $groupChecks -SelectorDetails $selectorDetails
+    $effectiveChecks = if ($DomainProfile.PSObject.Properties.Name -contains 'EffectiveChecks' -and $DomainProfile.EffectiveChecks) {
+        $groupChecks
+    }
+    else {
+        Get-DSAEffectiveChecks -Checks $groupChecks -SelectorDetails $selectorDetails
+    }
     $areaStatus = Get-DSAOverallStatus -Checks $effectiveChecks
     $statusClass = Get-DSAStatusClassName -Status $areaStatus
 
@@ -430,13 +441,27 @@ function Get-DSAReportSummary {
             $selectorDetails = $domainProfile.Evidence.DKIMSelectorDetails
         }
 
-        $checksInput = if ($domainProfile.Checks) { $domainProfile.Checks } else { @() }
-        $checks = Get-DSAEffectiveChecks -Checks $checksInput -SelectorDetails $selectorDetails
+        $checksInput = if ($domainProfile.PSObject.Properties.Name -contains 'EffectiveChecks' -and $domainProfile.EffectiveChecks) {
+            $domainProfile.EffectiveChecks
+        }
+        elseif ($domainProfile.Checks) { $domainProfile.Checks } else { @() }
+
+        $checks = if ($domainProfile.PSObject.Properties.Name -contains 'EffectiveChecks' -and $domainProfile.EffectiveChecks) {
+            @($checksInput | Where-Object { $_ })
+        }
+        else {
+            Get-DSAEffectiveChecks -Checks $checksInput -SelectorDetails $selectorDetails
+        }
         if (-not $checks) {
             $checks = @()
         }
 
-        $counts = Get-DSAStatusCounts -Checks $checks
+        $counts = if ($domainProfile.PSObject.Properties.Name -contains 'StatusCounts' -and $domainProfile.StatusCounts) {
+            $domainProfile.StatusCounts
+        }
+        else {
+            Get-DSAStatusCounts -Checks $checks
+        }
         $totalChecks += $counts.Total
         $checkStatusCounts['Pass'] += $counts.Pass
         $checkStatusCounts['Fail'] += $counts.Fail

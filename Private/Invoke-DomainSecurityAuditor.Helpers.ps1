@@ -414,13 +414,18 @@ function Invoke-DSADomainRun {
     $evidence = Get-DSADomainEvidence @evidenceParams
     $baselineProfile = Invoke-DSABaselineTest -DomainEvidence $evidence -BaselineDefinition $BaselineProfiles -ClassificationOverride $domainContext.ClassificationOverride
 
+    $effectiveChecks = if ($baselineProfile.Checks) { @($baselineProfile.Checks | Where-Object { $_ }) } else { @() }
+    $statusCounts = Get-DSAStatusCounts -Checks $effectiveChecks
+
     $profileWithMetadata = [pscustomobject]@{
         Domain                 = $baselineProfile.Domain
         Classification         = $baselineProfile.Classification
         OriginalClassification = $baselineProfile.OriginalClassification
         ClassificationOverride = $baselineProfile.ClassificationOverride
         OverallStatus          = $baselineProfile.OverallStatus
-        Checks                 = $baselineProfile.Checks
+        Checks                 = $effectiveChecks
+        EffectiveChecks        = $effectiveChecks
+        StatusCounts           = $statusCounts
         Evidence               = $evidence.Records
         OutputPath             = $OutputRoot
         Timestamp              = (Get-Date)
@@ -463,8 +468,19 @@ function Write-DSABaselineConsoleSummary {
             $selectorDetails = $baselineProfile.Evidence.DKIMSelectorDetails
         }
 
-        $checks = Get-DSAEffectiveChecks -Checks ($baselineProfile.Checks | Where-Object { $_ }) -SelectorDetails $selectorDetails
-        $counts = Get-DSAStatusCounts -Checks $checks
+        $checks = if ($baselineProfile.PSObject.Properties.Name -contains 'EffectiveChecks' -and $baselineProfile.EffectiveChecks) {
+            @($baselineProfile.EffectiveChecks | Where-Object { $_ })
+        }
+        else {
+            Get-DSAEffectiveChecks -Checks ($baselineProfile.Checks | Where-Object { $_ }) -SelectorDetails $selectorDetails
+        }
+
+        $counts = if ($baselineProfile.PSObject.Properties.Name -contains 'StatusCounts' -and $baselineProfile.StatusCounts) {
+            $baselineProfile.StatusCounts
+        }
+        else {
+            Get-DSAStatusCounts -Checks $checks
+        }
         $rank = switch ($baselineProfile.OverallStatus) {
             'Fail' { 0 }
             'Warning' { 1 }
