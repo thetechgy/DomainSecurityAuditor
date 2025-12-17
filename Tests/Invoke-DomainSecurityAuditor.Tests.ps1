@@ -946,16 +946,28 @@ Describe 'Dependency helpers' {
                 }
             } -ParameterFilter { $ListAvailable -eq $true }
 
-            function Install-Module { param($Name) }
-            Mock -CommandName Install-Module -MockWith {
-                param($Name)
-                $null = $available.Add($Name)
+            $stubCommandCreated = $false
+            if (-not (Get-Command -Name Install-Module -ErrorAction SilentlyContinue)) {
+                Set-Item -Path Function:\Install-Module -Value { param($Name) }
+                $stubCommandCreated = $true
             }
 
-            $result = Test-DSADependency -Name @('DomainDetective') -AttemptInstallation
-            $result.IsCompliant | Should -BeTrue
-            $result.MissingModules.Count | Should -Be 0
-            Assert-MockCalled -CommandName Install-Module -Times 1 -Scope It -Exactly -ParameterFilter { $Name -eq 'DomainDetective' }
+            try {
+                Mock -CommandName Install-Module -MockWith {
+                    param($Name)
+                    $null = $available.Add($Name)
+                }
+
+                $result = Test-DSADependency -Name @('DomainDetective') -AttemptInstallation
+                $result.IsCompliant | Should -BeTrue
+                $result.MissingModules.Count | Should -Be 0
+                Assert-MockCalled -CommandName Install-Module -Times 1 -Scope It -Exactly -ParameterFilter { $Name -eq 'DomainDetective' }
+            }
+            finally {
+                if ($stubCommandCreated) {
+                    Remove-Item -Path Function:\Install-Module -ErrorAction SilentlyContinue
+                }
+            }
         }
     }
 
