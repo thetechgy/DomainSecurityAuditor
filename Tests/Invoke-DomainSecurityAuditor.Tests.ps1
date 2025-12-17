@@ -901,3 +901,434 @@ Describe 'Get-DSAStatusMetadata' {
         }
     }
 }
+
+Describe 'Dependency helpers' {
+    AfterEach {
+        InModuleScope DomainSecurityAuditor {
+            Reset-DSAModuleState
+        }
+    }
+
+    It 'returns missing modules when they are not available' {
+        InModuleScope DomainSecurityAuditor {
+            Mock -CommandName Write-DSALog -MockWith { }
+            Mock -CommandName Get-Module -MockWith {
+                param($Name, $ListAvailable)
+                if ($ListAvailable -and ($Name -contains 'Present')) {
+                    return [pscustomobject]@{ Name = 'Present' }
+                }
+            } -ParameterFilter { $ListAvailable -eq $true }
+
+            $result = Test-DSADependency -Name @('Present', 'MissingOne')
+            $result.IsCompliant | Should -BeFalse
+            $result.MissingModules | Should -Contain 'MissingOne'
+        }
+    }
+
+    It 'installs missing modules when Install-Module succeeds' {
+        InModuleScope DomainSecurityAuditor {
+            Mock -CommandName Write-DSALog -MockWith { }
+
+            $available = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            Mock -CommandName Get-Module -MockWith {
+                param($Name, $ListAvailable)
+                if ($ListAvailable -and $Name -and ($Name -is [System.Collections.IEnumerable])) {
+                    $foundModules = @()
+                    foreach ($entry in $Name) {
+                        if ($available.Contains($entry)) {
+                            $foundModules += [pscustomobject]@{ Name = $entry }
+                        }
+                    }
+                    return $foundModules
+                }
+                if ($ListAvailable -and $Name -and $available.Contains($Name)) {
+                    return [pscustomobject]@{ Name = $Name }
+                }
+            } -ParameterFilter { $ListAvailable -eq $true }
+
+            function Install-Module { param($Name) }
+            Mock -CommandName Install-Module -MockWith {
+                param($Name)
+                $null = $available.Add($Name)
+            }
+
+            $result = Test-DSADependency -Name @('DomainDetective') -AttemptInstallation
+            $result.IsCompliant | Should -BeTrue
+            $result.MissingModules.Count | Should -Be 0
+            Assert-MockCalled -CommandName Install-Module -Times 1 -Scope It -Exactly -ParameterFilter { $Name -eq 'DomainDetective' }
+        }
+    }
+
+    It 'throws and logs when dependencies remain missing' {
+        InModuleScope DomainSecurityAuditor {
+            $logged = [System.Collections.Generic.List[string]]::new()
+            Mock -CommandName Write-DSALog -MockWith {
+                param($Message)
+                $logged.Add($Message) | Out-Null
+            }
+
+            Mock -CommandName Test-DSADependency -MockWith {
+                [pscustomobject]@{
+                    MissingModules = @('Pester')
+                    IsCompliant    = $false
+                }
+            }
+
+            { Confirm-DSADependencies -Name @('Pester') -LogFile 'log.txt' } | Should -Throw -ExpectedMessage '*Missing dependencies*'
+            ($logged -join ' ') | Should -Match 'Missing dependencies: Pester'
+        }
+    }
+
+    It 'imports DomainDetective only once per session' {
+        InModuleScope DomainSecurityAuditor {
+            Reset-DSAModuleState
+            $script:DSADomainDetectiveLoaded = $true
+            $importCount = 0
+            Mock -CommandName Get-Module -MockWith { throw 'should not query modules' }
+            Mock -CommandName Import-Module -MockWith { $importCount++ }
+
+            Import-DSADomainDetectiveModule
+
+            $importCount | Should -Be 0
+            $script:DSADomainDetectiveLoaded | Should -BeTrue
+        }
+    }
+}
+
+Describe 'Path and run context helpers' {
+    AfterEach {
+        InModuleScope DomainSecurityAuditor {
+            Reset-DSAModuleState
+        }
+    }
+
+    It 'rejects invalid paths and overly long paths' {
+        InModuleScope DomainSecurityAuditor {
+            $invalidChar = [System.IO.Path]::GetInvalidPathChars() | Select-Object -First 1
+            $invalidPath = "Invalid${invalidChar}Path"
+            { Resolve-DSAPath -Path $invalidPath } | Should -Throw -ExpectedMessage '*invalid characters*'
+
+            $longName = 'a' * 221
+            $longPath = Join-Path -Path $TestDrive -ChildPath "$longName.txt"
+            { Resolve-DSAPath -Path $longPath -PathType 'File' -EnsureExists } | Should -Throw -ExpectedMessage '*exceeds*'
+        }
+    }
+
+    It 'creates directories and files when EnsureExists is specified' {
+        InModuleScope DomainSecurityAuditor {
+            $dirPath = Join-Path -Path $TestDrive -ChildPath 'nested/dir'
+            $resolvedDir = Resolve-DSAPath -Path $dirPath -EnsureExists
+            Test-Path -Path $resolvedDir | Should -BeTrue
+
+            $filePath = Join-Path -Path $TestDrive -ChildPath 'files/example.txt'
+            $resolvedFile = Resolve-DSAPath -Path $filePath -PathType 'File' -EnsureExists
+            Test-Path -Path $resolvedFile | Should -BeTrue
+        }
+    }
+
+    It 'initializes run context and prunes logs' {
+        InModuleScope DomainSecurityAuditor {
+            Mock -CommandName Start-Transcript -MockWith { }
+            Mock -CommandName Invoke-DSALogRetention -MockWith { }
+            Mock -CommandName Write-DSALog -MockWith { }
+
+            $context = New-DSARunContext -OutputRoot $TestDrive -LogRoot $TestDrive -RetentionCount 2
+            $context.LogFile | Should -Not -BeNullOrEmpty
+            $context.OutputRoot | Should -Not -BeNullOrEmpty
+            $context.TranscriptStarted | Should -BeTrue
+
+            Assert-MockCalled -CommandName Invoke-DSALogRetention -Times 1 -Scope It
+            Assert-MockCalled -CommandName Start-Transcript -Times 1 -Scope It
+        }
+    }
+
+    It 'logs a warning when transcript start fails' {
+        InModuleScope DomainSecurityAuditor {
+            Mock -CommandName Invoke-DSALogRetention -MockWith { }
+            Mock -CommandName Start-Transcript -MockWith { throw 'transcript failure' }
+            $logged = [System.Collections.Generic.List[string]]::new()
+            Mock -CommandName Write-DSALog -MockWith {
+                param($Message)
+                $logged.Add($Message) | Out-Null
+            }
+
+            $context = New-DSARunContext -OutputRoot $TestDrive -LogRoot $TestDrive
+            $context.TranscriptStarted | Should -BeFalse
+            ($logged -join ' ') | Should -Match 'Failed to start transcript'
+        }
+    }
+}
+
+Describe 'Baseline validation helpers' {
+    AfterEach {
+        InModuleScope DomainSecurityAuditor {
+            Reset-DSAModuleState
+        }
+    }
+
+    It 'flags duplicate check identifiers' {
+        InModuleScope DomainSecurityAuditor {
+            $path = Join-Path -Path $TestDrive -ChildPath 'Baseline.Duplicate.psd1'
+            @"
+@{
+    Profiles = @{
+        Default = @{
+            Checks = @(
+                @{ Id = 'Dup'; Condition = 'MustExist'; Target = 'Records.MX'; Area = 'MX'; Severity = 'High' },
+                @{ Id = 'Dup'; Condition = 'MustExist'; Target = 'Records.SPFRecord'; Area = 'SPF'; Severity = 'High' }
+            )
+        }
+    }
+}
+"@ | Set-Content -Path $path -Encoding UTF8
+
+            $result = Test-DSABaselineProfile -Path $path
+            $result.IsValid | Should -BeFalse
+            ($result.Errors -join ' ') | Should -Match 'duplicate check Id'
+        }
+    }
+
+    It 'detects missing required properties and invalid ExpectedValue' {
+        InModuleScope DomainSecurityAuditor {
+            $path = Join-Path -Path $TestDrive -ChildPath 'Baseline.Invalid.psd1'
+            @'
+@{
+    Profiles = @{
+        Default = @{
+            Checks = @(
+                @{ Id = 'MissingTarget'; Condition = 'MustContain'; Area = 'SPF'; Severity = 'High' },
+                @{ Id = 'BadExpected'; Condition = 'MustContain'; Target = 'Records.SPFRecord'; Area = 'SPF'; Severity = 'High'; ExpectedValue = $null }
+            )
+        }
+    }
+}
+'@ | Set-Content -Path $path -Encoding UTF8
+
+            $result = Test-DSABaselineProfile -Path $path
+            $result.IsValid | Should -BeFalse
+            ($result.Errors -join ' ') | Should -Match 'missing required property'
+            ($result.Errors -join ' ') | Should -Match 'define an ExpectedValue'
+        }
+    }
+
+    It 'rejects unsupported baseline file extensions' {
+        InModuleScope DomainSecurityAuditor {
+            $path = Join-Path -Path $TestDrive -ChildPath 'Baseline.txt'
+            Set-Content -Path $path -Value 'content' -Encoding UTF8
+            { Import-DSABaselineConfig -Path $path } | Should -Throw -ExpectedMessage '*Unsupported baseline profile extension*'
+        }
+    }
+
+    It 'throws when named baseline profile is missing' {
+        InModuleScope DomainSecurityAuditor {
+            { Get-DSABaseline -ProfileName 'DoesNotExist' } | Should -Throw -ExpectedMessage '*not found*'
+        }
+    }
+}
+
+Describe 'Condition and value helpers' {
+    AfterEach {
+        InModuleScope DomainSecurityAuditor {
+            Reset-DSAModuleState
+        }
+    }
+
+    It 'validates ExpectedValue payloads' {
+        InModuleScope DomainSecurityAuditor {
+            $validation = Test-DSAConditionExpectedValue -Condition 'MustContain' -ExpectedValue $null
+            $validation.IsValid | Should -BeFalse
+            $validation.Message | Should -Match 'ExpectedValue'
+
+            $rangeValidation = Test-DSAConditionExpectedValue -Condition 'BetweenInclusive' -ExpectedValue @{ Min = $null; Max = $null }
+            $rangeValidation.IsValid | Should -BeFalse
+        }
+    }
+
+    It 'evaluates baseline conditions correctly' -TestCases @(
+        @{ Condition = 'MustContain'; Value = 'spf include'; ExpectedValue = 'include'; ExpectedResult = $true }
+        @{ Condition = 'MustNotContain'; Value = @('ptr', 'mx'); ExpectedValue = @('ptr'); ExpectedResult = $false }
+        @{ Condition = 'MustBeOneOf'; Value = 'Reject'; ExpectedValue = @('Reject', 'Quarantine'); ExpectedResult = $true }
+        @{ Condition = 'LessThanOrEqual'; Value = 5; ExpectedValue = 10; ExpectedResult = $true }
+        @{ Condition = 'LessThanOrEqual'; Value = '5'; ExpectedValue = 10; ExpectedResult = $true }
+        @{ Condition = 'BetweenInclusive'; Value = 400; ExpectedValue = @{ Min = 300; Max = 600 }; ExpectedResult = $true }
+        @{ Condition = 'BetweenInclusive'; Value = 'non-numeric'; ExpectedValue = @{ Min = 300; Max = 600 }; ExpectedResult = $false }
+        @{ Condition = 'MustBeEmpty'; Value = @(); ExpectedValue = $null; ExpectedResult = $true }
+        @{ Condition = 'UnsupportedCondition'; Value = 'value'; ExpectedValue = $null; ExpectedResult = $false }
+    ) {
+        param($Condition, $Value, $ExpectedValue, $ExpectedResult)
+
+        InModuleScope DomainSecurityAuditor -Parameters $_ {
+            $result = Test-DSABaselineCondition -Condition $Condition -Value $Value -ExpectedValue $ExpectedValue
+            $result | Should -Be $ExpectedResult
+        }
+    }
+
+    It 'normalizes and formats values' {
+        InModuleScope DomainSecurityAuditor {
+            (ConvertTo-DSABaselineArray -Value $null).Count | Should -Be 0
+            (@(ConvertTo-DSABaselineArray -Value 'solo')).Count | Should -Be 1
+            Format-DSAActualValue -Value $null | Should -Be 'None'
+            Format-DSAActualValue -Value @($null) | Should -Be 'None'
+            Format-DSAActualValue -Value @('a', 'b') | Should -Be 'a, b'
+        }
+    }
+}
+
+Describe 'DKIM and status helpers' {
+    AfterEach {
+        InModuleScope DomainSecurityAuditor {
+            Reset-DSAModuleState
+        }
+    }
+
+    It 'evaluates DKIM selector status using default minimum key length' {
+        InModuleScope DomainSecurityAuditor {
+            $check = [pscustomobject]@{
+                Id      = 'DKIMKeyStrength'
+                Area    = 'DKIM'
+                Status  = 'Pass'
+                Severity = 'High'
+            }
+            $selector = [pscustomobject]@{
+                Selector         = 'sel1'
+                DkimRecordExists = $true
+                KeyLength        = 512
+                ValidPublicKey   = $true
+                ValidRsaKeyLength = $true
+                WeakKey          = $false
+            }
+
+            $status = Get-DSADkimSelectorStatus -Selector $selector -Check $check
+            $status | Should -Be 'Fail'
+        }
+    }
+
+    It 'fails selectors when required DKIM properties are missing' {
+        InModuleScope DomainSecurityAuditor {
+            $check = [pscustomobject]@{
+                Id       = 'DKIMKeyStrength'
+                Area     = 'DKIM'
+                Status   = 'Pass'
+                Severity = 'High'
+            }
+            $selector = [pscustomobject]@{
+                Selector         = 'missing-fields'
+                DkimRecordExists = $true
+                WeakKey          = $false
+            }
+
+            Get-DSADkimSelectorStatus -Selector $selector -Check $check | Should -Be 'Fail'
+
+            $ttlCheck = [pscustomobject]@{
+                Id            = 'DKIMTtl'
+                Area          = 'DKIM'
+                Status        = 'Pass'
+                ExpectedValue = @{ Min = 300; Max = 600 }
+            }
+
+            Get-DSADkimSelectorStatus -Selector $selector -Check $ttlCheck | Should -Be 'Fail'
+        }
+    }
+
+    It 'applies TTL bounds and propagates selector failures' {
+        InModuleScope DomainSecurityAuditor {
+            $check = [pscustomobject]@{
+                Id           = 'DKIMTtl'
+                Area         = 'DKIM'
+                Status       = 'Pass'
+                ExpectedValue = @{ Min = 300; Max = 600 }
+            }
+            $selector = [pscustomobject]@{
+                Selector = 'sel2'
+                DkimRecordExists = $true
+                KeyLength = 2048
+                ValidPublicKey = $true
+                ValidRsaKeyLength = $true
+                DnsRecordTtl = 120
+            }
+            $status = Get-DSADkimSelectorStatus -Selector $selector -Check $check
+            $status | Should -Be 'Fail'
+
+            $effective = Get-DSAEffectiveChecks -Checks @([pscustomobject]@{ Id = 'DKIMTtl'; Area = 'DKIM'; Status = 'Pass' }) -SelectorDetails @($selector)
+            $effective[0].Status | Should -Be 'Fail'
+        }
+    }
+
+    It 'counts statuses and handles DKIM-only overall status' {
+        InModuleScope DomainSecurityAuditor {
+            $checks = @(
+                [pscustomobject]@{ Id = 'One'; Area = 'DKIM'; Status = 'Fail' },
+                [pscustomobject]@{ Id = 'Two'; Area = 'DKIM'; Status = 'Pass' }
+            )
+            $counts = Get-DSAStatusCounts -Checks $checks
+            $counts.Fail | Should -Be 1
+            $counts.Pass | Should -Be 1
+            $counts.Total | Should -Be 2
+
+            $overall = Get-DSAOverallStatus -Checks $checks
+            $overall | Should -Be 'Fail'
+        }
+    }
+}
+
+Describe 'Domain input and context helpers' {
+    AfterEach {
+        InModuleScope DomainSecurityAuditor {
+            Reset-DSAModuleState
+        }
+    }
+
+    It 'throws when no domains are supplied' {
+        InModuleScope DomainSecurityAuditor {
+            { Get-DSADomainInputState -CollectedDomains ([System.Collections.Generic.List[string]]::new()) -DomainMetadata @{} -DirectDomainSet ([System.Collections.Generic.HashSet[string]]::new()) } | Should -Throw -ExpectedMessage '*No domains were supplied*'
+        }
+    }
+
+    It 'falls back to newline-delimited files when CSV import fails' {
+        InModuleScope DomainSecurityAuditor {
+            $inputPath = Join-Path -Path $TestDrive -ChildPath 'domains.txt'
+            @'
+alpha.example
+beta.example
+'@ | Set-Content -Path $inputPath -Encoding UTF8
+
+            $logFile = Join-Path -Path $TestDrive -ChildPath 'log.txt'
+            Mock -CommandName Write-DSALog -MockWith { }
+
+            $state = Get-DSADomainInputState -CollectedDomains ([System.Collections.Generic.List[string]]::new()) -DomainMetadata @{} -DirectDomainSet ([System.Collections.Generic.HashSet[string]]::new()) -InputFile $inputPath -LogFile $logFile
+            $state.TargetDomains | Should -Contain 'alpha.example'
+            $state.TargetDomains | Should -Contain 'beta.example'
+        }
+    }
+
+    It 'prefers metadata classification over parameter overrides and applies global selectors' {
+        InModuleScope DomainSecurityAuditor {
+            $metadata = @{
+                'example.com' = [pscustomobject]@{
+                    Classification       = 'SendingOnly'
+                    ClassificationSource = 'CSV'
+                }
+            }
+            $direct = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $direct.Add('example.com') | Out-Null
+
+            $context = Resolve-DSADomainContext -DomainName 'example.com' -DomainMetadata $metadata -DirectDomainSet $direct -DefaultClassificationOverride 'ReceivingOnly' -GlobalDkimSelectors @('alpha') -ResolvedDnsEndpoint 'udp://1.1.1.1:53'
+            $context.ClassificationOverride | Should -Be 'SendingOnly'
+            $context.ClassificationSource | Should -Be 'CSV'
+            $context.DkimSelectors | Should -Contain 'alpha'
+            $context.ResolvedDnsEndpoint | Should -Be 'udp://1.1.1.1:53'
+        }
+    }
+
+    It 'applies parameter classification overrides for direct domains when metadata is absent' {
+        InModuleScope DomainSecurityAuditor {
+            $metadata = @{}
+            $direct = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $direct.Add('nocsv.example') | Out-Null
+
+            $context = Resolve-DSADomainContext -DomainName 'nocsv.example' -DomainMetadata $metadata -DirectDomainSet $direct -DefaultClassificationOverride 'ReceivingOnly' -GlobalDkimSelectors @()
+            $context.ClassificationOverride | Should -Be 'ReceivingOnly'
+            $context.ClassificationSource | Should -Be 'Parameter'
+        }
+    }
+}

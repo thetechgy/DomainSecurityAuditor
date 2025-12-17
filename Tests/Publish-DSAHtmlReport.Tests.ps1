@@ -100,6 +100,44 @@ Describe 'Publish-DSAHtmlReport' {
             $summary.DomainCount | Should -Be 1
         }
     }
+
+    It 'throws when no profiles are supplied' {
+        InModuleScope DomainSecurityAuditor {
+            { Publish-DSAHtmlReport -Profiles @() -OutputRoot $TestDrive -GeneratedOn (Get-Date) } | Should -Throw -ExpectedMessage '*null, empty*'
+        }
+    }
+
+    It 'includes filter metadata and classification overrides in the rendered report' {
+        InModuleScope DomainSecurityAuditor {
+            $complianceProfile = [pscustomobject]@{
+                Domain                 = 'demo.example'
+                Classification         = 'Default'
+                OriginalClassification = 'Parked'
+                ClassificationOverride = 'SendingOnly'
+                OverallStatus          = 'Fail'
+                Checks                 = @(
+                    [pscustomobject]@{ Id = 'CheckPass'; Area = 'SPF'; Status = 'Pass'; Severity = 'High'; Enforcement = 'Required'; Expectation = 'Pass expectation'; ExpectedValue = $null; Actual = 'ok'; Remediation = ''; References = @() },
+                    [pscustomobject]@{ Id = 'CheckWarn'; Area = 'DMARC'; Status = 'Warning'; Severity = 'Medium'; Enforcement = 'Recommended'; Expectation = 'Warn expectation'; ExpectedValue = $null; Actual = 'warn'; Remediation = ''; References = @() },
+                    [pscustomobject]@{ Id = 'CheckFail'; Area = 'MX'; Status = 'Fail'; Severity = 'High'; Enforcement = 'Required'; Expectation = 'Fail expectation'; ExpectedValue = $null; Actual = 'fail'; Remediation = ''; References = @() }
+                )
+                Timestamp              = (Get-Date)
+                Evidence               = [pscustomobject]@{
+                    DKIMSelectorDetails = @()
+                }
+            }
+
+            $outputRoot = Join-Path -Path $TestDrive -ChildPath 'Output'
+            $reportPath = Publish-DSAHtmlReport -Profiles $complianceProfile -OutputRoot $outputRoot -GeneratedOn (Get-Date) -BaselineName 'Default' -BaselineVersion '1.0'
+            $content = Get-Content -Path $reportPath -Raw
+
+            $content | Should -Match 'data-filter="pass"'
+            $content | Should -Match 'data-filter="fail"'
+            $content | Should -Match 'data-filter="warning"'
+            $content | Should -Match 'aria-pressed="false"'
+            $content | Should -Match 'Override: SendingOnly'
+            $content | Should -Match 'Detected: Parked'
+        }
+    }
 }
 
 Describe 'Resolve-DSAClassificationOverride' {

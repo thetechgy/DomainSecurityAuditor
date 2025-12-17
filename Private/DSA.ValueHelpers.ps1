@@ -43,14 +43,14 @@ function ConvertTo-DSABaselineArray {
     )
 
     if ($Value -is [System.Collections.IEnumerable] -and -not ($Value -is [string])) {
-        return @($Value)
+        return ,@($Value)
     }
 
     if ($null -eq $Value) {
-        return @()
+        return ,@()
     }
 
-    return @($Value)
+    return ,@($Value)
 }
 
 function ConvertTo-DSADouble {
