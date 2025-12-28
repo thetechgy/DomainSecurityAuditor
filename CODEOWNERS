@@ -1,0 +1,17 @@
+# CODEOWNERS for DomainSecurityAuditor
+# These owners will be requested for review on pull requests
+
+# Default owners for everything in the repo
+* @thetechgy
+
+# PowerShell module code
+/Public/ @thetechgy
+/Private/ @thetechgy
+/Tests/ @thetechgy
+
+# Configuration and examples
+/Configs/ @thetechgy
+/Examples/ @thetechgy
+
+# CI/CD and repository configuration
+/.github/ @thetechgy

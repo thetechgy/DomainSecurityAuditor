@@ -296,3 +296,13 @@ Install-Module -Name DomainDetective, Pester, PSScriptAnalyzer -Scope CurrentUse
 ```
 
 </details>
+
+---
+
+## Related Documentation
+
+| File | Purpose |
+|------|---------|
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute to this project |
+| [SECURITY.md](SECURITY.md) | Vulnerability reporting policy |
+| [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
