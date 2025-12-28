@@ -74,3 +74,50 @@ function Get-DSAOverallStatus {
     if ($counts.Warning -gt 0) { return 'Warning' }
     return 'Pass'
 }
+
+function Get-DSAColumnWidths {
+    <#
+    .SYNOPSIS
+        Calculate maximum column widths for console output in a single pass.
+    .DESCRIPTION
+        Iterates through summary objects once, calculating the maximum string length
+        for each specified property. Returns a hashtable of property names to widths.
+    .PARAMETER Summaries
+        Collection of summary objects to measure.
+    .PARAMETER Properties
+        Array of property names to calculate widths for.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param (
+        [object[]]$Summaries = @(),
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$Properties
+    )
+
+    $widths = @{}
+    foreach ($prop in $Properties) {
+        $widths[$prop] = 1
+    }
+
+    if (-not $Summaries -or $Summaries.Count -eq 0) {
+        return $widths
+    }
+
+    foreach ($summary in $Summaries) {
+        if (-not $summary) {
+            continue
+        }
+        foreach ($prop in $Properties) {
+            if ($summary.PSObject.Properties.Name -contains $prop) {
+                $len = $summary.$prop.ToString().Length
+                if ($len -gt $widths[$prop]) {
+                    $widths[$prop] = $len
+                }
+            }
+        }
+    }
+
+    return $widths
+}

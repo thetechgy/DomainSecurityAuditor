@@ -5,8 +5,7 @@
     Builds a script-scoped dictionary of supported baseline conditions with validation and evaluation logic, caching for reuse.
 #>
 function Get-DSAConditionDefinitions {
-    $existing = Get-Variable -Name DSAConditionDefinitions -Scope Script -ErrorAction SilentlyContinue
-    if (-not $existing -or -not $script:DSAConditionDefinitions) {
+    if (-not $script:DSAConditionDefinitions) {
         $script:DSAConditionDefinitions = New-Object 'System.Collections.Generic.Dictionary[string,pscustomobject]' ([System.StringComparer]::OrdinalIgnoreCase)
 
         $addDefinition = {

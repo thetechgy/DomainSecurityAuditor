@@ -463,9 +463,10 @@ function Write-DSABaselineConsoleSummary {
     }
 
     $sortedSummaries = $domainSummaries | Sort-Object -Property @{ Expression = { $_.Rank } }, @{ Expression = { $_.Domain } }
-    $passWidth = if ($sortedSummaries) { ($sortedSummaries | ForEach-Object { $_.Pass.ToString().Length } | Measure-Object -Maximum).Maximum } else { 1 }
-    $warnWidth = if ($sortedSummaries) { ($sortedSummaries | ForEach-Object { $_.Warn.ToString().Length } | Measure-Object -Maximum).Maximum } else { 1 }
-    $failWidth = if ($sortedSummaries) { ($sortedSummaries | ForEach-Object { $_.Fail.ToString().Length } | Measure-Object -Maximum).Maximum } else { 1 }
+    $widths = Get-DSAColumnWidths -Summaries @($sortedSummaries) -Properties @('Pass', 'Warn', 'Fail')
+    $passWidth = $widths['Pass']
+    $warnWidth = $widths['Warn']
+    $failWidth = $widths['Fail']
     $domainCount = ($Profiles | Measure-Object).Count
 
     Write-Information -MessageData '' -InformationAction Continue

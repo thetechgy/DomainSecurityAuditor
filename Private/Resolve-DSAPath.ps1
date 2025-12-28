@@ -36,15 +36,20 @@ function Resolve-DSAPath {
     if ($EnsureExists -or $PathType -eq 'Directory') {
         $itemType = if ($PathType -eq 'Directory') { 'Directory' } else { 'File' }
         if (-not (Test-Path -Path $expandedPath)) {
-            if ($itemType -eq 'Directory') {
-                $null = New-Item -ItemType Directory -Path $expandedPath -Force
-            }
-            else {
-                $directory = Split-Path -Path $expandedPath -Parent
-                if (-not (Test-Path -Path $directory)) {
-                    $null = New-Item -ItemType Directory -Path $directory -Force
+            try {
+                if ($itemType -eq 'Directory') {
+                    $null = New-Item -ItemType Directory -Path $expandedPath -Force
                 }
-                $null = New-Item -ItemType File -Path $expandedPath -Force
+                else {
+                    $directory = Split-Path -Path $expandedPath -Parent
+                    if (-not (Test-Path -Path $directory)) {
+                        $null = New-Item -ItemType Directory -Path $directory -Force
+                    }
+                    $null = New-Item -ItemType File -Path $expandedPath -Force
+                }
+            }
+            catch {
+                throw "Failed to create $itemType '$expandedPath': $($_.Exception.Message)"
             }
         }
     }

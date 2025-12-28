@@ -114,6 +114,7 @@ function Publish-DSAHtmlReport {
     Summary object from Get-DSAReportSummary.
 #>
 function Add-DSASummaryCards {
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)][System.Text.StringBuilder]$Builder,
         [Parameter(Mandatory = $true)][pscustomobject]$Summary
@@ -155,6 +156,7 @@ function Add-DSASummaryCards {
     Compliance profiles to render.
 #>
 function Add-DSADomainSections {
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)][System.Text.StringBuilder]$Builder,
         [Parameter(Mandatory = $true)][pscustomobject[]]$Profiles
@@ -238,6 +240,7 @@ function Add-DSADomainSections {
     Compliance profile for the domain.
 #>
 function Add-DSAProtocolSection {
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)][System.Text.StringBuilder]$Builder,
         [Parameter(Mandatory = $true)][System.Management.Automation.PSObject]$Group,
@@ -307,6 +310,7 @@ function Add-DSAProtocolSection {
     Optional DKIM selector details for DKIM check enrichment.
 #>
 function Add-DSATestResult {
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)][System.Text.StringBuilder]$Builder,
         [Parameter(Mandatory = $true)][pscustomobject]$Check,
@@ -500,6 +504,7 @@ function Get-DSAReportSummary {
     DKIM check driving status evaluation.
 #>
 function Add-DSADkimSelectorBreakdown {
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)][System.Text.StringBuilder]$Builder,
         [pscustomobject[]]$Selectors,

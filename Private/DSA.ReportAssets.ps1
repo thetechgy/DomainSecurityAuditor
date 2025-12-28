@@ -105,13 +105,13 @@ function Get-DSAKnownReferenceLink {
 
     $trimmed = $Reference.Trim()
 
-    if (-not $script:DSAKnownReferenceLinks -or ($script:DSAKnownReferenceLinks -is [hashtable] -and $script:DSAKnownReferenceLinks.Count -eq 0)) {
+    if (-not $script:DSAKnownReferenceLinks -or $script:DSAKnownReferenceLinks.Count -eq 0) {
         $referenceFile = Join-Path -Path $script:ConfigRoot -ChildPath 'ReferenceLinks.psd1'
-        if (Test-Path -Path $referenceFile) {
-            $script:DSAKnownReferenceLinks = Import-PowerShellDataFile -Path $referenceFile
+        $script:DSAKnownReferenceLinks = if (Test-Path -Path $referenceFile) {
+            Import-PowerShellDataFile -Path $referenceFile
         }
         else {
-            $script:DSAKnownReferenceLinks = @{}
+            @{}
         }
     }
 

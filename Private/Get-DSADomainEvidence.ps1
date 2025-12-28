@@ -61,25 +61,9 @@
         $null = $errors.Add("Overall health lookup failed for '$Domain': $($_.Exception.Message)")
     }
 
-    $classificationValue = $null
-    $extractClassification = {
-        param($source)
-        if (-not $source) { return $null }
-        $names = @('Classification', 'MailClassification', 'MailDomainClassification')
-        foreach ($name in $names) {
-            if ($source.PSObject -and $source.PSObject.Properties.Name -contains $name) {
-                $val = $source.$name
-                if ($val -and -not [string]::IsNullOrWhiteSpace("$val")) {
-                    return "$val".Trim()
-                }
-            }
-        }
-        return $null
-    }
-
-    $classificationValue = & $extractClassification $health
+    $classificationValue = Get-DSAClassificationFromHealth -HealthData $health
     if (-not $classificationValue -and $health -and $health.Raw) {
-        $classificationValue = & $extractClassification $health.Raw
+        $classificationValue = Get-DSAClassificationFromHealth -HealthData $health.Raw
     }
 
     if (-not $classificationValue) {
@@ -132,40 +116,12 @@
     $spfUnsafe = @($spf.UnknownMechanisms)
     if ($spf.HasPtrType) { $spfUnsafe += 'ptr' }
 
-    $dkimList = @()
-    $dkimFound = @()
-    if ($dkim -and $dkim.AnalysisResults) {
-        foreach ($entry in $dkim.AnalysisResults.GetEnumerator()) {
-            $selectorName = $entry.Key
-            $analysisResult = $entry.Value
-            if ($analysisResult -and -not ($analysisResult.PSObject.Properties.Name -contains 'Selector')) {
-                $analysisResult | Add-Member -MemberType NoteProperty -Name 'Selector' -Value $selectorName -Force
-            }
-            if ($analysisResult) {
-                $dkimList += $analysisResult
-                if ($analysisResult.DkimRecordExists) {
-                    $dkimFound += $analysisResult
-                }
-            }
-        }
-    }
-    $dkimSelectors = @($dkimFound | ForEach-Object { $_.Selector })
-    $dkimMinKey = $null
-    if ($dkimFound) {
-        $keyValues = @($dkimFound | ForEach-Object { $_.KeyLength } | Where-Object { $_ })
-        if ($keyValues) {
-            $dkimMinKey = ($keyValues | Measure-Object -Minimum).Minimum
-        }
-    }
-    $dkimWeakCount = @(
-        $dkimList | Where-Object {
-            -not $_.DkimRecordExists -or
-            -not $_.ValidPublicKey -or
-            -not $_.ValidRsaKeyLength -or
-            $_.WeakKey -or
-            (($_.KeyLength -as [int]) -lt $script:DSAMinDkimKeyLength)
-        }
-    ).Count
+    $dkimResult = Get-DSADkimAnalysisResult -DkimAnalysis $dkim
+    $dkimList = $dkimResult.DkimList
+    $dkimFound = $dkimResult.DkimFound
+    $dkimSelectors = $dkimResult.DkimSelectors
+    $dkimMinKey = $dkimResult.DkimMinKey
+    $dkimWeakCount = $dkimResult.DkimWeakCount
 
     $spfAuthoritativeValues = if ($ttlAnalysis.ServerTtlTxtSpf) { $ttlAnalysis.ServerTtlTxtSpf.Values | Where-Object { $_ } } else { $null }
     $spfResolverTtl = Get-DSATtlValue -InputObject $spf
@@ -175,11 +131,13 @@
     $dmarcResolverTtl = Get-DSATtlValue -InputObject $dmarc
     $dmarcTtl = Resolve-DSATtl -AuthoritativeValues $dmarcAuthoritativeValues -ResolverTtl $dmarcResolverTtl -RecordLabel 'DMARC' -LogFile $LogFile
 
-    $dkimAuthoritativeValues = @()
+    $dkimAuthoritativeValues = [System.Collections.Generic.List[object]]::new()
     if ($ttlAnalysis.ServerTtlTxtPerName) {
         foreach ($perNameMap in $ttlAnalysis.ServerTtlTxtPerName.Values) {
             if ($perNameMap) {
-                $dkimAuthoritativeValues += ($perNameMap.Values | Where-Object { $_ })
+                foreach ($val in ($perNameMap.Values | Where-Object { $_ })) {
+                    $null = $dkimAuthoritativeValues.Add($val)
+                }
             }
         }
     }
