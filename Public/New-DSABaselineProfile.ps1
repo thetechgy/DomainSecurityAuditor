@@ -30,7 +30,7 @@
 
         [switch]$Force,
 
-        [switch]$ShowProgress = $true
+        [switch]$ShowProgress
     )
 
     $sourceInfo = Get-DSABaselineProfile -Name $SourceProfile

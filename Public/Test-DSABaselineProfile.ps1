@@ -18,7 +18,7 @@
         [ValidateNotNullOrEmpty()]
         [string]$Path,
 
-        [switch]$ShowProgress = $true
+        [switch]$ShowProgress
     )
 
     $resolvedPath = Resolve-DSAPath -Path $Path -PathType 'File'

@@ -172,8 +172,8 @@ function Get-DSADkimCheckResult {
     # Only process DKIM-specific checks with selectors
     if ($Selectors -and $Check.Area -eq 'DKIM' -and ($Check.Id -in @('DKIMKeyStrength', 'DKIMTtl', 'DKIMSelectorHealth', 'DKIMSelectorPresence'))) {
         $selectorStatuses = @($Selectors | ForEach-Object {
-            Get-DSADkimSelectorStatus -Selector $_ -Check $Check
-        })
+                Get-DSADkimSelectorStatus -Selector $_ -Check $Check
+            })
 
         # Determine effective status from selector results
         $statuses = @($selectorStatuses | ForEach-Object { $_.Status })

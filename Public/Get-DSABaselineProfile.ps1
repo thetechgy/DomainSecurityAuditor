@@ -23,7 +23,7 @@
         [ValidateNotNullOrEmpty()]
         [string]$Name,
 
-        [switch]$ShowProgress = $true
+        [switch]$ShowProgress
     )
 
     $configRoot = $script:ConfigRoot

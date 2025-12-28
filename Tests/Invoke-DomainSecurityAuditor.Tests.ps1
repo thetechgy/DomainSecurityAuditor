@@ -828,6 +828,10 @@ Describe 'Get-DSADomainEvidence' {
             }
 
             function Test-DDDomainOverallHealth {
+                <#
+                .SYNOPSIS
+                    Mock function for Test-DDDomainOverallHealth in CNAME TTL constraint tests.
+                #>
                 [CmdletBinding()]
                 param($DomainName, $HealthCheckType, $DnsEndpoint, $DkimSelectors)
                 return [pscustomobject]@{
@@ -844,6 +848,10 @@ Describe 'Get-DSADomainEvidence' {
             }
 
             function Test-DDMailDomainClassification {
+                <#
+                .SYNOPSIS
+                    Mock function for Test-DDMailDomainClassification in CNAME TTL constraint tests.
+                #>
                 [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{ Classification = 'SendingAndReceiving'; Raw = [pscustomobject]@{} }
@@ -934,6 +942,10 @@ Describe 'Get-DSADomainEvidence' {
             }
 
             function Test-DDDomainOverallHealth {
+                <#
+                .SYNOPSIS
+                    Mock function for Test-DDDomainOverallHealth in non-CNAME TTL tests.
+                #>
                 [CmdletBinding()]
                 param($DomainName, $HealthCheckType, $DnsEndpoint, $DkimSelectors)
                 return [pscustomobject]@{
@@ -950,6 +962,10 @@ Describe 'Get-DSADomainEvidence' {
             }
 
             function Test-DDMailDomainClassification {
+                <#
+                .SYNOPSIS
+                    Mock function for Test-DDMailDomainClassification in non-CNAME TTL tests.
+                #>
                 [CmdletBinding()]
                 param($DomainName, $DnsEndpoint)
                 return [pscustomobject]@{ Classification = 'SendingAndReceiving'; Raw = [pscustomobject]@{} }
