@@ -1,298 +1,298 @@
-## CLI Tooling & Fast Search (Agent Standards)
+# DomainSecurityAuditor — Agent Guidelines
+
+> **For AI coding assistants** (Claude Code, Codex, Copilot, etc.) working in this repo.
+
+---
+
+## Quick Reference
+
+| Task | Command |
+|------|---------|
+| Run all tests | `Invoke-Pester -Path ./Tests` |
+| Lint all scripts | `Invoke-ScriptAnalyzer -Path . -Settings ./PSScriptAnalyzerSettings.psd1` |
+| Import module | `Import-Module ./DomainSecurityAuditor.psd1 -Force` |
+| Run auditor | `Invoke-DomainSecurityAuditor -Domain 'example.com'` |
+| Search code | `rg "pattern"` (not `grep`) |
+| Find files | `fd name` (not `find`) |
+
+---
+
+## Project Context
+
+**What this is:** A PowerShell 7+ module that audits domain/email security (SPF, DKIM, DMARC, MTA-STS, TLS-RPT) using [DomainDetective](https://github.com/EvotecIT/DomainDetective) for data and Pester for testing, outputting HTML reports.
+
+**Key entry points:**
+- `Invoke-DomainSecurityAuditor` — Main orchestrator (Public/)
+- `Get-DSABaselineProfile` — Retrieve baseline configs
+- `New-DSABaselineProfile` — Create custom baselines
+- `Test-DSABaselineProfile` — Validate baseline configs
+
+**Dependencies:** DomainDetective, Pester 5+, PSScriptAnalyzer
+
+---
+
+## File Structure
+
+```
+DomainSecurityAuditor/
+├── Public/          # Exported functions (user-facing API)
+├── Private/         # Internal helpers (not exported)
+├── Tests/           # Pester test files
+├── Configs/         # Baseline configs and reference data
+├── Examples/        # Wrapper scripts and sample reports
+├── Output/          # Generated reports (Reports/, Raw/)
+├── Logs/            # Timestamped logs and transcripts
+├── .github/         # CI workflows (Pester, PSScriptAnalyzer)
+└── DomainSecurityAuditor.psd1  # Module manifest
+```
+
+---
+
+## DO NOT
+
+- **Do not** use `grep`, `egrep`, or `find` — use `rg` and `fd` instead
+- **Do not** use `Read-Host` or GUI prompts — assume non-interactive execution
+- **Do not** write outside `Output/` or `Logs/` directories
+- **Do not** skip `Invoke-ScriptAnalyzer` before commits
+- **Do not** mix formatting changes with behavioral changes in commits
+- **Do not** use `--pre`, `-z`, `--search-zip` flags with ripgrep
+- **Do not** parse JSON with regex — use `jaq` or `jq`
+- **Do not** start transcripts in helper functions (only in entry points)
+- **Do not** commit files with paths > 180 characters
+
+---
+
+## CLI Tooling (Rust-First)
 
 These standards apply whenever an agent interacts with the **DomainSecurityAuditor** repo via a shell (local or remote). The goal is: **fast, safe, Rust-first tooling**.
 
-### Content Search (ripgrep)
+### ripgrep (`rg`) — Content Search
 
-- **Always** use [`rg` (ripgrep)](https://github.com/BurntSushi/ripgrep) for project-wide search.
-- **Do not** use `grep` or `egrep` for repository searches.
-- Respect ignore files by default (`.gitignore`, `.ignore`, `.rgignore`).
-
-**Usage patterns:**
-
-- Search for a pattern:
-  - `rg "pattern"`
-- Search with context:
-  - `rg -n -A 3 -B 3 "pattern"`
-- Limit by language:
-  - `rg -t powershell "function"`
-- List tracked/non-ignored files:
-  - `rg --files`
-
-**Safety constraints for agents:**
-
-- **Never** use these flags in automated/agent contexts:
-  - `--pre`
-  - `-z` / `--search-zip`
-  - `--hostname-bin`
-- Avoid writing shell commands that feed untrusted input directly into `rg` arguments without quoting.
-- Cap interactive reads from `rg` output to ~250 lines unless a larger range is explicitly required.
-
-### File Discovery (fd)
-
-Prefer [`fd`](https://github.com/sharkdp/fd) (or `fdfind` on Debian/Ubuntu) instead of `find`:
-
-- On Debian/Ubuntu/WSL, install and alias once:
-
-  ```bash
-  sudo apt update && sudo apt install -y fd-find
-  echo 'alias fd=fdfind' >> ~/.bashrc
-  ```
-
-**Usage patterns:**
-
-- Find files/directories by name:
-  - `fd name`
-- Restrict search scope:
-  - `fd name src`
-- Match by extension:
-  - `fd . ps1`  # all *.ps1 files under current dir
-
-**Safety when chaining commands:**
-
-- When piping `fd` output into other commands (especially anything that deletes or modifies files), **always** use null-delimited output and `xargs -0`, and terminate argument lists with `--`:
-
-  ```bash
-  fd -0 pattern | xargs -0 rm --      # safe deletion
-  fd -0 '.ps1' | xargs -0 dos2unix -- # safe batch edits
-  ```
-
-- Agents must **not** emit patterns that could be interpreted as options (e.g., filenames beginning with `-`) without using the `-0` / `xargs -0 --` pattern.
-
-### JSON Processing (jaq / jq)
-
-Prefer a **Rust** JSON processor for performance and memory safety.
-
-- Primary tool: [`jaq`](https://github.com/01mf02/jaq) (Rust reimplementation of the jq language).
-- Fallback: `jq` (only if `jaq` is not available in the environment).
-
-**Usage patterns (valid for both `jaq` and `jq`):**
-
-- Extract a field:
-
-  ```bash
-  jaq '.key' file.json
-  ```
-
-- Map an array to a simpler object list:
-
-  ```bash
-  jaq '.items[] | { id, name }' file.json
-  ```
-
-- Pretty-print JSON from stdin:
-
-  ```bash
-  some-command | jaq '.'
-  ```
-
-**Standards:**
-
-- Use `jaq`/`jq` for **all** JSON parsing and transformation; agents must **not** parse JSON with grep/regex when a structured approach is possible.
-- When emitting JSON from PowerShell into the CLI, prefer `ConvertTo-Json -Depth N | jaq '...'` over ad-hoc string manipulation.
-- If `jaq` is unavailable:
-  - Agents may fall back to `jq` but should treat it as a compatibility mode, not the preferred long-term default.
-
-### Tool Installation Guidance (For Local Dev / CI Images)
-
-For environments you control (WSL Ubuntu, dev containers, CI images), ensure these packages are available:
-
-- **Debian/Ubuntu/WSL:**
-
-  ```bash
-  sudo apt update && sudo apt install -y ripgrep fd-find jq
-
-  # Optional: install jaq via cargo if not packaged:
-  # cargo install jaq
-  ```
-
-  Add to shell profile:
-
-  ```bash
-  alias fd=fdfind
-  ```
-
-- **macOS (Homebrew):**
-
-  ```bash
-  brew install ripgrep fd jq jaq
-  ```
-
-### Agent Command Mapping Rules
-
-When the agent needs to:
-
-- **Search text in the repo:**
-  - Use `rg "pattern"` (with optional `-n -A 3 -B 3`).
-- **List or locate files:**
-  - Use `fd name` (or `fd pattern path`).
-  - Use `rg --files` only when a raw file list is required.
-- **Inspect or transform JSON:**
-  - Use `jaq` first; fall back to `jq` only if `jaq` is unavailable.
-- **Avoid completely:**
-  - `grep`, `egrep`, and raw `find` for repo-wide operations.
-  - Dangerous ripgrep flags (`--pre`, `-z`, `--search-zip`, `--hostname-bin`) in automated flows.
-
-### Module & Script Structure
-
-- Use modular, reusable functions with PowerShell-approved verbs in names; exported entry points (e.g., `Invoke-DomainSecurityAuditor`) belong in the module's `Public\` folder and call private helpers.
-- Keep the DomainSecurityAuditor layout consistent: `Public\`, `Private\`, `Tests\`, `Examples\`, `Output\`, and `Logs\`. Wrapper scripts stored in `Examples\` must only import the module and call exported commands.
-- Maintain a `DomainSecurityAuditor.psd1` manifest with accurate metadata, `RootModule`, and `RequiredModules` so consumers understand the supported entry points.
-- Parameterize scripts with defaults, type validation, and safe fallbacks.
-- Include comment-based help and the standard header template (see below).
-- Implement `try / catch / finally` with centralized logging.
-- Log all major actions to `Logs\` and optionally output reports to `Output\`.
-- Log filenames must be timestamped and follow pruning/retention rules.
-- Reuse logic via functions to avoid duplication.
-- Detect required dependencies (DomainDetective, Pester, PSScriptAnalyzer) via a helper such as `Test-DSADependency`. Attempt installation by default and declare the same modules in the `.psd1` `RequiredModules`. If the `-SkipDependencies` switch is specified, short-circuit from the exported entry point after logging which dependencies were skipped.
-- Comply with **PSScriptAnalyzer** rules.
-- Use **Pester 5+** for unit-testable logic; keep tests in `Tests\`, import the DomainSecurityAuditor module once per file, and rely on `InModuleScope` to exercise private helpers.
-- Avoid long paths — keep script and output paths under **180 characters**.
-- Assume non-interactive, non-GUI, privileged shell execution.
-- Use `#region` / `#endregion` blocks for clear logical grouping (e.g., `#region Parameters`, `#region PublicFunctions`, `#region PrivateHelpers`, `#region Cleanup`). Keep nesting shallow and labels descriptive so module files remain readable.
-- Employ **parameter splatting** when a cmdlet call uses three or more parameters or when the same parameter set recurs. Keep each splat hashtable local to the script—declare it immediately above the invocation or group it in a local `#region SplatDefinitions`. Do **not** centralize splats across multiple scripts.
-
-### Transcription Logging
-
-```powershell
-$TranscriptPath = Join-Path -Path "$PSScriptRoot\Logs" -ChildPath "$(Get-Date -Format 'yyyyMMdd_HHmmss')_Transcript.log"
-Start-Transcript -Path $TranscriptPath -Append
+```bash
+rg "pattern"                    # Basic search
+rg -n -A 3 -B 3 "pattern"       # With line numbers and context
+rg -t powershell "function"     # Filter by language
+rg --files                      # List tracked files
 ```
 
-Stop the transcript in `finally` or `#region Cleanup` with:
+**Constraints:** Never use `--pre`, `-z`, `--search-zip`, `--hostname-bin`. Quote untrusted input. Cap output to ~250 lines unless explicitly needed.
+
+### fd — File Discovery
+
+```bash
+fd name                         # Find by name
+fd name src                     # Restrict scope
+fd -e ps1                       # Match extension
+fd -0 pattern | xargs -0 cmd -- # Safe piping for destructive ops
+```
+
+On Debian/Ubuntu/WSL, use `fdfind` (alias to `fd`).
+
+### jaq/jq — JSON Processing
+
+```bash
+jaq '.key' file.json            # Extract field
+jaq '.items[] | {id, name}'     # Transform array
+pwsh -c '... | ConvertTo-Json' | jaq '.'  # From PowerShell
+```
+
+Prefer `jaq` (Rust); fall back to `jq` if unavailable. Never parse JSON with grep/regex.
+
+---
+
+## PowerShell Standards
+
+### Module Structure
+
+| Folder | Purpose |
+|--------|---------|
+| `Public/` | Exported functions (user API) — use approved verbs |
+| `Private/` | Internal helpers — not exported |
+| `Tests/` | Pester 5+ tests with `InModuleScope` for private helpers |
+| `Examples/` | Wrapper scripts — import module, call exported commands only |
+| `Configs/` | Baseline configurations and reference data |
+
+### Coding Conventions
+
+- **Parameters:** Defaults, type validation, safe fallbacks; use splatting for 3+ params
+- **Error handling:** `try/catch/finally` with centralized `Write-DSALog`
+- **Regions:** Use `#region`/`#endregion` for logical grouping (shallow nesting)
+- **Dependencies:** Check via `Test-DSADependency`; respect `-SkipDependencies` switch
+- **Progress:** Use `Write-Progress` for loops >5s or >50 items; respect `-ShowProgress`
+- **Paths:** Keep under 180 characters
+
+### Transcription (Entry Points Only)
 
 ```powershell
+# Start (in entry point only)
+$TranscriptPath = Join-Path "$PSScriptRoot\Logs" "$(Get-Date -Format 'yyyyMMdd_HHmmss')_Transcript.log"
+Start-Transcript -Path $TranscriptPath -Append
+
+# Stop (in finally/cleanup)
 Stop-Transcript
 ```
 
-> Only the top-level orchestrator (module entry point or CLI wrapper) should start/stop transcripts so that importing the module into CI/CD does not spawn nested transcripts. Internal helpers must accept a logger/transcript path instead of calling `Start-Transcript`. Transcripts are stored in `Logs\` (same `<RetentionCount>` policy as other logs), and callers should be able to override the log/output roots through parameters.
+> Only top-level orchestrators start/stop transcripts. Helpers accept logger paths as parameters.
+
+### Pre-Commit Checklist
+
+Before every commit:
+
+```powershell
+# Both must pass
+Invoke-ScriptAnalyzer -Path . -Settings ./PSScriptAnalyzerSettings.psd1
+Invoke-Pester -Path ./Tests
+```
+
+### Additional Requirements
+
+- Honor `.editorconfig` for formatting consistency
+- Exported commands must include `-ShowProgress` switch
+- Use descriptive variable names (no single-letter vars)
+- Add inline comments for non-obvious logic
+- Use semantic versioning; update `.psd1` for schema changes
+- GitHub Actions workflows must use `step-security/harden-runner`
 
 ---
 
-## Additional Script Requirements (Internal Standards)
+## Common Pitfalls
 
-- **Formatting & Analyzer Consistency**
-  - Honor the repo's `.editorconfig` conventions for indentation, casing, and trailing whitespace so that automated formatters and IDEs produce identical diffs.
-  - Before submitting, run **PSScriptAnalyzer** using the workspace settings file (`./PSScriptAnalyzerSettings.psd1`) to ensure local results match CI (`Invoke-ScriptAnalyzer -Settings .\PSScriptAnalyzerSettings.psd1`).
-  - If default IDE/editor behavior changes, update the corresponding configuration files in the repo so analyzer settings remain aligned across tooling.
-- **Pre-commit validation**
-  - Before committing any code, run `Invoke-ScriptAnalyzer -Path . -Settings .\PSScriptAnalyzerSettings.psd1` and `Invoke-Pester` (matching the workflow configuration) and ensure both pass. If either fails, fix the root cause before committing.
-- **GitHub Actions**
-  - All workflows must use `step-security/harden-runner` to harden runners before executing jobs.
-
-- Every exported module command must expose a `-ShowProgress` switch so behavior remains consistent when called directly or via wrapper scripts.
-- Provide usage examples, either in comment-based help or a README-adjacent example block.
-- Use descriptive, self-explanatory variable names — avoid single-letter or ambiguous loop/control variables.
-- Add inline comments explaining non-obvious logic.
-- Do not use `Read-Host`, GUI prompts, or write outside the `Output\Reports` / `Output\Raw` structure; normalize paths so downstream automation can ingest artifacts reliably.
-- Ensure long-term maintainability, auditability, and reuse across the codebase.
-- Provide progress feedback (`Write-Progress`) for loops likely to exceed ~5 seconds or 50 items; respect a `-ShowProgress` switch (`$true` by default) to silence output in pipelines.
-- Request unbounded result sets by default (e.g., `-ResultSize Unlimited`, `-All`, or module-specific parameters); only apply smaller caps when explicitly documented and implement paging if the provider enforces a hard limit.
-- Version the module semantically; update the `.psd1` `ModuleVersion` and `ReleaseNotes` for every baseline or report schema change so CI/CD consumers can pin compatible releases.
-
-> ⚠️ This best-practice list is **not exhaustive**. Where applicable, follow authoritative sources such as Microsoft Learn, vendor KBs, and community standards (e.g., *PS Style Guide*).
+| Issue | Solution |
+|-------|----------|
+| Tests fail in CI but pass locally | Import module with `-Force`; check for stale module state |
+| PSScriptAnalyzer inconsistencies | Use `-Settings ./PSScriptAnalyzerSettings.psd1` explicitly |
+| Transcript already running | Only start in entry points, never in helpers |
+| Classification not detected | Provide explicit `-Classification` or CSV column override |
+| DKIM selectors missing | Use `-DkimSelector` or CSV `DKIMSelectors` column |
+| Path too long errors | Keep total path < 180 chars; use shorter output names |
 
 ---
 
-## Baseline, Documentation, and Test Update Checklist
+## PR Checklist
 
-Anytime functionality, report baselines, or remediation guidance changes, complete the following before opening a PR:
+Before opening a PR that changes functionality, baselines, or remediation guidance:
 
-1. **README Alignment** — Update `README.md` so the documented goals, workflows, and examples reflect the latest behavior.
-2. **Example Report Refresh** — Regenerate `Examples/domain_security_auditor_report.html` (or its successor artifact) so screenshots and sample data match the current report schema and recommendations.
-3. **Pester Coverage** — Add or adjust Pester tests to cover new behaviors, updated baselines, or regression fixes. Keep coverage under `Tests\` and ensure new assertions run in CI.
-4. **Reference-Backed Guidance** — When modifying tests or recommendations, cite the same caliber of authoritative sources referenced in the README (e.g., RFCs, M3AAWG, dmarc.org, Microsoft Learn). Surface those references in code comments, test descriptions, or report content so downstream consumers understand the rationale.
-
-Document checklist completion in the PR description whenever practical.
+- [ ] Update `README.md` to reflect new behavior
+- [ ] Regenerate `Examples/domain_security_auditor_report.html` if report schema changed
+- [ ] Add/adjust Pester tests in `Tests/`
+- [ ] Cite authoritative sources (RFCs, M3AAWG, dmarc.org) in code comments
 
 ---
 
-## Commit Message & Pull Request Standards
+## Commit & PR Standards
 
-- **Commit Message Format**
-  - Use the Conventional Commits structure: `<type>(<scope>): <imperative summary>`.
-    - `type` should be one of `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, or `build`.
-    - `scope` should reference the affected module folder (`Public`, `Private`, `Tests`, `Examples`, `Docs`, etc.) or `repo` for sweeping changes.
-  - Keep the subject line under 72 characters; wrap additional context in paragraphs separated by blank lines.
-  - Call out user-facing impacts, log/report schema updates, and whether automation/tests were executed.
-  - When a change partially implements a larger effort, reference the tracking issue ID in the body (e.g., `Refs #123`).
+### Commit Format
 
-- **Commit Hygiene**
-  - Favor small, logically grouped commits to keep the review surface area manageable.
-  - Do not mix formatting-only changes with behavioral updates; land formatting in a separate commit so reviewers can skim functional diffs quickly.
-  - Ensure every commit passes `Invoke-ScriptAnalyzer` with the repo settings and, when applicable, the relevant Pester tests.
+```
+<type>(<scope>): <imperative summary>  # max 72 chars
 
-- **Pull Request Expectations**
-  - Title PRs using the same imperative voice as commits (e.g., `Add transcript logging to baseline command`).
-  - Summaries must describe **why** the change was necessary and **how** it affects operators or downstream automation.
-  - Include checklist confirmations (README alignment, regenerated examples, updated tests, dependency validation) in the PR body when the change affects behavior described in the baseline checklist above.
-  - Link to any security advisories, RFCs, or customer tickets that motivated the change so release managers can trace the rationale.
-  - Highlight testing evidence: commands executed, environments targeted (Windows PowerShell vs PowerShell 7), and notable failure modes discovered.
-  - PRs must remain focused: avoid bundling unrelated features or refactors that increase regression risk.
+[Optional body with details]
+Refs #123
+```
 
-These conventions keep DomainSecurityAuditor contributions predictable for auditors and release managers while preserving traceability for compliance reviews.
+**Types:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `build`
+**Scopes:** `Public`, `Private`, `Tests`, `Examples`, `Docs`, `repo`
 
-## Standard Comment Block Template
+### Commit Hygiene
+
+- Small, logically grouped commits
+- Separate formatting from behavioral changes
+- Every commit must pass PSScriptAnalyzer and Pester
+
+### PR Requirements
+
+- Title in imperative voice (e.g., "Add transcript logging")
+- Describe **why** and **how** it affects operators
+- Include testing evidence (commands run, environments tested)
+- Stay focused — no unrelated features bundled
+
+---
+
+## Comment Block Templates
+
+<details>
+<summary>Module Header Template</summary>
 
 ```powershell
 <#
 .SYNOPSIS
-    <Short summary of what the DomainSecurityAuditor module provides>
+    <Short summary>
 .DESCRIPTION
-    <Detailed description of module scope, key entry points, and integration paths>
+    <Detailed description of module scope and entry points>
 .REQUIRES
     Modules: DomainDetective, Pester, PSScriptAnalyzer
 .NOTES
     Module: DomainSecurityAuditor
-    Author: <Author Name>
+    Author: <Author>
     Date: <MM/DD/YYYY>
     Version: <ModuleVersion>
-    Requestor: <Requestor Name>
     Purpose: <Why the module exists>
 
 Release Notes:
-      <ModuleVersion> - <Date> - <Change summary>
-
-Resources:
-      - <Links to documentation or references>
+    <Version> - <Date> - <Change summary>
 #>
 ```
+
+</details>
+
+<details>
+<summary>Function Header Template</summary>
 
 ```powershell
 <#
 .SYNOPSIS
-    <Short summary of what the exported function does>
+    <Short summary>
 .DESCRIPTION
-    <Detailed description of the function, assumptions, and DSA workflows>
+    <Detailed description of function behavior>
 .PARAMETER Domain
-    <Describe the parameter; repeat for each parameter>
+    The domain(s) to audit.
 .PARAMETER SkipDependencies
-    Bypass automatic module installation; logs missing dependencies and exits early.
+    Bypass automatic module installation.
 .PARAMETER SkipReportLaunch
-    Prevents automatic launching of the generated compliance report.
+    Suppress auto-launch of HTML report (CI-friendly).
 .PARAMETER ShowProgress
-    Toggle `Write-Progress` output.
+    Toggle Write-Progress output.
 .EXAMPLE
     Invoke-DomainSecurityAuditor -Domain "example.com"
-    Runs baseline tests and writes an HTML report to the default output folder.
-.EXAMPLE
-    Invoke-DomainSecurityAuditor -InputFile ".\domains.csv" -SkipReportLaunch
-    Processes every domain listed in the CSV and suppresses auto-launching the HTML report (CI-friendly).
 .OUTPUTS
-    PSCustomObject describing compliance results.
+    PSCustomObject with compliance results.
 .NOTES
-    Author: <Author Name>
-    Date: <MM/DD/YYYY>
-    Version: <Function version>
-    Purpose: <Why the function exists>
-
-Revision History:
-      x.x - <Date> - <Change summary>
-
-Known Issues:
-      - <Any current limitations>
-
-Resources:
-      - <Links to documentation or references>
+    Author: <Author>
+    Version: <Version>
 #>
 ```
+
+</details>
+
+---
+
+## Appendix: Tool Installation
+
+<details>
+<summary>Debian/Ubuntu/WSL</summary>
+
+```bash
+sudo apt update && sudo apt install -y ripgrep fd-find jq
+echo 'alias fd=fdfind' >> ~/.bashrc
+# Optional: cargo install jaq
+```
+
+</details>
+
+<details>
+<summary>macOS (Homebrew)</summary>
+
+```bash
+brew install ripgrep fd jq jaq
+```
+
+</details>
+
+<details>
+<summary>PowerShell Modules</summary>
+
+```powershell
+Install-Module -Name DomainDetective, Pester, PSScriptAnalyzer -Scope CurrentUser
+```
+
+</details>
