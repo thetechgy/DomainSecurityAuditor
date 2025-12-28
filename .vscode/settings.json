@@ -36,5 +36,13 @@
     // ---------- PowerShell analysis & testing ----------
     "powershell.scriptAnalysis.enable": true,
     "powershell.scriptAnalysis.settingsPath": "./PSScriptAnalyzerSettings.psd1",
-    "powershell.pester.useLegacyCodeLens": false
+    "powershell.pester.useLegacyCodeLens": false,
+    // ---------- Search exclusions ----------
+    "search.exclude": {
+        "**/Output/**": true,
+        "**/Logs/**": true,
+        "**/node_modules/**": true,
+        "**/*.xml": true,
+        "**/coverage*/**": true
+    }
 }

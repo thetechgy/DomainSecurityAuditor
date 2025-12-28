@@ -116,6 +116,7 @@ jobs:
               $config.CodeCoverage.OutputFormat = 'JaCoCo'
               $config.CodeCoverage.OutputPath = Join-Path -Path $resultsPath -ChildPath 'PesterCoverage.xml'
               $config.CodeCoverage.Path = $coverageTargets
+              $config.CodeCoverage.CoveragePercentTarget = 70
           }
           else {
               $config.CodeCoverage.Enabled = $false
@@ -127,6 +128,10 @@ jobs:
 
           if ($result.FailedCount -gt 0) {
               throw "Pester reported $($result.FailedCount) failed tests."
+          }
+
+          if ($config.CodeCoverage.Enabled -and $result.CodeCoverage.CoveragePercent -lt 70) {
+              throw "Code coverage ($($result.CodeCoverage.CoveragePercent)%) is below 70% threshold."
           }
 
       - name: Upload Pester results

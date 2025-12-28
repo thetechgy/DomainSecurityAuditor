@@ -17,9 +17,10 @@
         PSUseCompatibleCmdlets = @{
             Enable = $true
             # Compatibility profiles shipped with PSScriptAnalyzer 1.24.0 (PS 7.0 on Windows/Ubuntu).
+            # Note: Newer profiles (Ubuntu 22.04, Windows Server 2022) require PSScriptAnalyzer 1.25+.
             TargetProfiles = @(
-                'win-8_x64_10.0.17763.0_7.0.0_x64_3.1.2_core'
-                'ubuntu_x64_18.04_7.0.0_x64_3.1.2_core'
+                'win-8_x64_10.0.17763.0_7.0.0_x64_3.1.2_core'     # Windows 10/Server 2019
+                'ubuntu_x64_18.04_7.0.0_x64_3.1.2_core'           # Ubuntu 18.04 (closest available)
             )
         }
 
@@ -54,6 +55,10 @@
         }
         PSAvoidUsingPlainTextForPassword = @{
             Enable = $true
+        }
+        PSAvoidUsingPositionalParameters = @{
+            Enable = $true
+            CommandAllowList = @('Write-Host', 'Write-Verbose', 'Write-Debug')
         }
 
         # Style/readability rules that match the module template (4-space indent, braces on same line, etc.)

@@ -28,6 +28,14 @@ Desktop.ini
 # ----------------------------
 .claude/
 
+# Node.js (pre-commit, linters)
+node_modules/
+.npm/
+.nyc_output/
+
+# Dependabot
+.dependabot/
+
 # ----------------------------
 # PowerShell
 # ----------------------------

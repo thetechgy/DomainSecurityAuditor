@@ -12,3 +12,6 @@ updates:
     commit-message:
       prefix: build
       include: scope
+    labels:
+      - dependencies
+      - github-actions
