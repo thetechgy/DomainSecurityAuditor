@@ -48,6 +48,8 @@ jobs:
             *.githubusercontent.com:443
             www.powershellgallery.com:443
             psg-prod-eastus.azureedge.net:443
+            cdn.powershellgallery.com:443
+            onegetcdn.azureedge.net:443
 
       - name: Checkout repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
