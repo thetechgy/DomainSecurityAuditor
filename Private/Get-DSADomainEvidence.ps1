@@ -125,11 +125,13 @@
 
     $spfAuthoritativeValues = Get-DSAAuthoritativeTtlValues -TtlAnalysis $ttlAnalysis -PropertyName 'ServerTtlTxtSpf'
     $spfResolverTtl = Get-DSATtlValue -InputObject $spf
-    $spfTtl = Resolve-DSATtl -AuthoritativeValues $spfAuthoritativeValues -ResolverTtl $spfResolverTtl -RecordLabel 'SPF' -LogFile $LogFile
+    $spfCnameTtl = if ((Test-DSAProperty -InputObject $spf -Name 'IsCnameResolved') -and $spf.IsCnameResolved) { $spf.CnameTtl } else { $null }
+    $spfTtl = Resolve-DSATtl -AuthoritativeValues $spfAuthoritativeValues -ResolverTtl $spfResolverTtl -CnameTtl $spfCnameTtl -RecordLabel 'SPF' -LogFile $LogFile
 
     $dmarcAuthoritativeValues = Get-DSAAuthoritativeTtlValues -TtlAnalysis $ttlAnalysis -PropertyName 'ServerTtlTxtDmarc'
     $dmarcResolverTtl = Get-DSATtlValue -InputObject $dmarc
-    $dmarcTtl = Resolve-DSATtl -AuthoritativeValues $dmarcAuthoritativeValues -ResolverTtl $dmarcResolverTtl -RecordLabel 'DMARC' -LogFile $LogFile
+    $dmarcCnameTtl = if ((Test-DSAProperty -InputObject $dmarc -Name 'IsCnameResolved') -and $dmarc.IsCnameResolved) { $dmarc.CnameTtl } else { $null }
+    $dmarcTtl = Resolve-DSATtl -AuthoritativeValues $dmarcAuthoritativeValues -ResolverTtl $dmarcResolverTtl -CnameTtl $dmarcCnameTtl -RecordLabel 'DMARC' -LogFile $LogFile
 
     $dkimAuthoritativeValues = [System.Collections.Generic.List[object]]::new()
     if ($ttlAnalysis.ServerTtlTxtPerName) {
@@ -143,15 +145,19 @@
     }
     $dkimResolverTtls = @($dkimFound | ForEach-Object { Get-DSATtlValue -InputObject $_ } | Where-Object { $_ })
     $dkimResolverMin = if ($dkimResolverTtls) { ($dkimResolverTtls | Measure-Object -Minimum).Minimum } else { $null }
-    $dkimMinTtl = Resolve-DSATtl -AuthoritativeValues $dkimAuthoritativeValues -ResolverTtl $dkimResolverMin -RecordLabel 'DKIM' -LogFile $LogFile
+    $dkimCnameTtls = @($dkimFound | Where-Object { (Test-DSAProperty -InputObject $_ -Name 'IsCnameResolved') -and $_.IsCnameResolved } | ForEach-Object { $_.CnameTtl } | Where-Object { $_ })
+    $dkimCnameMin = if ($dkimCnameTtls) { ($dkimCnameTtls | Measure-Object -Minimum).Minimum } else { $null }
+    $dkimMinTtl = Resolve-DSATtl -AuthoritativeValues $dkimAuthoritativeValues -ResolverTtl $dkimResolverMin -CnameTtl $dkimCnameMin -RecordLabel 'DKIM' -LogFile $LogFile
 
     $mtastsAuthoritativeValues = Get-DSAAuthoritativeTtlValues -TtlAnalysis $ttlAnalysis -PropertyName 'ServerTtlTxtMtasts'
     $mtastsResolverTtl = Get-DSATtlValue -InputObject $mtastsAnalysis
-    $mtastsTtl = Resolve-DSATtl -AuthoritativeValues $mtastsAuthoritativeValues -ResolverTtl $mtastsResolverTtl -RecordLabel 'MTA-STS' -LogFile $LogFile
+    $mtastsCnameTtl = if ((Test-DSAProperty -InputObject $mtastsAnalysis -Name 'IsCnameResolved') -and $mtastsAnalysis.IsCnameResolved) { $mtastsAnalysis.CnameTtl } else { $null }
+    $mtastsTtl = Resolve-DSATtl -AuthoritativeValues $mtastsAuthoritativeValues -ResolverTtl $mtastsResolverTtl -CnameTtl $mtastsCnameTtl -RecordLabel 'MTA-STS' -LogFile $LogFile
 
     $tlsRptAuthoritativeValues = Get-DSAAuthoritativeTtlValues -TtlAnalysis $ttlAnalysis -PropertyName 'ServerTtlTxtTlsRpt'
     $tlsRptResolverTtl = Get-DSATtlValue -InputObject $tlsRpt
-    $tlsRptTtl = Resolve-DSATtl -AuthoritativeValues $tlsRptAuthoritativeValues -ResolverTtl $tlsRptResolverTtl -RecordLabel 'TLS-RPT' -LogFile $LogFile
+    $tlsRptCnameTtl = if ((Test-DSAProperty -InputObject $tlsRpt -Name 'IsCnameResolved') -and $tlsRpt.IsCnameResolved) { $tlsRpt.CnameTtl } else { $null }
+    $tlsRptTtl = Resolve-DSATtl -AuthoritativeValues $tlsRptAuthoritativeValues -ResolverTtl $tlsRptResolverTtl -CnameTtl $tlsRptCnameTtl -RecordLabel 'TLS-RPT' -LogFile $LogFile
 
     $mxMinimumTtl = if ($mx.MinMxTtl) { $mx.MinMxTtl } else { Get-DSATtlValue -InputObject $mx -PropertyName @('MxRecordTtl', 'MinMxTtl') }
 

@@ -753,6 +753,218 @@ Describe 'Get-DSADomainEvidence' {
             $script:capturedSelectors | Should -Contain 'beta'
         }
     }
+
+    It 'applies CNAME TTL constraint when IsCnameResolved is true' {
+        InModuleScope DomainSecurityAuditor {
+            Mock -CommandName Write-DSALog -MockWith { }
+            Mock -CommandName Get-Module -MockWith { $null }
+            Mock -CommandName Import-Module -MockWith { }
+
+            # SPF with CNAME TTL lower than resolver TTL - should use CNAME TTL
+            $spf = [pscustomobject]@{
+                SpfRecord         = 'v=spf1 -all'
+                SpfRecords        = @('v=spf1 -all')
+                DnsLookupsCount   = 0
+                UnknownMechanisms = @()
+                AllMechanism      = '-all'
+                HasPtrType        = $false
+                IncludeRecords    = @()
+                DnsRecordTtl      = 3600
+                IsCnameResolved   = $true
+                CnameTtl          = 1800
+            }
+            $dkimResult = [pscustomobject]@{
+                DkimRecordExists  = $true
+                Selector          = 'selector1'
+                KeyLength         = 2048
+                WeakKey           = $false
+                ValidPublicKey    = $true
+                ValidRsaKeyLength = $true
+                DnsRecordTtl      = 7200
+                IsCnameResolved   = $true
+                CnameTtl          = 3600
+            }
+            $dkimAnalysis = [pscustomobject]@{
+                AnalysisResults = @{ selector1 = $dkimResult }
+            }
+            $dmarc = [pscustomobject]@{
+                DmarcRecord     = 'v=DMARC1; p=reject'
+                Policy          = 'reject'
+                MailtoRua       = @('rua@example.com')
+                HttpRua         = @()
+                MailtoRuf       = @()
+                HttpRuf         = @()
+                DnsRecordTtl    = 4000
+                IsCnameResolved = $true
+                CnameTtl        = 2000
+            }
+            $mx = [pscustomobject]@{
+                MxRecords = @('mx1.example')
+                HasNullMx = $false
+                MinMxTtl  = 1800
+            }
+            $mtasts = [pscustomobject]@{
+                DnsRecordPresent = $true
+                PolicyValid      = $true
+                Mode             = 'enforce'
+                DnsRecordTtl     = 86400
+                IsCnameResolved  = $true
+                CnameTtl         = 43200
+            }
+            $tlsrpt = [pscustomobject]@{
+                TlsRptRecordExists = $true
+                MailtoRua          = @('mailto:tls@example.com')
+                HttpRua            = @()
+                DnsRecordTtl       = 172800
+                IsCnameResolved    = $true
+                CnameTtl           = 86400
+            }
+            $ttlAnalysis = [pscustomobject]@{
+                ServerTtlTxtSpf     = @{}
+                ServerTtlTxtDmarc   = @{}
+                ServerTtlTxtPerName = @{}
+                ServerTtlTxtMtasts  = @{}
+                ServerTtlTxtTlsRpt  = @{}
+            }
+
+            function Test-DDDomainOverallHealth {
+                [CmdletBinding()]
+                param($DomainName, $HealthCheckType, $DnsEndpoint, $DkimSelectors)
+                return [pscustomobject]@{
+                    Raw = [pscustomobject]@{
+                        SpfAnalysis    = $spf
+                        DKIMAnalysis   = $dkimAnalysis
+                        DmarcAnalysis  = $dmarc
+                        MXAnalysis     = $mx
+                        MTASTSAnalysis = $mtasts
+                        TLSRPTAnalysis = $tlsrpt
+                        DnsTtlAnalysis = $ttlAnalysis
+                    }
+                }
+            }
+
+            function Test-DDMailDomainClassification {
+                [CmdletBinding()]
+                param($DomainName, $DnsEndpoint)
+                return [pscustomobject]@{ Classification = 'SendingAndReceiving'; Raw = [pscustomobject]@{} }
+            }
+
+            $evidence = Get-DSADomainEvidence -Domain 'cname-test.example.com'
+            $evidence | Should -Not -BeNullOrEmpty
+            # CNAME TTL should constrain all protocol TTLs (lower of CNAME and target)
+            $evidence.Records.SPFTtl | Should -Be 1800
+            $evidence.Records.DMARCTtl | Should -Be 2000
+            $evidence.Records.DKIMMinimumTtl | Should -Be 3600
+            $evidence.Records.MTASTSTtl | Should -Be 43200
+            $evidence.Records.TLSRPTTtl | Should -Be 86400
+        }
+    }
+
+    It 'ignores CnameTtl when IsCnameResolved is false' {
+        InModuleScope DomainSecurityAuditor {
+            Mock -CommandName Write-DSALog -MockWith { }
+            Mock -CommandName Get-Module -MockWith { $null }
+            Mock -CommandName Import-Module -MockWith { }
+
+            # SPF with CnameTtl but IsCnameResolved = false - should use resolver TTL
+            $spf = [pscustomobject]@{
+                SpfRecord         = 'v=spf1 -all'
+                SpfRecords        = @('v=spf1 -all')
+                DnsLookupsCount   = 0
+                UnknownMechanisms = @()
+                AllMechanism      = '-all'
+                HasPtrType        = $false
+                IncludeRecords    = @()
+                DnsRecordTtl      = 3600
+                IsCnameResolved   = $false
+                CnameTtl          = 1800
+            }
+            $dkimResult = [pscustomobject]@{
+                DkimRecordExists  = $true
+                Selector          = 'selector1'
+                KeyLength         = 2048
+                WeakKey           = $false
+                ValidPublicKey    = $true
+                ValidRsaKeyLength = $true
+                DnsRecordTtl      = 7200
+                IsCnameResolved   = $false
+                CnameTtl          = 3600
+            }
+            $dkimAnalysis = [pscustomobject]@{
+                AnalysisResults = @{ selector1 = $dkimResult }
+            }
+            $dmarc = [pscustomobject]@{
+                DmarcRecord     = 'v=DMARC1; p=reject'
+                Policy          = 'reject'
+                MailtoRua       = @('rua@example.com')
+                HttpRua         = @()
+                MailtoRuf       = @()
+                HttpRuf         = @()
+                DnsRecordTtl    = 4000
+                IsCnameResolved = $false
+                CnameTtl        = 2000
+            }
+            $mx = [pscustomobject]@{
+                MxRecords = @('mx1.example')
+                HasNullMx = $false
+                MinMxTtl  = 1800
+            }
+            $mtasts = [pscustomobject]@{
+                DnsRecordPresent = $true
+                PolicyValid      = $true
+                Mode             = 'enforce'
+                DnsRecordTtl     = 86400
+                IsCnameResolved  = $false
+                CnameTtl         = 43200
+            }
+            $tlsrpt = [pscustomobject]@{
+                TlsRptRecordExists = $true
+                MailtoRua          = @('mailto:tls@example.com')
+                HttpRua            = @()
+                DnsRecordTtl       = 172800
+                IsCnameResolved    = $false
+                CnameTtl           = 86400
+            }
+            $ttlAnalysis = [pscustomobject]@{
+                ServerTtlTxtSpf     = @{}
+                ServerTtlTxtDmarc   = @{}
+                ServerTtlTxtPerName = @{}
+                ServerTtlTxtMtasts  = @{}
+                ServerTtlTxtTlsRpt  = @{}
+            }
+
+            function Test-DDDomainOverallHealth {
+                [CmdletBinding()]
+                param($DomainName, $HealthCheckType, $DnsEndpoint, $DkimSelectors)
+                return [pscustomobject]@{
+                    Raw = [pscustomobject]@{
+                        SpfAnalysis    = $spf
+                        DKIMAnalysis   = $dkimAnalysis
+                        DmarcAnalysis  = $dmarc
+                        MXAnalysis     = $mx
+                        MTASTSAnalysis = $mtasts
+                        TLSRPTAnalysis = $tlsrpt
+                        DnsTtlAnalysis = $ttlAnalysis
+                    }
+                }
+            }
+
+            function Test-DDMailDomainClassification {
+                [CmdletBinding()]
+                param($DomainName, $DnsEndpoint)
+                return [pscustomobject]@{ Classification = 'SendingAndReceiving'; Raw = [pscustomobject]@{} }
+            }
+
+            $evidence = Get-DSADomainEvidence -Domain 'no-cname-test.example.com'
+            $evidence | Should -Not -BeNullOrEmpty
+            # CNAME TTL should be ignored - use resolver TTLs
+            $evidence.Records.SPFTtl | Should -Be 3600
+            $evidence.Records.DMARCTtl | Should -Be 4000
+            $evidence.Records.DKIMMinimumTtl | Should -Be 7200
+            $evidence.Records.MTASTSTtl | Should -Be 86400
+            $evidence.Records.TLSRPTTtl | Should -Be 172800
+        }
+    }
 }
 
 Describe 'Baseline profile helpers' {
