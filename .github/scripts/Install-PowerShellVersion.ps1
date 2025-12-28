@@ -112,39 +112,36 @@ function Install-PowerShellWindows {
     $version = $ReleaseInfo.Version
     $assets = $ReleaseInfo.Assets
 
-    # Find the .msi package for x64
-    $msiAsset = $assets | Where-Object { $_.name -match "PowerShell-$version-win-x64\.msi$" }
+    # Use ZIP package instead of MSI to avoid installation conflicts
+    $zipAsset = $assets | Where-Object { $_.name -match "PowerShell-$version-win-x64\.zip$" }
 
-    if (-not $msiAsset) {
-        throw "Could not find .msi package for PowerShell $version"
+    if (-not $zipAsset) {
+        throw "Could not find .zip package for PowerShell $version"
     }
 
-    $downloadUrl = $msiAsset.browser_download_url
-    $tempPath = Join-Path $env:RUNNER_TEMP "PowerShell-$version-win-x64.msi"
+    $downloadUrl = $zipAsset.browser_download_url
+    $tempZip = Join-Path $env:RUNNER_TEMP "PowerShell-$version-win-x64.zip"
+    $installPath = "C:\PowerShell-$version"
 
-    Write-Host "Downloading: $($msiAsset.name)"
-    Invoke-WebRequest -Uri $downloadUrl -OutFile $tempPath -TimeoutSec 120
+    Write-Host "Downloading: $($zipAsset.name)"
+    Invoke-WebRequest -Uri $downloadUrl -OutFile $tempZip -TimeoutSec 120
 
-    Write-Host "Installing PowerShell $version..."
-    $msiArgs = @(
-        '/package', $tempPath
-        '/quiet'
-        '/norestart'
-        'ADD_PATH=1'
-    )
-    $process = Start-Process -FilePath 'msiexec.exe' -ArgumentList $msiArgs -Wait -PassThru
-
-    if ($process.ExitCode -ne 0) {
-        throw "MSI installation failed with exit code: $($process.ExitCode)"
+    Write-Host "Extracting PowerShell $version to $installPath..."
+    if (Test-Path $installPath) {
+        Remove-Item -Path $installPath -Recurse -Force
     }
+    Expand-Archive -Path $tempZip -DestinationPath $installPath -Force
 
-    Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $tempZip -Force -ErrorAction SilentlyContinue
 
-    # Update PATH for current session
-    $pwshPath = "C:\Program Files\PowerShell\$($version.Split('.')[0])"
-    if (Test-Path $pwshPath) {
-        $env:PATH = "$pwshPath;$env:PATH"
-        Write-Host "Added $pwshPath to PATH"
+    # Update PATH for current session - prepend so this version is used first
+    $env:PATH = "$installPath;$env:PATH"
+    Write-Host "Added $installPath to PATH"
+
+    # Also set GITHUB_PATH so subsequent steps use this version
+    if ($env:GITHUB_PATH) {
+        $installPath | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+        Write-Host "Added $installPath to GITHUB_PATH for subsequent steps"
     }
 }
 
