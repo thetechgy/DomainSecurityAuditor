@@ -47,13 +47,6 @@
     Classification value to normalize.
 #>
 function Get-DSAClassificationKey {
-    <#
-.SYNOPSIS
-    Normalizes a classification string to its canonical key form.
-.DESCRIPTION
-    Converts classification values like 'sending-only' or 'SendingOnly' to the
-    standard key format used in baseline profiles.
-#>
     [CmdletBinding()]
     [OutputType([string])]
     param (

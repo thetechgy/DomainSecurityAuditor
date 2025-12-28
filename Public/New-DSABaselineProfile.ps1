@@ -11,6 +11,8 @@
     Name of the built-in profile to copy. Defaults to 'Default'.
 .PARAMETER Force
     Overwrite the destination file if it already exists.
+.PARAMETER ShowProgress
+    Display progress output. Defaults to $true.
 .EXAMPLE
     New-DSABaselineProfile -Path '.\Baseline.MyOrg.psd1'
     Copies the default profile to Baseline.MyOrg.psd1 in the current directory.
@@ -26,7 +28,9 @@
 
         [string]$SourceProfile = 'Default',
 
-        [switch]$Force
+        [switch]$Force,
+
+        [switch]$ShowProgress = $true
     )
 
     $sourceInfo = Get-DSABaselineProfile -Name $SourceProfile

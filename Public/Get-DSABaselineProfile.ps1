@@ -10,6 +10,8 @@
 .EXAMPLE
     Get-DSABaselineProfile
     Lists every profile shipped with the module.
+.PARAMETER ShowProgress
+    Display progress output. Defaults to $true.
 .EXAMPLE
     Get-DSABaselineProfile -Name 'Default'
     Returns the path to the Default baseline definition.
@@ -19,7 +21,9 @@
     [OutputType([object[]])]
     param (
         [ValidateNotNullOrEmpty()]
-        [string]$Name
+        [string]$Name,
+
+        [switch]$ShowProgress = $true
     )
 
     $configRoot = $script:ConfigRoot

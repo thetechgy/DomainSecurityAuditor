@@ -6,6 +6,8 @@
     Loads the specified PSD1/JSON baseline and verifies it contains the Profiles collection plus required fields for each check.
 .PARAMETER Path
     Path to the baseline profile file (PSD1).
+.PARAMETER ShowProgress
+    Display progress output. Defaults to $true.
 .EXAMPLE
     Test-DSABaselineProfile -Path '.\Baseline.MyOrg.psd1'
 #>
@@ -14,7 +16,9 @@
     param (
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
-        [string]$Path
+        [string]$Path,
+
+        [switch]$ShowProgress = $true
     )
 
     $resolvedPath = Resolve-DSAPath -Path $Path -PathType 'File'
