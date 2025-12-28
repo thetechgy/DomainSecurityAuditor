@@ -156,9 +156,8 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Setup PowerShell ${{ matrix.pwsh-version }}
-        uses: bjompen/UpdatePWSHAction@5d51fdbb9cc78d7e0534adf063e5612bc439cdaa # v1.0.2
-        with:
-          ReleaseVersion: ${{ matrix.pwsh-version }}
+        shell: pwsh
+        run: ./.github/scripts/Install-PowerShellVersion.ps1 -Version '${{ matrix.pwsh-version }}'
 
       - name: Cache Pester module
         uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
@@ -247,12 +246,16 @@ jobs:
 
       - name: Publish test results
         if: always()
-        uses: dorny/test-reporter@fe45e9537387dac839af0d33ba56eed8e24189e8 # v2
-        with:
-          name: Pester Tests (${{ matrix.os }} PS ${{ matrix.pwsh-version }})
-          path: Output/TestResults/PesterResults.xml
-          reporter: java-junit
-          fail-on-error: false
+        shell: pwsh
+        run: |
+          $resultsFile = 'Output/TestResults/PesterResults.xml'
+          if (Test-Path $resultsFile) {
+            ./.github/scripts/Publish-TestResults.ps1 `
+              -ResultsPath $resultsFile `
+              -Title 'Pester Tests (${{ matrix.os }} PS ${{ matrix.pwsh-version }})'
+          } else {
+            Write-Host 'No test results file found'
+          }
 
       - name: Upload test artifacts
         if: always()
@@ -275,6 +278,11 @@ jobs:
         with:
           egress-policy: audit
 
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          sparse-checkout: .github/scripts
+
       - name: Download all coverage artifacts
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
@@ -285,12 +293,12 @@ jobs:
       - name: List downloaded artifacts
         run: find coverage-reports -type f -name "*.xml" | head -20
 
-      - name: Coverage summary comment
+      - name: Coverage summary
         if: hashFiles('coverage-reports/**/PesterCoverage.xml') != ''
-        uses: irongut/CodeCoverageSummary@51cc3a756ddcd398d447c044c02cb6aa83fdae95 # v1.3.0
-        with:
-          filename: coverage-reports/**/PesterCoverage.xml
-          format: markdown
-          output: both
-          badge: true
-          thresholds: '60 70'
+        shell: pwsh
+        run: |
+          ./.github/scripts/Publish-CoverageSummary.ps1 `
+            -CoveragePath 'coverage-reports/**/PesterCoverage.xml' `
+            -WarningThreshold 60 `
+            -FailThreshold 70 `
+            -Badge
