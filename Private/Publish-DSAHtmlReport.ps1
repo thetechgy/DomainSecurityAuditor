@@ -495,13 +495,15 @@ function Get-DSAReportSummary {
 .SYNOPSIS
     Render DKIM selector breakdown cards for a DKIM check.
 .DESCRIPTION
-    Emits per-selector status, key length/TTL metadata, and not-found markers to provide detail within the DKIM section.
+    Uses pre-computed SelectorStatuses from the check when available, falling back to
+    raw selector data if needed. Emits per-selector status, key length/TTL metadata,
+    and not-found markers to provide detail within the DKIM section.
 .PARAMETER Builder
     StringBuilder for HTML output.
 .PARAMETER Selectors
-    DKIM selector objects returned from evidence collection.
+    DKIM selector objects returned from evidence collection (fallback if SelectorStatuses not present).
 .PARAMETER Check
-    DKIM check driving status evaluation.
+    DKIM check with pre-computed SelectorStatuses property.
 #>
 function Add-DSADkimSelectorBreakdown {
     [CmdletBinding()]
@@ -511,8 +513,22 @@ function Add-DSADkimSelectorBreakdown {
         [pscustomobject]$Check
     )
 
-    $selectorList = @($Selectors | Where-Object { $_ })
-    if (-not $selectorList) {
+    # Use pre-computed SelectorStatuses if available
+    $selectorStatuses = if ((Test-DSAProperty -InputObject $Check -Name 'SelectorStatuses') -and $Check.SelectorStatuses) {
+        @($Check.SelectorStatuses)
+    }
+    else {
+        # Fallback: compute from raw selectors (should rarely happen after refactor)
+        $selectorList = @($Selectors | Where-Object { $_ })
+        if ($selectorList) {
+            @($selectorList | ForEach-Object { Get-DSADkimSelectorStatus -Selector $_ -Check $Check })
+        }
+        else {
+            @()
+        }
+    }
+
+    if (-not $selectorStatuses -or $selectorStatuses.Count -eq 0) {
         return
     }
 
@@ -520,22 +536,12 @@ function Add-DSADkimSelectorBreakdown {
     $null = $Builder.AppendLine('                  <div class="dkim-selectors-title">Selector details</div>')
     $null = $Builder.AppendLine('                  <div class="dkim-selector-grid">')
 
-    foreach ($selector in $selectorList) {
-        $found = if (Test-DSAProperty -InputObject $selector -Name 'Found') {
-            [bool]$selector.Found
-        }
-        elseif (Test-DSAProperty -InputObject $selector -Name 'DkimRecordExists') {
-            [bool]$selector.DkimRecordExists
-        }
-        else {
-            $true
-        }
-        $keyLengthValue = if ($selector.KeyLength) { $selector.KeyLength } else { 'Unknown' }
-        $ttl = Get-DSATtlValue -InputObject $selector
-        $ttlValue = if ($null -ne $ttl) { $ttl } else { 'Unknown' }
-        $selectorName = if (Test-DSAProperty -InputObject $selector -Name 'Name') { $selector.Name } else { $selector.Selector }
-
-        $status = Get-DSADkimSelectorStatus -Selector $selector -Check $Check
+    foreach ($selectorStatus in $selectorStatuses) {
+        $selectorName = $selectorStatus.Selector
+        $status = $selectorStatus.Status
+        $found = $selectorStatus.Found
+        $keyLengthValue = if ($selectorStatus.KeyLength) { $selectorStatus.KeyLength } else { 'Unknown' }
+        $ttlValue = if ($null -ne $selectorStatus.Ttl) { $selectorStatus.Ttl } else { 'Unknown' }
         $statusClass = Get-DSAStatusClassName -Status $status
 
         $null = $Builder.AppendLine(("                    <div class=""selector-card {0}"">" -f $statusClass))

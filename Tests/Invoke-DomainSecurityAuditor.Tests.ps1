@@ -1210,8 +1210,8 @@ Describe 'DKIM and status helpers' {
                 WeakKey          = $false
             }
 
-            $status = Get-DSADkimSelectorStatus -Selector $selector -Check $check
-            $status | Should -Be 'Fail'
+            $result = Get-DSADkimSelectorStatus -Selector $selector -Check $check
+            $result.Status | Should -Be 'Fail'
         }
     }
 
@@ -1229,7 +1229,7 @@ Describe 'DKIM and status helpers' {
                 WeakKey          = $false
             }
 
-            Get-DSADkimSelectorStatus -Selector $selector -Check $check | Should -Be 'Fail'
+            (Get-DSADkimSelectorStatus -Selector $selector -Check $check).Status | Should -Be 'Fail'
 
             $ttlCheck = [pscustomobject]@{
                 Id            = 'DKIMTtl'
@@ -1238,7 +1238,7 @@ Describe 'DKIM and status helpers' {
                 ExpectedValue = @{ Min = 300; Max = 600 }
             }
 
-            Get-DSADkimSelectorStatus -Selector $selector -Check $ttlCheck | Should -Be 'Fail'
+            (Get-DSADkimSelectorStatus -Selector $selector -Check $ttlCheck).Status | Should -Be 'Fail'
         }
     }
 
@@ -1258,8 +1258,8 @@ Describe 'DKIM and status helpers' {
                 ValidRsaKeyLength = $true
                 DnsRecordTtl = 120
             }
-            $status = Get-DSADkimSelectorStatus -Selector $selector -Check $check
-            $status | Should -Be 'Fail'
+            $result = Get-DSADkimSelectorStatus -Selector $selector -Check $check
+            $result.Status | Should -Be 'Fail'
 
             $effective = Get-DSAEffectiveChecks -Checks @([pscustomobject]@{ Id = 'DKIMTtl'; Area = 'DKIM'; Status = 'Pass' }) -SelectorDetails @($selector)
             $effective[0].Status | Should -Be 'Fail'

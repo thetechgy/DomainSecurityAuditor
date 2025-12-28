@@ -31,34 +31,6 @@ function New-DSADomainEvidenceObject {
     }
 }
 
-function Get-DSAMinPositiveTtl {
-    <#
-    .SYNOPSIS
-        Return the smallest positive TTL from a collection.
-    .DESCRIPTION
-        Iterates values, converts to integers, and returns the minimum positive entry or null.
-    .PARAMETER Values
-        Collection of TTL-like values to evaluate.
-    #>
-    [CmdletBinding()]
-    [OutputType([int])]
-    param (
-        $Values
-    )
-
-    $minValue = $null
-    foreach ($value in @($Values)) {
-        $converted = $value -as [int]
-        if ($converted -and $converted -gt 0) {
-            if ($null -eq $minValue -or $converted -lt $minValue) {
-                $minValue = $converted
-            }
-        }
-    }
-
-    return $minValue
-}
-
 function Get-DSAClassificationFromHealth {
     <#
     .SYNOPSIS
