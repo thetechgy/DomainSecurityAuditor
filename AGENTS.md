@@ -29,6 +29,8 @@
 
 **Dependencies:** DomainDetective, Pester 5+, PSScriptAnalyzer
 
+**Local development:** DomainDetective source is available at `/mnt/c/Users/TravisMcDade/VSCode_Workspace/DomainDetective` for reference, debugging, or running DSA with the actual module.
+
 ---
 
 ## File Structure
@@ -59,6 +61,24 @@ DomainSecurityAuditor/
 - **Do not** parse JSON with regex — use `jaq` or `jq`
 - **Do not** start transcripts in helper functions (only in entry points)
 - **Do not** commit files with paths > 180 characters
+
+---
+
+## Agent Behavior Guidelines
+
+These principles apply to all AI coding assistants working in this repository:
+
+### Simplicity First
+
+- **Avoid unnecessary complexity** — Only add abstraction, indirection, or advanced patterns when they provide concrete value or are specifically requested
+- **Minimum viable implementation** — Solve the immediate problem without over-engineering for hypothetical future needs
+- **Prefer clarity over cleverness** — Readable code is maintainable code; avoid premature optimization
+
+### Scope Discipline
+
+- **Stay focused** — Address only what's asked; don't bundle unrelated improvements
+- **Ask before expanding** — If a change seems to require broader refactoring, confirm with the user first
+- **Incremental changes** — Small, testable commits over large sweeping changes
 
 ---
 
@@ -145,9 +165,45 @@ Stop-Transcript
 
 ---
 
+## Security Considerations
+
+### Coding Practices
+
+- **Never hardcode credentials** — Use environment variables or secure vaults for secrets
+- **Validate untrusted input** — Sanitize domain names, file paths, and user-provided parameters
+- **Avoid command injection** — Use parameterized commands; never interpolate user input directly into shell strings
+- **Minimize data exposure** — Logs should not contain sensitive data (API keys, tokens, credentials)
+- **Fail securely** — Error messages should be informative for debugging but not leak implementation details
+
+### Dependencies
+
+- **Audit before adding** — Verify new dependencies are actively maintained and have no known vulnerabilities
+- **Pin versions** — Use specific versions in manifests to prevent supply chain attacks
+- **Keep updated** — Regularly update dependencies to patch security issues
+
+### CI/CD
+
+- **Use `step-security/harden-runner`** — All GitHub Actions workflows must include this
+- **Limit permissions** — Use least-privilege principles for workflow tokens
+- **No secrets in logs** — Ensure CI output doesn't expose sensitive values
+
+---
+
 ## Branching
 
 Create feature branches from `develop` (not `main`):
+
+**When to use dedicated branches and PRs:**
+- Major features or significant new functionality
+- Breaking changes or schema modifications
+- Changes touching multiple files or subsystems
+- Refactoring with risk of regression
+
+**When direct commits to `develop` may be acceptable:**
+- Trivial fixes (typos, formatting, minor doc updates)
+- Single-file changes with low risk
+
+**PR workflow:** All PRs target `develop` first; `main` only receives merges from `develop` (no direct PRs to main).
 
 ```bash
 git checkout develop
