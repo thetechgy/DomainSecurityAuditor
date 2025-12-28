@@ -69,7 +69,7 @@
     if (-not $classificationValue) {
         try {
             $classificationLookup = Test-DDMailDomainClassification @commonParams
-            if ($classificationLookup -and $classificationLookup.PSObject.Properties.Name -contains 'Classification') {
+            if ($classificationLookup -and (Test-DSAProperty -InputObject $classificationLookup -Name 'Classification')) {
                 $classificationValue = "$($classificationLookup.Classification)".Trim()
             }
         }
@@ -123,11 +123,11 @@
     $dkimMinKey = $dkimResult.DkimMinKey
     $dkimWeakCount = $dkimResult.DkimWeakCount
 
-    $spfAuthoritativeValues = if ($ttlAnalysis.ServerTtlTxtSpf) { $ttlAnalysis.ServerTtlTxtSpf.Values | Where-Object { $_ } } else { $null }
+    $spfAuthoritativeValues = Get-DSAAuthoritativeTtlValues -TtlAnalysis $ttlAnalysis -PropertyName 'ServerTtlTxtSpf'
     $spfResolverTtl = Get-DSATtlValue -InputObject $spf
     $spfTtl = Resolve-DSATtl -AuthoritativeValues $spfAuthoritativeValues -ResolverTtl $spfResolverTtl -RecordLabel 'SPF' -LogFile $LogFile
 
-    $dmarcAuthoritativeValues = if ($ttlAnalysis.ServerTtlTxtDmarc) { $ttlAnalysis.ServerTtlTxtDmarc.Values | Where-Object { $_ } } else { $null }
+    $dmarcAuthoritativeValues = Get-DSAAuthoritativeTtlValues -TtlAnalysis $ttlAnalysis -PropertyName 'ServerTtlTxtDmarc'
     $dmarcResolverTtl = Get-DSATtlValue -InputObject $dmarc
     $dmarcTtl = Resolve-DSATtl -AuthoritativeValues $dmarcAuthoritativeValues -ResolverTtl $dmarcResolverTtl -RecordLabel 'DMARC' -LogFile $LogFile
 
@@ -145,35 +145,22 @@
     $dkimResolverMin = if ($dkimResolverTtls) { ($dkimResolverTtls | Measure-Object -Minimum).Minimum } else { $null }
     $dkimMinTtl = Resolve-DSATtl -AuthoritativeValues $dkimAuthoritativeValues -ResolverTtl $dkimResolverMin -RecordLabel 'DKIM' -LogFile $LogFile
 
-    $mtastsAuthoritativeValues = if ($ttlAnalysis -and $ttlAnalysis.PSObject -and ($ttlAnalysis.PSObject.Properties.Name -contains 'ServerTtlTxtMtasts') -and $ttlAnalysis.ServerTtlTxtMtasts) {
-        $ttlAnalysis.ServerTtlTxtMtasts.Values | Where-Object { $_ }
-    }
-    else { $null }
+    $mtastsAuthoritativeValues = Get-DSAAuthoritativeTtlValues -TtlAnalysis $ttlAnalysis -PropertyName 'ServerTtlTxtMtasts'
     $mtastsResolverTtl = Get-DSATtlValue -InputObject $mtastsAnalysis
     $mtastsTtl = Resolve-DSATtl -AuthoritativeValues $mtastsAuthoritativeValues -ResolverTtl $mtastsResolverTtl -RecordLabel 'MTA-STS' -LogFile $LogFile
 
-    $tlsRptAuthoritativeValues = if ($ttlAnalysis -and $ttlAnalysis.PSObject -and ($ttlAnalysis.PSObject.Properties.Name -contains 'ServerTtlTxtTlsRpt') -and $ttlAnalysis.ServerTtlTxtTlsRpt) {
-        $ttlAnalysis.ServerTtlTxtTlsRpt.Values | Where-Object { $_ }
-    }
-    else { $null }
+    $tlsRptAuthoritativeValues = Get-DSAAuthoritativeTtlValues -TtlAnalysis $ttlAnalysis -PropertyName 'ServerTtlTxtTlsRpt'
     $tlsRptResolverTtl = Get-DSATtlValue -InputObject $tlsRpt
     $tlsRptTtl = Resolve-DSATtl -AuthoritativeValues $tlsRptAuthoritativeValues -ResolverTtl $tlsRptResolverTtl -RecordLabel 'TLS-RPT' -LogFile $LogFile
 
     $mxMinimumTtl = if ($mx.MinMxTtl) { $mx.MinMxTtl } else { Get-DSATtlValue -InputObject $mx -PropertyName @('MxRecordTtl', 'MinMxTtl') }
 
     if ($LogFile) {
-        $spfAuthCount = if ($ttlAnalysis.ServerTtlTxtSpf) { (@($ttlAnalysis.ServerTtlTxtSpf.Values | Where-Object { $_ })).Count } else { 0 }
-        $dmarcAuthCount = if ($ttlAnalysis.ServerTtlTxtDmarc) { (@($ttlAnalysis.ServerTtlTxtDmarc.Values | Where-Object { $_ })).Count } else { 0 }
-        $dkimAuthCount = 0
-        if ($ttlAnalysis.ServerTtlTxtPerName) {
-            foreach ($perNameMap in $ttlAnalysis.ServerTtlTxtPerName.Values) {
-                if ($perNameMap) {
-                    $dkimAuthCount += (@($perNameMap.Values | Where-Object { $_ })).Count
-                }
-            }
-        }
-        $mtastsAuthCount = if ($ttlAnalysis -and $ttlAnalysis.PSObject -and ($ttlAnalysis.PSObject.Properties.Name -contains 'ServerTtlTxtMtasts') -and $ttlAnalysis.ServerTtlTxtMtasts) { (@($ttlAnalysis.ServerTtlTxtMtasts.Values | Where-Object { $_ })).Count } else { 0 }
-        $tlsRptAuthCount = if ($ttlAnalysis -and $ttlAnalysis.PSObject -and ($ttlAnalysis.PSObject.Properties.Name -contains 'ServerTtlTxtTlsRpt') -and $ttlAnalysis.ServerTtlTxtTlsRpt) { (@($ttlAnalysis.ServerTtlTxtTlsRpt.Values | Where-Object { $_ })).Count } else { 0 }
+        $spfAuthCount = if ($spfAuthoritativeValues) { $spfAuthoritativeValues.Count } else { 0 }
+        $dmarcAuthCount = if ($dmarcAuthoritativeValues) { $dmarcAuthoritativeValues.Count } else { 0 }
+        $dkimAuthCount = $dkimAuthoritativeValues.Count
+        $mtastsAuthCount = if ($mtastsAuthoritativeValues) { $mtastsAuthoritativeValues.Count } else { 0 }
+        $tlsRptAuthCount = if ($tlsRptAuthoritativeValues) { $tlsRptAuthoritativeValues.Count } else { 0 }
         $ttlSourceMessage = "TTL source summary: SPF auth={0} resolver={1}; DMARC auth={2} resolver={3}; DKIM auth={4} resolverMin={5}; MX resolverMin={6}; MTASTS auth={7} resolver={8}; TLSRPT auth={9} resolver={10}" -f `
             $spfAuthCount, $spf.DnsRecordTtl, `
             $dmarcAuthCount, $dmarc.DnsRecordTtl, `

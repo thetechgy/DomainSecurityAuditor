@@ -110,7 +110,7 @@ function Get-DSAColumnWidths {
             continue
         }
         foreach ($prop in $Properties) {
-            if ($summary.PSObject.Properties.Name -contains $prop) {
+            if (Test-DSAProperty -InputObject $summary -Name $prop) {
                 $len = $summary.$prop.ToString().Length
                 if ($len -gt $widths[$prop]) {
                     $widths[$prop] = $len
@@ -152,50 +152,3 @@ function Get-DSAStatusMetadata {
     }
 }
 
-<#
-.SYNOPSIS
-    Map a status to its CSS class name.
-.DESCRIPTION
-    Normalizes pass/fail/warning statuses to class tokens used in the HTML report.
-.PARAMETER Status
-    Status text to normalize.
-#>
-function Get-DSAStatusClassName {
-    param (
-        [string]$Status
-    )
-
-    return (Get-DSAStatusMetadata -Status $Status).Class
-}
-
-<#
-.SYNOPSIS
-    Map a status to a simple icon.
-.DESCRIPTION
-    Returns Unicode characters representing pass, fail, warning, or info for report display.
-.PARAMETER Status
-    Status text to normalize.
-#>
-function Get-DSAStatusIcon {
-    param (
-        [string]$Status
-    )
-
-    return (Get-DSAStatusMetadata -Status $Status).Icon
-}
-
-<#
-.SYNOPSIS
-    Normalize status values for filtering.
-.DESCRIPTION
-    Returns canonical filter tokens used to show/hide tests in the report.
-.PARAMETER Status
-    Status text to normalize.
-#>
-function Get-DSAFilterStatus {
-    param (
-        [string]$Status
-    )
-
-    return (Get-DSAStatusMetadata -Status $Status).Filter
-}

@@ -123,8 +123,9 @@ function Add-DSASummaryCards {
     $null = $Builder.AppendLine('    <section class="summary">')
     $null = $Builder.AppendLine('      <div class="summary-cards">')
     foreach ($card in $Summary.Cards) {
-        $styleClass = Get-DSAStatusClassName -Status $card.Style
-        $icon = Get-DSAStatusIcon -Status $card.Style
+        $statusMeta = Get-DSAStatusMetadata -Status $card.Style
+        $styleClass = $statusMeta.Class
+        $icon = $statusMeta.Icon
         $isFilterable = -not [string]::IsNullOrWhiteSpace($card.Filter)
         $cardClasses = if ($isFilterable) { 'card filter-card' } else { 'card' }
         $filterAttr = if ($isFilterable) { " data-filter=""$($card.Filter)""" } else { '' }
@@ -167,7 +168,8 @@ function Add-DSADomainSections {
     $null = $Builder.AppendLine('    </div>')
 
     foreach ($domainProfile in $Profiles) {
-        $statusClass = Get-DSAStatusClassName -Status $domainProfile.OverallStatus
+        $statusMeta = Get-DSAStatusMetadata -Status $domainProfile.OverallStatus
+        $statusClass = $statusMeta.Class
         $statusAttr = switch ($statusClass) {
             'passed' { 'pass' }
             'failed' { 'fail' }
@@ -276,7 +278,7 @@ function Add-DSAProtocolSection {
         Get-DSAEffectiveChecks -Checks $groupChecks -SelectorDetails $selectorDetails
     }
     $areaStatus = Get-DSAOverallStatus -Checks $effectiveChecks
-    $statusClass = Get-DSAStatusClassName -Status $areaStatus
+    $statusClass = (Get-DSAStatusMetadata -Status $areaStatus).Class
 
     $null = $Builder.AppendLine(("      <div class=""{0}"">" -f $sectionClass))
     $null = $Builder.AppendLine(("        <div class=""protocol-header"" role=""button"" tabindex=""0"" aria-expanded=""false"" aria-controls=""{0}"">" -f $detailsId))
@@ -322,9 +324,10 @@ function Add-DSATestResult {
     }
 
     $effectiveStatus = $Check.Status
-    $statusClass = Get-DSAStatusClassName -Status $effectiveStatus
-    $statusIcon = Get-DSAStatusIcon -Status $effectiveStatus
-    $filterStatus = Get-DSAFilterStatus -Status $effectiveStatus
+    $statusMeta = Get-DSAStatusMetadata -Status $effectiveStatus
+    $statusClass = $statusMeta.Class
+    $statusIcon = $statusMeta.Icon
+    $filterStatus = $statusMeta.Filter
     $detailItems = [System.Collections.Generic.List[object]]::new()
     $suppressActual = ($Check.Area -eq 'DKIM' -and $Check.Id -in @('DKIMKeyStrength', 'DKIMTtl'))
     if (-not $suppressActual -and (Test-DSAProperty -InputObject $Check -Name 'Actual') -and ($null -ne $Check.Actual)) {
@@ -542,7 +545,7 @@ function Add-DSADkimSelectorBreakdown {
         $found = $selectorStatus.Found
         $keyLengthValue = if ($selectorStatus.KeyLength) { $selectorStatus.KeyLength } else { 'Unknown' }
         $ttlValue = if ($null -ne $selectorStatus.Ttl) { $selectorStatus.Ttl } else { 'Unknown' }
-        $statusClass = Get-DSAStatusClassName -Status $status
+        $statusClass = (Get-DSAStatusMetadata -Status $status).Class
 
         $null = $Builder.AppendLine(("                    <div class=""selector-card {0}"">" -f $statusClass))
         $null = $Builder.AppendLine(("                      <div class=""selector-name"">{0}</div>" -f (ConvertTo-DSAHtml $selectorName)))

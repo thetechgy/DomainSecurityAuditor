@@ -137,6 +137,41 @@ function Get-DSATtlValue {
     return Get-DSAPropertyValue -InputObject $InputObject -PropertyName $candidateNames -Default $Default -As ([int])
 }
 
+<#
+.SYNOPSIS
+    Extract authoritative TTL values from a TTL analysis object.
+.DESCRIPTION
+    Retrieves the Values collection from a specified property on the TTL analysis object,
+    filtering out null entries. Returns null if the property doesn't exist.
+.PARAMETER TtlAnalysis
+    The TTL analysis object from DomainDetective.
+.PARAMETER PropertyName
+    The property name to extract (e.g., 'ServerTtlTxtSpf', 'ServerTtlTxtDmarc').
+.OUTPUTS
+    Array of TTL values, or null if property doesn't exist.
+#>
+function Get-DSAAuthoritativeTtlValues {
+    [CmdletBinding()]
+    [OutputType([object[]])]
+    param (
+        [pscustomobject]$TtlAnalysis,
+
+        [Parameter(Mandatory = $true)]
+        [string]$PropertyName
+    )
+
+    if (-not (Test-DSAProperty -InputObject $TtlAnalysis -Name $PropertyName)) {
+        return $null
+    }
+
+    $container = $TtlAnalysis.$PropertyName
+    if (-not $container) {
+        return $null
+    }
+
+    return @($container.Values | Where-Object { $_ })
+}
+
 function Get-DSAMinPositiveTtl {
     <#
     .SYNOPSIS

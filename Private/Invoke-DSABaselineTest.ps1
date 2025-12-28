@@ -57,7 +57,7 @@
                 $expectedValue = $check.ExpectedValue
             }
         }
-        elseif ($check.PSObject -and $check.PSObject.Properties.Name -contains 'ExpectedValue') {
+        elseif (Test-DSAProperty -InputObject $check -Name 'ExpectedValue') {
             $expectedValue = $check.ExpectedValue
         }
 
@@ -91,7 +91,7 @@
     }
 
     $selectorDetails = $null
-    if ($DomainEvidence.PSObject.Properties.Name -contains 'Records' -and $DomainEvidence.Records -and $DomainEvidence.Records.PSObject.Properties.Name -contains 'DKIMSelectorDetails') {
+    if ((Test-DSAProperty -InputObject $DomainEvidence -Name 'Records') -and $DomainEvidence.Records -and (Test-DSAProperty -InputObject $DomainEvidence.Records -Name 'DKIMSelectorDetails')) {
         $selectorDetails = $DomainEvidence.Records.DKIMSelectorDetails
     }
 
@@ -135,7 +135,7 @@ function Get-DSAEvidenceValue {
             return $null
         }
 
-        if ($current.PSObject.Properties.Name -contains $segment) {
+        if (Test-DSAProperty -InputObject $current -Name $segment) {
             $current = $current.$segment
         }
         else {
