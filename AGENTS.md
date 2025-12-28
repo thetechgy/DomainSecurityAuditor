@@ -134,16 +134,6 @@ Stop-Transcript
 
 > Only top-level orchestrators start/stop transcripts. Helpers accept logger paths as parameters.
 
-### Pre-Commit Checklist
-
-Before every commit:
-
-```powershell
-# Both must pass
-Invoke-ScriptAnalyzer -Path . -Settings ./PSScriptAnalyzerSettings.psd1
-Invoke-Pester -Path ./Tests
-```
-
 ### Additional Requirements
 
 - Honor `.editorconfig` for formatting consistency
@@ -152,6 +142,87 @@ Invoke-Pester -Path ./Tests
 - Add inline comments for non-obvious logic
 - Use semantic versioning; update `.psd1` for schema changes
 - GitHub Actions workflows must use `step-security/harden-runner`
+
+---
+
+## Branching
+
+Create feature branches from `develop` (not `main`):
+
+```bash
+git checkout develop
+git pull origin develop
+git checkout -b <type>/<short-description>
+```
+
+**Branch naming:** `<type>/<kebab-case-description>`
+
+| Type | Purpose |
+|------|---------|
+| `feat/` | New features |
+| `fix/` | Bug fixes |
+| `refactor/` | Code restructuring |
+| `docs/` | Documentation only |
+| `test/` | Test additions/changes |
+| `chore/` | Maintenance tasks |
+
+**Examples:** `feat/add-bimi-support`, `fix/dkim-selector-parsing`, `docs/update-readme`
+
+---
+
+## Commit Workflow
+
+Follow these steps **in order** before every commit:
+
+### Step 1: Sync with Remote
+
+```bash
+git pull origin develop
+```
+
+### Step 2: Validate Code Quality
+
+```powershell
+# PSScriptAnalyzer — must pass with no violations
+Invoke-ScriptAnalyzer -Path . -Settings ./PSScriptAnalyzerSettings.psd1
+
+# Pester — must pass with ≥70% code coverage
+Invoke-Pester -Path ./Tests
+```
+
+### Step 3: Update Documentation (if applicable)
+
+| Change Type | Required Updates |
+|-------------|------------------|
+| New/changed behavior | Update `README.md` |
+| Report schema changes | Regenerate `Examples/domain_security_auditor_report.html` |
+| New parameters/functions | Update function help blocks |
+| Breaking changes | Mark clearly in CHANGELOG and README |
+
+### Step 4: Update CHANGELOG.md
+
+Add entry under `## [Unreleased]` section:
+
+- **Added** — new features
+- **Changed** — behavior modifications
+- **Fixed** — bug fixes
+- **Removed** — deprecated features removed
+- **Security** — vulnerability fixes
+
+### Step 5: Version Bump (for releases only)
+
+When preparing a release:
+
+1. Update version in `DomainSecurityAuditor.psd1` (ModuleVersion)
+2. Move CHANGELOG entries from `[Unreleased]` to new version section
+3. Update release notes in manifest if significant
+
+### Step 6: Stage and Commit
+
+```bash
+git add -A
+git commit -m "<type>(<scope>): <summary>"
+```
 
 ---
 
@@ -170,12 +241,15 @@ Invoke-Pester -Path ./Tests
 
 ## PR Checklist
 
-Before opening a PR that changes functionality, baselines, or remediation guidance:
+Before opening a PR:
 
-- [ ] Update `README.md` to reflect new behavior
-- [ ] Regenerate `Examples/domain_security_auditor_report.html` if report schema changed
-- [ ] Add/adjust Pester tests in `Tests/`
-- [ ] Cite authoritative sources (RFCs, M3AAWG, dmarc.org) in code comments
+- [ ] All commits follow the commit workflow above
+- [ ] CHANGELOG.md updated for all changes
+- [ ] README.md reflects new behavior (if applicable)
+- [ ] Example report regenerated (if schema changed)
+- [ ] Pester tests added/updated for new functionality
+- [ ] Citations added for authoritative sources (RFCs, M3AAWG)
+- [ ] CI passes (Pester + PSScriptAnalyzer workflows)
 
 ---
 
