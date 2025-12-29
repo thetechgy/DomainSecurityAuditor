@@ -17,6 +17,15 @@ $script:DSATtlCandidateNames = @(
     'TimeToLive'
 )
 
+# Authoritative-only TTL property candidates (subset of DSATtlCandidateNames).
+# Used to extract authoritative TTL from individual record objects without falling back to resolver TTL.
+$script:DSAAuthoritativeTtlCandidateNames = @(
+    'AuthoritativeDnsRecordTtl'
+    'AuthorityDnsRecordTtl'
+    'DnsRecordAuthorityTtl'
+    'AuthoritativeTtl'
+)
+
 # Note: $script:DSAMinDkimKeyLength is defined in DomainSecurityAuditor.psm1
 
 <#

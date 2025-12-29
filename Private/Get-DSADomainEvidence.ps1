@@ -143,6 +143,13 @@
             }
         }
     }
+    # Also extract authoritative TTL from individual DKIM selector results
+    foreach ($dkimSelector in $dkimFound) {
+        $authTtl = Get-DSAAuthoritativeTtlFromObject -InputObject $dkimSelector
+        if ($authTtl) {
+            $null = $dkimAuthoritativeValues.Add($authTtl)
+        }
+    }
     $dkimResolverTtls = @($dkimFound | ForEach-Object { Get-DSATtlValue -InputObject $_ } | Where-Object { $_ })
     $dkimResolverMin = if ($dkimResolverTtls) { ($dkimResolverTtls | Measure-Object -Minimum).Minimum } else { $null }
     $dkimCnameTtls = @($dkimFound | Where-Object { (Test-DSAProperty -InputObject $_ -Name 'IsCnameResolved') -and $_.IsCnameResolved } | ForEach-Object { $_.CnameTtl } | Where-Object { $_ })
@@ -159,20 +166,24 @@
     $tlsRptCnameTtl = if ((Test-DSAProperty -InputObject $tlsRpt -Name 'IsCnameResolved') -and $tlsRpt.IsCnameResolved) { $tlsRpt.CnameTtl } else { $null }
     $tlsRptTtl = Resolve-DSATtl -AuthoritativeValues $tlsRptAuthoritativeValues -ResolverTtl $tlsRptResolverTtl -CnameTtl $tlsRptCnameTtl -RecordLabel 'TLS-RPT' -LogFile $LogFile
 
-    $mxMinimumTtl = if ($mx.MinMxTtl) { $mx.MinMxTtl } else { Get-DSATtlValue -InputObject $mx -PropertyName @('MxRecordTtl', 'MinMxTtl') }
+    $mxAuthoritativeValues = Get-DSAAuthoritativeTtlValues -TtlAnalysis $ttlAnalysis -PropertyName 'ServerTtlMx'
+    $mxResolverTtl = if ($mx.MinMxTtl) { $mx.MinMxTtl } else { Get-DSATtlValue -InputObject $mx -PropertyName @('MxRecordTtl', 'MinMxTtl') }
+    $mxMinimumTtl = Resolve-DSATtl -AuthoritativeValues $mxAuthoritativeValues -ResolverTtl $mxResolverTtl -RecordLabel 'MX' -LogFile $LogFile
 
     if ($LogFile) {
         $spfAuthCount = if ($spfAuthoritativeValues) { $spfAuthoritativeValues.Count } else { 0 }
         $dmarcAuthCount = if ($dmarcAuthoritativeValues) { $dmarcAuthoritativeValues.Count } else { 0 }
         $dkimAuthCount = $dkimAuthoritativeValues.Count
+        $mxAuthCount = if ($mxAuthoritativeValues) { $mxAuthoritativeValues.Count } else { 0 }
         $mtastsAuthCount = if ($mtastsAuthoritativeValues) { $mtastsAuthoritativeValues.Count } else { 0 }
         $tlsRptAuthCount = if ($tlsRptAuthoritativeValues) { $tlsRptAuthoritativeValues.Count } else { 0 }
-        $ttlSourceMessage = "TTL source summary: SPF auth={0} resolver={1}; DMARC auth={2} resolver={3}; DKIM auth={4} resolverMin={5}; MX resolverMin={6}; MTASTS auth={7} resolver={8}; TLSRPT auth={9} resolver={10}" -f `
+        $ttlSourceMessage = "TTL source summary: SPF auth={0} resolver={1}; DMARC auth={2} resolver={3}; DKIM auth={4} resolverMin={5}; MX auth={6} resolverMin={7}; MTASTS auth={8} resolver={9}; TLSRPT auth={10} resolver={11}" -f `
             $spfAuthCount, $spf.DnsRecordTtl, `
             $dmarcAuthCount, $dmarc.DnsRecordTtl, `
             $dkimAuthCount, $dkimResolverMin, `
-            $mxMinimumTtl, $mtastsAuthCount, $mtastsTtl, `
-            $tlsRptAuthCount, $tlsRptTtl
+            $mxAuthCount, $mxResolverTtl, `
+            $mtastsAuthCount, $mtastsResolverTtl, `
+            $tlsRptAuthCount, $tlsRptResolverTtl
         Write-DSALog -Message $ttlSourceMessage -LogFile $LogFile -Level 'DEBUG'
     }
 

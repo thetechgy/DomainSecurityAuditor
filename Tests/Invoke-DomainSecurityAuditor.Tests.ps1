@@ -609,6 +609,7 @@ Describe 'Get-DSADomainEvidence' {
                 }
                 ServerTtlTxtMtasts  = @{}
                 ServerTtlTxtTlsRpt  = @{}
+                ServerTtlMx         = @{ '1.1.1.1' = 3600 }
             }
 
             <#
@@ -648,7 +649,7 @@ Describe 'Get-DSADomainEvidence' {
             $evidence.Records.SPFTtl | Should -Be 3500
             $evidence.Records.DMARCTtl | Should -Be 4000
             $evidence.Records.DKIMMinimumTtl | Should -Be 3200
-            $evidence.Records.MXMinimumTtl | Should -Be 1800
+            $evidence.Records.MXMinimumTtl | Should -Be 3600  # Uses authoritative TTL from ServerTtlMx
             $evidence.Records.MTASTSMode | Should -Be 'enforce'
             $evidence.Records.TLSRPTAddresses | Should -Contain 'mailto:tls@example.com'
 
@@ -825,6 +826,7 @@ Describe 'Get-DSADomainEvidence' {
                 ServerTtlTxtPerName = @{}
                 ServerTtlTxtMtasts  = @{}
                 ServerTtlTxtTlsRpt  = @{}
+                ServerTtlMx         = @{}
             }
 
             function Test-DDDomainOverallHealth {
@@ -939,6 +941,7 @@ Describe 'Get-DSADomainEvidence' {
                 ServerTtlTxtPerName = @{}
                 ServerTtlTxtMtasts  = @{}
                 ServerTtlTxtTlsRpt  = @{}
+                ServerTtlMx         = @{}
             }
 
             function Test-DDDomainOverallHealth {
@@ -979,6 +982,109 @@ Describe 'Get-DSADomainEvidence' {
             $evidence.Records.DKIMMinimumTtl | Should -Be 7200
             $evidence.Records.MTASTSTtl | Should -Be 86400
             $evidence.Records.TLSRPTTtl | Should -Be 172800
+        }
+    }
+
+    It 'uses AuthoritativeTtl from DKIM selector objects when ServerTtlTxtPerName is empty' {
+        InModuleScope DomainSecurityAuditor {
+            Mock -CommandName Write-DSALog -MockWith { }
+            Mock -CommandName Get-Module -MockWith { $null }
+            Mock -CommandName Import-Module -MockWith { }
+
+            $spf = [pscustomobject]@{
+                SpfRecord         = 'v=spf1 -all'
+                SpfRecords        = @('v=spf1 -all')
+                DnsLookupsCount   = 0
+                UnknownMechanisms = @()
+                AllMechanism      = '-all'
+                HasPtrType        = $false
+                IncludeRecords    = @()
+                DnsRecordTtl      = 3600
+            }
+            # DKIM selector with AuthoritativeTtl property (simulating DomainDetective output)
+            $dkimResult = [pscustomobject]@{
+                DkimRecordExists  = $true
+                Selector          = 'selector1'
+                KeyLength         = 2048
+                WeakKey           = $false
+                ValidPublicKey    = $true
+                ValidRsaKeyLength = $true
+                DnsRecordTtl      = 7200   # Resolver TTL - should NOT be used
+                AuthoritativeTtl  = 3200   # Authoritative TTL - should be used
+            }
+            $dkimAnalysis = [pscustomobject]@{
+                AnalysisResults = @{ selector1 = $dkimResult }
+            }
+            $dmarc = [pscustomobject]@{
+                DmarcRecord  = 'v=DMARC1; p=reject'
+                Policy       = 'reject'
+                MailtoRua    = @('rua@example.com')
+                HttpRua      = @()
+                MailtoRuf    = @()
+                HttpRuf      = @()
+                DnsRecordTtl = 4000
+            }
+            $mx = [pscustomobject]@{
+                MxRecords = @('mx1.example')
+                HasNullMx = $false
+                MinMxTtl  = 1800
+            }
+            $mtasts = [pscustomobject]@{
+                DnsRecordPresent = $true
+                PolicyValid      = $true
+                Mode             = 'enforce'
+                DnsRecordTtl     = 86400
+            }
+            $tlsrpt = [pscustomobject]@{
+                TlsRptRecordExists = $true
+                MailtoRua          = @('mailto:tls@example.com')
+                HttpRua            = @()
+                DnsRecordTtl       = 172800
+            }
+            # ServerTtlTxtPerName is empty - simulating CNAME scenario where per-name lookup fails
+            $ttlAnalysis = [pscustomobject]@{
+                ServerTtlTxtSpf     = @{}
+                ServerTtlTxtDmarc   = @{}
+                ServerTtlTxtPerName = @{}   # Empty - authoritative TTL should come from selector object
+                ServerTtlTxtMtasts  = @{}
+                ServerTtlTxtTlsRpt  = @{}
+                ServerTtlMx         = @{}
+            }
+
+            function Test-DDDomainOverallHealth {
+                <#
+                .SYNOPSIS
+                    Mock function for DKIM AuthoritativeTtl extraction test.
+                #>
+                [CmdletBinding()]
+                param($DomainName, $HealthCheckType, $DnsEndpoint, $DkimSelectors)
+                return [pscustomobject]@{
+                    Raw = [pscustomobject]@{
+                        SpfAnalysis    = $spf
+                        DKIMAnalysis   = $dkimAnalysis
+                        DmarcAnalysis  = $dmarc
+                        MXAnalysis     = $mx
+                        MTASTSAnalysis = $mtasts
+                        TLSRPTAnalysis = $tlsrpt
+                        DnsTtlAnalysis = $ttlAnalysis
+                    }
+                }
+            }
+
+            function Test-DDMailDomainClassification {
+                <#
+                .SYNOPSIS
+                    Mock function for classification in DKIM AuthoritativeTtl test.
+                #>
+                [CmdletBinding()]
+                param($DomainName, $DnsEndpoint)
+                return [pscustomobject]@{ Classification = 'SendingAndReceiving'; Raw = [pscustomobject]@{} }
+            }
+
+            $evidence = Get-DSADomainEvidence -Domain 'dkim-auth-ttl-test.example.com'
+            $evidence | Should -Not -BeNullOrEmpty
+            # DKIM should use AuthoritativeTtl (3200) from selector object, not DnsRecordTtl (7200)
+            $evidence.Records.DKIMMinimumTtl | Should -Be 3200
         }
     }
 }

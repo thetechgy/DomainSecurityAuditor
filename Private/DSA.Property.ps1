@@ -139,6 +139,28 @@ function Get-DSATtlValue {
 
 <#
 .SYNOPSIS
+    Extract authoritative TTL from an individual record object.
+.DESCRIPTION
+    Searches only authoritative TTL property names (AuthoritativeDnsRecordTtl, AuthorityDnsRecordTtl,
+    DnsRecordAuthorityTtl, AuthoritativeTtl) without falling back to resolver TTL properties.
+    Used to extract authoritative TTL from DKIM selector results or other record objects.
+.PARAMETER InputObject
+    Object that may contain authoritative TTL properties.
+.OUTPUTS
+    Integer TTL value, or null if no authoritative TTL property is found.
+#>
+function Get-DSAAuthoritativeTtlFromObject {
+    [CmdletBinding()]
+    [OutputType([int])]
+    param (
+        $InputObject
+    )
+
+    return Get-DSAPropertyValue -InputObject $InputObject -PropertyName $script:DSAAuthoritativeTtlCandidateNames -As ([int])
+}
+
+<#
+.SYNOPSIS
     Extract authoritative TTL values from a TTL analysis object.
 .DESCRIPTION
     Retrieves the Values collection from a specified property on the TTL analysis object,
