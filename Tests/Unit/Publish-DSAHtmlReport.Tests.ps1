@@ -4,7 +4,7 @@
         $env:PSModulePath = "{0}{1}{2}" -f $stubModuleRoot, [System.IO.Path]::PathSeparator, $env:PSModulePath
     }
 
-    $moduleManifest = Join-Path -Path $PSScriptRoot -ChildPath '..\DomainSecurityAuditor.psd1'
+    $moduleManifest = Join-Path -Path $PSScriptRoot -ChildPath '..\..\DomainSecurityAuditor.psd1'
     Import-Module -Name (Resolve-Path -Path $moduleManifest) -Force
 }
 

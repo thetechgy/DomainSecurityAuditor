@@ -76,7 +76,7 @@ BeforeAll {
         $env:PSModulePath = "{0}{1}{2}" -f $stubModuleRoot, [System.IO.Path]::PathSeparator, $env:PSModulePath
     }
 
-    $moduleManifest = Join-Path -Path $PSScriptRoot -ChildPath '..\DomainSecurityAuditor.psd1'
+    $moduleManifest = Join-Path -Path $PSScriptRoot -ChildPath '..\..\DomainSecurityAuditor.psd1'
     Import-Module -Name (Resolve-Path -Path $moduleManifest) -Force
 }
 
@@ -225,6 +225,29 @@ contoso.com,;alpha;;beta;
                     $evidence.Records.MXRecordCount = 0
                     $evidence
                 }
+                Mock -CommandName Invoke-DSAComplianceTests -MockWith {
+                    param($Evidence)
+                    [pscustomobject]@{
+                        Domain                 = $Evidence.Domain
+                        Classification         = $Evidence.Classification
+                        OriginalClassification = $Evidence.Classification
+                        ClassificationOverride = $null
+                        OverallStatus          = 'Fail'
+                        Checks                 = @(
+                            [pscustomobject]@{
+                                Id          = 'MXPresence'
+                                Area        = 'MX'
+                                Status      = 'Fail'
+                                Severity    = 'Critical'
+                                Enforcement = 'Required'
+                                Expectation = 'At least one MX record should exist.'
+                                Actual      = 'No MX records found'
+                                Remediation = 'Configure MX records.'
+                                References  = @('RFC 5321')
+                            }
+                        )
+                    }
+                }
 
                 $result = Invoke-DomainSecurityAuditor -Domain 'example.com' -PassThru
                 $auditProfile = $result | Select-Object -First 1
@@ -264,6 +287,29 @@ contoso.com,;alpha;;beta;
                     $evidence.Records.MXHasNull = $false
                     $evidence
                 }
+                Mock -CommandName Invoke-DSAComplianceTests -MockWith {
+                    param($Evidence)
+                    [pscustomobject]@{
+                        Domain                 = $Evidence.Domain
+                        Classification         = $Evidence.Classification
+                        OriginalClassification = $Evidence.Classification
+                        ClassificationOverride = $null
+                        OverallStatus          = 'Fail'
+                        Checks                 = @(
+                            [pscustomobject]@{
+                                Id          = 'MXNullForParked'
+                                Area        = 'MX'
+                                Status      = 'Fail'
+                                Severity    = 'High'
+                                Enforcement = 'Required'
+                                Expectation = 'Parked domains should publish null MX.'
+                                Actual      = 'No null MX found'
+                                Remediation = 'Configure null MX record.'
+                                References  = @('RFC 7505')
+                            }
+                        )
+                    }
+                }
 
                 $result = Invoke-DomainSecurityAuditor -Domain 'example.com' -PassThru
                 $auditProfile = $result | Select-Object -First 1
@@ -276,12 +322,35 @@ contoso.com,;alpha;;beta;
             }
         }
 
-        It 'accepts custom baseline files' {
+        It 'accepts custom baseline files for report metadata' {
             InModuleScope DomainSecurityAuditor {
                 Mock -CommandName Get-DSADomainEvidence -MockWith {
                     $evidence = New-TestEvidence
                     $evidence.Records.SPFLookupCount = 6
                     $evidence
+                }
+                Mock -CommandName Invoke-DSAComplianceTests -MockWith {
+                    param($Evidence)
+                    [pscustomobject]@{
+                        Domain                 = $Evidence.Domain
+                        Classification         = $Evidence.Classification
+                        OriginalClassification = $Evidence.Classification
+                        ClassificationOverride = $null
+                        OverallStatus          = 'Fail'
+                        Checks                 = @(
+                            [pscustomobject]@{
+                                Id          = 'SPFLookupLimit'
+                                Area        = 'SPF'
+                                Status      = 'Fail'
+                                Severity    = 'High'
+                                Enforcement = 'Required'
+                                Expectation = 'SPF lookups must not exceed 10.'
+                                Actual      = '6 lookups found'
+                                Remediation = 'Reduce include chains.'
+                                References  = @('RFC 7208')
+                            }
+                        )
+                    }
                 }
 
                 $profilePath = Join-Path -Path $TestDrive -ChildPath 'custom-baseline.psd1'
@@ -289,25 +358,7 @@ contoso.com,;alpha;;beta;
 @{
     Name = 'Custom Test Baseline'
     Version = '1.0'
-    Profiles = @{
-        SendingAndReceiving = @{
-            Name = 'SendingAndReceiving'
-            Checks = @(
-                @{
-                    Id = 'SPFLookupLimit'
-                    Area = 'SPF'
-                    Condition = 'LessThanOrEqual'
-                    Target = 'Records.SPFLookupCount'
-                    ExpectedValue = 5
-                    Expectation = 'SPF lookups must remain under five.'
-                    Remediation = 'Reduce include chains.'
-                    Severity = 'High'
-                    Enforcement = 'Required'
-                    References = @()
-                }
-            )
-        }
-    }
+    Profiles = @{}
 }
 "@
                 Set-Content -Path $profilePath -Value $psd1Content -Encoding UTF8
@@ -405,17 +456,16 @@ override.example,SendingOnly
 '@ | Set-Content -Path $csvPath
 
                 Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence -Domain 'override.example' -Classification 'Parked' }
-                Mock -CommandName Invoke-DSABaselineTest -MockWith {
+                Mock -CommandName Invoke-DSAComplianceTests -MockWith {
                     param(
-                        $DomainEvidence,
-                        $BaselineDefinition,
+                        $Evidence,
                         $ClassificationOverride
                     )
 
                     [pscustomobject]@{
-                        Domain                 = $DomainEvidence.Domain
-                        Classification         = if ($ClassificationOverride) { "Profile:$ClassificationOverride" } else { 'Profile:Default' }
-                        OriginalClassification = $DomainEvidence.Classification
+                        Domain                 = $Evidence.Domain
+                        Classification         = if ($ClassificationOverride) { $ClassificationOverride } else { 'Default' }
+                        OriginalClassification = $Evidence.Classification
                         ClassificationOverride = $ClassificationOverride
                         OverallStatus          = 'Pass'
                         Checks                 = @()
@@ -427,24 +477,23 @@ override.example,SendingOnly
                 $result[0].ClassificationOverride | Should -Be 'SendingOnly'
                 $result[0].OriginalClassification | Should -Be 'Parked'
 
-                Assert-MockCalled -CommandName Invoke-DSABaselineTest -Times 1 -Scope It -ParameterFilter { $ClassificationOverride -eq 'SendingOnly' }
+                Assert-MockCalled -CommandName Invoke-DSAComplianceTests -Times 1 -Scope It -ParameterFilter { $ClassificationOverride -eq 'SendingOnly' }
             }
         }
 
         It 'supports command-line classification overrides for direct domains' {
             InModuleScope DomainSecurityAuditor {
                 Mock -CommandName Get-DSADomainEvidence -MockWith { New-TestEvidence -Domain 'solo.example' -Classification 'ReceivingOnly' }
-                Mock -CommandName Invoke-DSABaselineTest -MockWith {
+                Mock -CommandName Invoke-DSAComplianceTests -MockWith {
                     param(
-                        $DomainEvidence,
-                        $BaselineDefinition,
+                        $Evidence,
                         $ClassificationOverride
                     )
 
                     [pscustomobject]@{
-                        Domain                 = $DomainEvidence.Domain
-                        Classification         = if ($ClassificationOverride) { "Profile:$ClassificationOverride" } else { 'Profile:Default' }
-                        OriginalClassification = $DomainEvidence.Classification
+                        Domain                 = $Evidence.Domain
+                        Classification         = if ($ClassificationOverride) { $ClassificationOverride } else { 'Default' }
+                        OriginalClassification = $Evidence.Classification
                         ClassificationOverride = $ClassificationOverride
                         OverallStatus          = 'Pass'
                         Checks                 = @()
@@ -454,7 +503,7 @@ override.example,SendingOnly
                 $result = Invoke-DomainSecurityAuditor -Domain 'solo.example' -Classification SendingOnly -SkipReportLaunch -PassThru
                 $result.Count | Should -Be 1
                 $result[0].ClassificationOverride | Should -Be 'SendingOnly'
-                Assert-MockCalled -CommandName Invoke-DSABaselineTest -Times 1 -Scope It -ParameterFilter { $ClassificationOverride -eq 'SendingOnly' }
+                Assert-MockCalled -CommandName Invoke-DSAComplianceTests -Times 1 -Scope It -ParameterFilter { $ClassificationOverride -eq 'SendingOnly' }
             }
         }
 

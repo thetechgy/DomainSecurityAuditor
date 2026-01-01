@@ -190,7 +190,6 @@ Resources:
             else {
                 $loadedBaseline = Get-DSABaseline -ProfileName $Baseline
             }
-            $baselineProfiles = $loadedBaseline.Profiles
 
             foreach ($domainName in $targetDomains) {
                 $currentIndex++
@@ -200,7 +199,6 @@ Resources:
                     -DefaultClassificationOverride $inputState.DefaultClassificationOverride `
                     -GlobalDkimSelectors $inputState.GlobalDkimSelectors `
                     -ResolvedDnsEndpoint $inputState.ResolvedDnsEndpoint `
-                    -BaselineProfiles $baselineProfiles `
                     -OutputRoot $context.OutputRoot `
                     -LogFile $logFile `
                     -CurrentIndex $currentIndex `

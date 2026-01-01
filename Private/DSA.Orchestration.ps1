@@ -329,7 +329,7 @@ function Invoke-DSADomainRun {
 
         [string]$ResolvedDnsEndpoint,
 
-        [Parameter(Mandatory = $true)]
+        [Parameter()]
         [hashtable]$BaselineProfiles,
 
         [Parameter(Mandatory = $true)]
@@ -376,7 +376,7 @@ function Invoke-DSADomainRun {
     }
 
     $evidence = Get-DSADomainEvidence @evidenceParams
-    $baselineProfile = Invoke-DSABaselineTest -DomainEvidence $evidence -BaselineDefinition $BaselineProfiles -ClassificationOverride $domainContext.ClassificationOverride
+    $baselineProfile = Invoke-DSAComplianceTests -Evidence $evidence -ClassificationOverride $domainContext.ClassificationOverride -LogFile $LogFile
 
     $effectiveChecks = if ($baselineProfile.Checks) { @($baselineProfile.Checks | Where-Object { $_ }) } else { @() }
     $statusCounts = Get-DSAStatusCounts -Checks $effectiveChecks
