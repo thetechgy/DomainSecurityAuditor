@@ -47,7 +47,7 @@ Describe 'DomainSecurityAuditor/DMARC' -Tag 'DMARC' {
     }
 
     Context 'Parked Domain DMARC' -Tag 'Parked' {
-        It 'DMARCPolicyParked: Parked domains should use p=reject' -Tag 'DMARCPolicyParked', 'Required', 'High' -Skip:($script:Classification -ne 'Parked') {
+        It 'DMARCPolicyParked: Parked domains should use p=reject' -Tag 'DMARCPolicyParked', 'Required', 'High' -Skip:($global:ComplianceTestEvidence.Classification -ne 'Parked') {
             $script:Records.DMARCPolicy | Should -Be 'reject'
         }
     }

@@ -35,7 +35,28 @@ function ConvertFrom-PesterResult {
 
     $checks = [System.Collections.Generic.List[pscustomobject]]::new()
 
-    foreach ($test in $PesterResult.Tests) {
+    # Pester 5 stores tests in a nested structure: Containers → Blocks → Tests
+    # We need to flatten this to get all tests
+    $allTests = [System.Collections.Generic.List[object]]::new()
+
+    foreach ($container in $PesterResult.Containers) {
+        # Recursive function to extract tests from blocks (handles nested Context blocks)
+        $extractTests = {
+            param($Block)
+            foreach ($test in $Block.Tests) {
+                $allTests.Add($test)
+            }
+            foreach ($nestedBlock in $Block.Blocks) {
+                & $extractTests -Block $nestedBlock
+            }
+        }
+
+        foreach ($block in $container.Blocks) {
+            & $extractTests -Block $block
+        }
+    }
+
+    foreach ($test in $allTests) {
         # Extract test ID from the first tag (convention: first tag is the test ID)
         $testId = $null
         foreach ($tag in $test.Tag) {
@@ -65,6 +86,7 @@ function ConvertFrom-PesterResult {
         $status = switch ($test.Result) {
             'Passed' { 'Pass' }
             'Skipped' { 'Pass' }  # Skipped tests (e.g., parked-only checks) count as pass
+            'NotRun' { 'Pass' }   # NotRun tests (excluded by tag filter) count as pass
             'Failed' {
                 if ($meta.Enforcement -eq 'Required') {
                     'Fail'
@@ -83,8 +105,22 @@ function ConvertFrom-PesterResult {
         elseif ($test.Result -eq 'Skipped') {
             'Skipped'
         }
+        elseif ($test.Result -eq 'NotRun') {
+            'Not Applicable'
+        }
         elseif ($test.ErrorRecord -and $test.ErrorRecord.TargetObject) {
-            $test.ErrorRecord.TargetObject
+            # Convert complex objects to readable strings
+            $targetObj = $test.ErrorRecord.TargetObject
+            if ($targetObj -is [System.Collections.IDictionary]) {
+                # For dictionary/hashtable, use exception message (contains the -Because text)
+                $test.ErrorRecord.Exception.Message
+            }
+            elseif ($targetObj -is [array] -or ($targetObj -is [System.Collections.IEnumerable] -and $targetObj -isnot [string])) {
+                ($targetObj | ForEach-Object { $_.ToString() }) -join ', '
+            }
+            else {
+                $targetObj.ToString()
+            }
         }
         elseif ($test.ErrorRecord) {
             $test.ErrorRecord.Exception.Message

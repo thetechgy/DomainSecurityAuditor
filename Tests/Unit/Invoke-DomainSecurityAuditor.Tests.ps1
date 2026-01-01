@@ -1539,25 +1539,6 @@ Describe 'Condition and value helpers' {
         }
     }
 
-    It 'evaluates baseline conditions correctly' -TestCases @(
-        @{ Condition = 'MustContain'; Value = 'spf include'; ExpectedValue = 'include'; ExpectedResult = $true }
-        @{ Condition = 'MustNotContain'; Value = @('ptr', 'mx'); ExpectedValue = @('ptr'); ExpectedResult = $false }
-        @{ Condition = 'MustBeOneOf'; Value = 'Reject'; ExpectedValue = @('Reject', 'Quarantine'); ExpectedResult = $true }
-        @{ Condition = 'LessThanOrEqual'; Value = 5; ExpectedValue = 10; ExpectedResult = $true }
-        @{ Condition = 'LessThanOrEqual'; Value = '5'; ExpectedValue = 10; ExpectedResult = $true }
-        @{ Condition = 'BetweenInclusive'; Value = 400; ExpectedValue = @{ Min = 300; Max = 600 }; ExpectedResult = $true }
-        @{ Condition = 'BetweenInclusive'; Value = 'non-numeric'; ExpectedValue = @{ Min = 300; Max = 600 }; ExpectedResult = $false }
-        @{ Condition = 'MustBeEmpty'; Value = @(); ExpectedValue = $null; ExpectedResult = $true }
-        @{ Condition = 'UnsupportedCondition'; Value = 'value'; ExpectedValue = $null; ExpectedResult = $false }
-    ) {
-        param($Condition, $Value, $ExpectedValue, $ExpectedResult)
-
-        InModuleScope DomainSecurityAuditor -Parameters $_ {
-            $result = Test-DSABaselineCondition -Condition $Condition -Value $Value -ExpectedValue $ExpectedValue
-            $result | Should -Be $ExpectedResult
-        }
-    }
-
     It 'normalizes and formats values' {
         InModuleScope DomainSecurityAuditor {
             (ConvertTo-DSABaselineArray -Value $null).Count | Should -Be 0

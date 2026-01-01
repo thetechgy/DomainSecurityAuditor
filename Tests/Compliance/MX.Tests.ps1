@@ -15,7 +15,7 @@ Describe 'DomainSecurityAuditor/MX' -Tag 'MX' {
     }
 
     Context 'MX Record Presence' {
-        It 'MXPresence: At least one MX record should exist for active domains' -Tag 'MXPresence', 'Required', 'Critical' -Skip:($script:Classification -eq 'Parked' -or $script:Classification -eq 'SendingOnly') {
+        It 'MXPresence: At least one MX record should exist for active domains' -Tag 'MXPresence', 'Required', 'Critical' -Skip:($global:ComplianceTestEvidence.Classification -eq 'Parked' -or $global:ComplianceTestEvidence.Classification -eq 'SendingOnly') {
             $script:Records.MXRecordCount | Should -BeGreaterOrEqual 1
         }
     }
@@ -32,7 +32,7 @@ Describe 'DomainSecurityAuditor/MX' -Tag 'MX' {
     }
 
     Context 'Parked Domain MX' -Tag 'Parked' {
-        It 'MXNullForParked: Parked domains should publish null MX' -Tag 'MXNullForParked', 'Required', 'High' -Skip:($script:Classification -ne 'Parked') {
+        It 'MXNullForParked: Parked domains should publish null MX' -Tag 'MXNullForParked', 'Required', 'High' -Skip:($global:ComplianceTestEvidence.Classification -ne 'Parked') {
             $script:Records.MXHasNull | Should -BeTrue
         }
     }

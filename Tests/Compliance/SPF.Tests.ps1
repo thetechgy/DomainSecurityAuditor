@@ -53,15 +53,15 @@ Describe 'DomainSecurityAuditor/SPF' -Tag 'SPF' {
     }
 
     Context 'Parked Domain SPF' -Tag 'Parked' {
-        It 'SPFTerminalParked: Parked domains should use -all' -Tag 'SPFTerminalParked', 'Required', 'High' -Skip:($script:Classification -ne 'Parked') {
+        It 'SPFTerminalParked: Parked domains should use -all' -Tag 'SPFTerminalParked', 'Required', 'High' -Skip:($global:ComplianceTestEvidence.Classification -ne 'Parked') {
             $script:Records.SPFTerminalMechanism | Should -Be '-all'
         }
 
-        It 'SPFIncludesParked: Parked domains should not include providers' -Tag 'SPFIncludesParked', 'Required', 'Medium' -Skip:($script:Classification -ne 'Parked') {
+        It 'SPFIncludesParked: Parked domains should not include providers' -Tag 'SPFIncludesParked', 'Required', 'Medium' -Skip:($global:ComplianceTestEvidence.Classification -ne 'Parked') {
             $script:Records.SPFIncludes | Should -BeNullOrEmpty
         }
 
-        It 'SPFWildcardParked: Should configure wildcard SPF for subdomains' -Tag 'SPFWildcardParked', 'Recommended', 'Medium' -Skip:($script:Classification -ne 'Parked') {
+        It 'SPFWildcardParked: Should configure wildcard SPF for subdomains' -Tag 'SPFWildcardParked', 'Recommended', 'Medium' -Skip:($global:ComplianceTestEvidence.Classification -ne 'Parked') {
             $script:Records.SPFWildcardConfigured | Should -BeTrue
         }
     }
