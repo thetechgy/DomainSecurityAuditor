@@ -1,206 +1,123 @@
 # Development Container (`.devcontainer/`)
 
-## What this is
+## Overview
 
-This directory defines a **VS Code Development Container** (“devcontainer”) for PowerShell projects.
+This directory defines a reusable VS Code devcontainer for PowerShell development on a Wolfi base image.
 
-A devcontainer provides a **fully reproducible development environment** using containers instead of relying on whatever tools happen to be installed on a developer’s machine.
+Primary goals:
 
-In short:
+- Consistent PowerShell tooling across machines
+- Fast onboarding with minimal host setup
+- Reasonable hardening for development workloads without breaking day-to-day workflows
 
-> Open the repo in VS Code → VS Code builds a container with **Podman** → you get a ready-to-use PowerShell + tooling environment.
+## Current Defaults
 
-No local setup scripts. No “works on my machine”.
+- Base image: `cgr.dev/chainguard/wolfi-base:latest`
+- PowerShell version arg: `PS_VERSION=7.5.4`
+- Core modules: `Pester`, `PSScriptAnalyzer`
+- Optional AI tooling: disabled by default (`ENABLE_AI_TOOLS=false`)
+- Runtime user: `vscode` (non-root)
 
----
+## Security and Reliability Controls
 
-## Why we use a devcontainer
+The current config includes the following controls:
 
-This project targets:
+- Non-root development user (`remoteUser: vscode`)
+- UID/GID alignment enabled (`updateRemoteUserUID: true`)
+- `no-new-privileges` enabled in `devcontainer.json`
+- Telemetry opt-out environment variables for .NET and PowerShell
+- PowerShell tarball SHA-256 verification before extraction
+- Strict shell behavior (`set -euo pipefail`) in the optional AI tooling setup block
+- Build context locked down via `.dockerignore`
+- OCI image labels for title/description/source/license/revision/created metadata
 
-* PowerShell 7.x development
-* Pester-based testing
-* PSScriptAnalyzer linting
-* Optional AI-assisted tooling (Codex CLI, Claude Code)
-* Cross-platform consistency
+## Post-Create Validation
 
-Using a devcontainer ensures:
+`postCreateCommand` validates tool availability and prints versions for:
 
-* **Identical tooling versions** for all developers
-* **Clean separation** from the host OS
-* **No dependency drift** over time
-* **Fast onboarding** for new contributors
-* A foundation that can later evolve into CI/CD
+- `pwsh`
+- `Pester`
+- `PSScriptAnalyzer`
 
-You do **not** need deep container knowledge to use this.
+## Files in This Directory
 
----
+- `devcontainer.json`: Devcontainer runtime settings, security options, env vars, post-create validation
+- `Dockerfile`: Image build logic and tooling installation
+- `.dockerignore`: Restricts build context to devcontainer files
+- `README.md`: This document
 
-## Container runtime
+## Build Arguments
 
-This project **intentionally uses Podman**, not Docker.
+Supported Docker build args:
 
-Reasons:
-
-* Rootless-by-default security model
-* Better alignment with enterprise Linux environments
-* No Docker daemon requirement
-* Works cleanly with modern Linux distributions
-
----
-
-## What’s inside this devcontainer
-
-### Base environment (always installed)
-
-* **Wolfi base image** (Chainguard)
-
-  * Minimal, secure, glibc-based
-* **PowerShell** (version pinned via build arg)
-* **Pester**
-* **PSScriptAnalyzer**
-
-These are required to build, test, and lint PowerShell projects.
-
-### Optional AI tooling
-
-When enabled at build time (`ENABLE_AI_TOOLS=true`):
-
-* Node.js + npm (installed via `nvm`)
-* OpenAI Codex CLI
-* Claude Code CLI
-* Developer utilities commonly used by AI tools:
-
-  * `ripgrep`, `fd`
-  * `jq`, `yq`
-  * `diffutils`, `patch`
-  * `sed`, `gawk`
-  * `coreutils`, `findutils`
-  * `tree`, `gzip`, `unzip`, `xz`
-
-These tools **support AI-assisted workflows only**. They are not required to run the project itself.
-
----
-
-## Files in this directory
-
-### `devcontainer.json`
-
-This is the **entry point** for VS Code.
-
-It tells VS Code:
-
-* How to build the container
-* That **Podman** is the container engine
-* Which user to run as
-* Which shell to use (`pwsh`)
-* What validation runs after creation
-
-You typically only edit this file when:
-
-* PowerShell versions change
-* Tooling is added or removed
-* Editor behavior needs adjustment
-
-### `Dockerfile`
-
-This defines the **actual container image**.
-
-It installs:
-
-* OS packages
-* PowerShell
-* PowerShell modules
-* Optional AI tooling
-
-All environment changes belong here — not in ad-hoc setup scripts.
-
----
-
-## Configuring VS Code to use Podman (not Docker)
-
-VS Code defaults to Docker. You must explicitly configure Podman.
-
-### Step 1: Install Podman
-
-Ensure Podman is installed and working:
-
-```bash
-podman version
-```
-
-### Step 2: Configure Dev Containers to use Podman
-
-Open **VS Code Settings (JSON)** and ensure the following are set:
-
-```json
-{
-  "dev.containers.dockerPath": "podman",
-  "dev.containers.dockerComposePath": "podman-compose",
-  "containers.dockerPath": "podman"
-}
-```
+- `PS_VERSION` (default: `7.5.4`)
+- `ENABLE_AI_TOOLS` (default: `false`)
+- `TARGETARCH` (must be provided by BuildKit/devcontainer tooling)
+- `BUILDKIT_INLINE_CACHE` (default: `1`, consumed to avoid noisy build warnings)
+- `IMAGE_TITLE`
+- `IMAGE_DESCRIPTION`
+- `IMAGE_SOURCE`
+- `IMAGE_LICENSES`
+- `VCS_REF`
+- `BUILD_DATE`
 
 Notes:
 
-* `podman-compose` is required for compatibility with the Dev Containers extension
-* These settings are **per-user**, not stored in the repo
+- `TARGETARCH` has no fallback default by design. Builds fail fast if it is missing.
+- The current image policy intentionally tracks latest Wolfi base and latest package/module versions at build time.
 
-### Step 3: Verify
+## Podman + VS Code Setup
 
-Run the command:
+This repo is tested with Podman on Linux.
 
-> **Dev Containers: Open Container Configuration File**
+Minimum VS Code setting:
 
-Then reopen the project using:
+```json
+{
+  "dev.containers.dockerPath": "podman"
+}
+```
 
-> **Dev Containers: Reopen in Container**
+Optional if you use compose-based devcontainers:
 
-The build logs should clearly reference **Podman**, not Docker.
+```json
+{
+  "dev.containers.dockerComposePath": "podman-compose"
+}
+```
 
----
+## Optional AI Tooling
 
-## How to use the devcontainer
+When `ENABLE_AI_TOOLS=true`, the image installs:
 
-1. Open the repository in VS Code
-2. When prompted, choose **“Reopen in Container”**
+- `nvm` (from Wolfi `apk`)
+- latest LTS Node.js via `nvm`
+- `@openai/codex`
+- Claude Code installer
+- common CLI helpers (`ripgrep`, `fd`, `jq`, `yq`, `patch`, `diffutils`, `tree`, etc.)
 
-   * Or `Ctrl+Shift+P` → *Dev Containers: Reopen in Container*
-3. Wait for the container to build (first run takes a few minutes)
+This path is optional and is not required for PowerShell module development.
 
-You will land in a PowerShell terminal **inside the container** with all tooling ready.
+## Expected Log Noise (Can Be Ignored)
 
----
+You may still see these warnings from VS Code/Podman internals during container startup:
 
-## What this is *not* (yet)
+- `SHELL is not supported for OCI image format ...`
+- `Ignoring option 'skip-requirements-check' ...`
 
-This devcontainer is **not**:
+These come from generated helper images or VS Code server internals, not from functional issues in this repo's devcontainer configuration.
 
-* A production runtime image
-* A CI/CD pipeline
-* Published to a container registry
-* Optimized for minimal image size
+## Usage
 
-Those are intentional non-goals for now.
+1. Open the repository in VS Code.
+2. Run `Dev Containers: Reopen in Container`.
+3. Wait for the first build to complete.
+4. Confirm post-create output includes `pwsh`, `Pester`, and `PSScriptAnalyzer` version lines.
 
----
+## Non-Goals
 
-## Future direction (intentionally deferred)
+This devcontainer is for development convenience and consistency. It is not intended as:
 
-This setup is designed so that it can later:
-
-* Be reused in CI pipelines
-* Be prebuilt and cached
-* Be published to a registry if needed
-
-None of that complexity is required today.
-
----
-
-## TL;DR
-
-* This directory makes the project easy to work on
-* Podman is required
-* Tooling versions are pinned and consistent
-* AI tools are optional but supported
-* If VS Code opens, you can contribute
+- A production runtime image
+- A hardened service container profile
+- A published, immutable release image
