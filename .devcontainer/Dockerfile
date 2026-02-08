@@ -27,11 +27,30 @@ RUN case "${TARGETARCH}" in \
     arm64) PS_ARCH="arm64" ;; \
     *) echo "Unsupported TARGETARCH=${TARGETARCH}" && exit 1 ;; \
     esac \
+    && PS_TARBALL="powershell-${PS_VERSION}-linux-${PS_ARCH}.tar.gz" \
     && mkdir -p "/opt/microsoft/powershell/${PS_VERSION}" \
-    && curl -fsSL -o /tmp/powershell.tgz \
-    "https://github.com/PowerShell/PowerShell/releases/download/v${PS_VERSION}/powershell-${PS_VERSION}-linux-${PS_ARCH}.tar.gz" \
-    && tar -xzf /tmp/powershell.tgz -C "/opt/microsoft/powershell/${PS_VERSION}" \
-    && rm -f /tmp/powershell.tgz \
+    && curl -fsSL -o "/tmp/${PS_TARBALL}" \
+    "https://github.com/PowerShell/PowerShell/releases/download/v${PS_VERSION}/${PS_TARBALL}" \
+    && curl -fsSL -o /tmp/hashes.sha256 \
+    "https://github.com/PowerShell/PowerShell/releases/download/v${PS_VERSION}/hashes.sha256" \
+    && PS_EXPECTED_SHA256="" \
+    && while IFS= read -r checksum_line; do \
+        case "${checksum_line}" in \
+            *"${PS_TARBALL}"*) PS_EXPECTED_SHA256="${checksum_line%% *}"; break ;; \
+        esac; \
+    done < /tmp/hashes.sha256 \
+    && [ -n "${PS_EXPECTED_SHA256}" ] \
+    && PS_EXPECTED_SHA256="$(printf '%s' "${PS_EXPECTED_SHA256}" | tr '[:upper:]' '[:lower:]')" \
+    && set -- $(sha256sum "/tmp/${PS_TARBALL}") \
+    && PS_ACTUAL_SHA256="$1" \
+    && if [ "${PS_ACTUAL_SHA256}" != "${PS_EXPECTED_SHA256}" ]; then \
+        echo "Checksum mismatch for ${PS_TARBALL}" >&2; \
+        echo "Expected: ${PS_EXPECTED_SHA256}" >&2; \
+        echo "Actual:   ${PS_ACTUAL_SHA256}" >&2; \
+        exit 1; \
+    fi \
+    && tar -xzf "/tmp/${PS_TARBALL}" -C "/opt/microsoft/powershell/${PS_VERSION}" \
+    && rm -f "/tmp/${PS_TARBALL}" /tmp/hashes.sha256 \
     && chmod 755 "/opt/microsoft/powershell/${PS_VERSION}/pwsh" \
     && chmod -R a+rX "/opt/microsoft/powershell/${PS_VERSION}" \
     && mkdir -p /usr/local/bin \
@@ -63,6 +82,7 @@ RUN adduser -D -u 1000 vscode \
 RUN if [ "${ENABLE_AI_TOOLS}" = "true" ]; then \
     echo 'Installing AI assist tooling + Node (nvm) + Codex + Claude...' && \
     apk add --no-cache \
+    nvm \
     ripgrep \
     fd \
     jq \
@@ -77,18 +97,20 @@ RUN if [ "${ENABLE_AI_TOOLS}" = "true" ]; then \
     gzip \
     unzip \
     xz \
-    && mkdir -p /usr/local/nvm \
-    && chown -R vscode:vscode /usr/local/nvm \
     && mkdir -p /etc/profile.d \
     && printf '%s\n' \
-    'export NVM_DIR=/usr/local/nvm' \
+    'export NVM_DIR="$HOME/.nvm"' \
+    'if [ -s /usr/share/nvm/init-nvm.sh ]; then . /usr/share/nvm/init-nvm.sh; elif [ -s /usr/share/nvm/nvm.sh ]; then . /usr/share/nvm/nvm.sh; elif [ -s /usr/lib/nvm/nvm.sh ]; then . /usr/lib/nvm/nvm.sh; fi' \
     '[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"' \
     'export PATH="$HOME/.local/bin:$PATH"' \
     > /etc/profile.d/00-devcontainer-paths.sh \
-    && su -s /bin/sh vscode -c ' \
-    export NVM_DIR=/usr/local/nvm; \
-    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash; \
-    . "$NVM_DIR/nvm.sh"; \
+    && su -s /bin/bash vscode -c ' \
+    set -eu; \
+    export NVM_DIR="$HOME/.nvm"; \
+    if [ -s /usr/share/nvm/init-nvm.sh ]; then . /usr/share/nvm/init-nvm.sh; \
+    elif [ -s /usr/share/nvm/nvm.sh ]; then . /usr/share/nvm/nvm.sh; \
+    elif [ -s /usr/lib/nvm/nvm.sh ]; then . /usr/lib/nvm/nvm.sh; \
+    else echo "nvm init script not found" >&2; exit 1; fi; \
     nvm install --lts; \
     nvm alias default "lts/*"; \
     node --version; npm --version; \
