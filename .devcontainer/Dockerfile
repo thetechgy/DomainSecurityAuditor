@@ -2,8 +2,9 @@
 FROM cgr.dev/chainguard/wolfi-base:latest
 
 ARG PS_VERSION=7.5.4
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 ARG ENABLE_AI_TOOLS=false
+ARG BUILDKIT_INLINE_CACHE=1
 ARG IMAGE_TITLE="PowerShell Dev Container"
 ARG IMAGE_DESCRIPTION="Wolfi-based PowerShell development container"
 ARG IMAGE_SOURCE="https://github.com/thetechgy/DomainSecurityAuditor"
@@ -26,16 +27,17 @@ RUN apk add --no-cache \
     ca-certificates \
     curl \
     git \
+    gnupg-gpgconf \
     openssh-client \
     icu-libs \
     libstdc++ \
-    libgcc \
-    && update-ca-certificates
+    libgcc
 
 # -----------------------------
 # Install PowerShell
 # -----------------------------
-RUN case "${TARGETARCH}" in \
+RUN : "${TARGETARCH:?TARGETARCH must be set by BuildKit}" \
+    && case "${TARGETARCH}" in \
     amd64) PS_ARCH="x64" ;; \
     arm64) PS_ARCH="arm64" ;; \
     *) echo "Unsupported TARGETARCH=${TARGETARCH}" && exit 1 ;; \
