@@ -12,6 +12,11 @@
   "securityOpt": [
     "no-new-privileges"
   ],
+  "containerEnv": {
+    "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+    "POWERSHELL_TELEMETRY_OPTOUT": "1"
+  },
+  "postCreateCommand": "pwsh -NoProfile -Command \"$ErrorActionPreference = 'Stop'; Import-Module Pester; Import-Module PSScriptAnalyzer; $pesterVersion = (Get-Module -Name Pester -ListAvailable | Sort-Object Version -Descending | Select-Object -First 1).Version; $pssaVersion = (Get-Module -Name PSScriptAnalyzer -ListAvailable | Sort-Object Version -Descending | Select-Object -First 1).Version; Write-Host ('pwsh: ' + $PSVersionTable.PSVersion); Write-Host ('Pester: ' + $pesterVersion); Write-Host ('PSScriptAnalyzer: ' + $pssaVersion)\"",
   "customizations": {
     "vscode": {
       "settings": {
