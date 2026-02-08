@@ -105,7 +105,7 @@ RUN if [ "${ENABLE_AI_TOOLS}" = "true" ]; then \
     'export PATH="$HOME/.local/bin:$PATH"' \
     > /etc/profile.d/00-devcontainer-paths.sh \
     && su -s /bin/bash vscode -c ' \
-    set -eu; \
+    set -euo pipefail; \
     export NVM_DIR="$HOME/.nvm"; \
     if [ -s /usr/share/nvm/init-nvm.sh ]; then . /usr/share/nvm/init-nvm.sh; \
     elif [ -s /usr/share/nvm/nvm.sh ]; then . /usr/share/nvm/nvm.sh; \

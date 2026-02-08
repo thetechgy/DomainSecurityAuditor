@@ -9,6 +9,9 @@
   },
   "remoteUser": "vscode",
   "updateRemoteUserUID": true,
+  "securityOpt": [
+    "no-new-privileges"
+  ],
   "customizations": {
     "vscode": {
       "settings": {
