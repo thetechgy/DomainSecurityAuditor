@@ -1,0 +1,19 @@
+{
+  "name": "PowerShell Dev Container (Wolfi)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "PS_VERSION": "7.5.4",
+      "ENABLE_AI_TOOLS": "false"
+    }
+  },
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "pwsh"
+      }
+    }
+  }
+}
