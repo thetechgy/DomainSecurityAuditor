@@ -4,6 +4,19 @@ FROM cgr.dev/chainguard/wolfi-base:latest
 ARG PS_VERSION=7.5.4
 ARG TARGETARCH=amd64
 ARG ENABLE_AI_TOOLS=false
+ARG IMAGE_TITLE="PowerShell Dev Container"
+ARG IMAGE_DESCRIPTION="Wolfi-based PowerShell development container"
+ARG IMAGE_SOURCE="https://github.com/thetechgy/DomainSecurityAuditor"
+ARG IMAGE_LICENSES="MIT"
+ARG VCS_REF="unknown"
+ARG BUILD_DATE="unknown"
+
+LABEL org.opencontainers.image.title="${IMAGE_TITLE}" \
+      org.opencontainers.image.description="${IMAGE_DESCRIPTION}" \
+      org.opencontainers.image.source="${IMAGE_SOURCE}" \
+      org.opencontainers.image.licenses="${IMAGE_LICENSES}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.created="${BUILD_DATE}"
 
 # -----------------------------
 # Base OS packages (always needed)
